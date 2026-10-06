@@ -170,7 +170,11 @@ export default function AuthForm({
                 {error}
               </div>
             )}
-            <button className="button primary auth-submit" disabled={busy}>
+            <button
+              className="button primary auth-submit"
+              disabled={busy}
+              type="submit"
+            >
               {busy
                 ? signup
                   ? "Creating your account…"

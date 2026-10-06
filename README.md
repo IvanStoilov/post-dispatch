@@ -71,17 +71,32 @@ OAuth tables live in Drizzle alongside the existing auth tables. Credentials sta
 
 ## Meta publishing setup
 
-Create a Meta developer app and obtain authorized publishing tokens for your accounts. Select a project in the sidebar, then save its account IDs and tokens in Connections:
+Customers can use **Connect Facebook** and **Connect Instagram** in Connections. Facebook authorizes Page listing/read/publishing and then shows a Page picker. Instagram uses Instagram Login for Business/Creator accounts, independently of Facebook. IDs and tokens are saved to the signed-in user's selected project on the server. Manual channel configuration and disconnect controls are also available.
 
-- Facebook Page ID and Page access token, with publishing permissions.
-- Instagram account ID and access token, with content publishing permissions.
-- Instagram login method (Facebook Login or Instagram Login).
+Set these server environment variables, then restart/redeploy:
+
+- `FACEBOOK_APP_ID` and `FACEBOOK_APP_SECRET`: the Meta app's Facebook credentials.
+- `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET`: the **Instagram App ID and secret** from the app's Instagram Login setup, which may differ from its Facebook app credentials.
+- `APP_URL`: the exact public HTTPS origin (for example `https://postdispatch.example`).
+
+Register these exact valid OAuth redirect URIs in the respective Meta login settings:
+
+```text
+https://YOUR_DOMAIN/api/meta/facebook/callback
+https://YOUR_DOMAIN/api/meta/instagram/callback
+```
+
+Facebook requests `pages_show_list`, `pages_read_engagement`, and `pages_manage_posts`. Instagram requests `instagram_business_basic` and `instagram_business_content_publish`. Configure the corresponding products/use cases, app domains and privacy/data-deletion settings in Meta. Customer access outside developer/tester roles requires the applicable Meta App Review, access levels and business verification.
+
+OAuth flows use random, single-use state bound to an authenticated session, project ownership and a ten-minute HttpOnly SameSite cookie. Temporary state and Page tokens are encrypted in the existing `verifications` table and consumed atomically. The Page picker exposes only Page IDs/names. Cancelled/failed flows preserve existing connections. OAuth exchanges use redacted Winston logs; codes, tokens and app secrets never reach client responses. Expired abandoned records are cleaned up when new flows start. No database migration is needed.
+
+Facebook User tokens are exchanged for long-lived tokens before retrieving Page tokens. Instagram tokens are exchanged for long-lived tokens. Automatic background renewal is not yet implemented: reconnect Instagram before its token expires (typically 60 days), and reconnect either channel if access is revoked or tokens become invalid. Dashboard disconnect removes local credentials; customers can also revoke access in Meta's app settings.
 
 All four account/token values are stored in the `projects` database table. Tokens are write-only in settings responses: blank token fields keep existing values; Disconnect clears the channel ID/token. Meta access tokens are stored server-side as database secrets; restrict database access and backups accordingly. Project MCP tokens are stored as SHA-256 hashes, are returned only when created/replaced, and never grant publishing access. No channel credentials are exposed to MCP tools.
 
 Existing posts are assigned to the default Personal workspace project by migration 0001. Existing environment credentials were copied into that project during this upgrade. The global Meta credential variables and MCP_TOKEN are no longer used by the runtime. Legacy `/api/mcp` connections must use the default project's new endpoint; its migrated MCP token remains valid until replaced.
 
-MVP formats: Facebook text or single image, Instagram single image. Instagram requires an image. URL imports and file uploads accept JPEG, PNG, or WebP up to 4.5 MB (Vercel's function request limit) / 20 megapixels, converted to JPEG. No videos, carousels, Stories, or account OAuth onboarding yet. Credentials shown as configured have not been verified until the first publish. Public users outside app roles require appropriate Meta review/access.
+Supported formats: Facebook text, single images, multi-photo posts and videos; Instagram single images, carousels and Reels. Instagram requires media. Images accept JPEG, PNG, or WebP up to 4.5 MB / 20 megapixels and are converted to JPEG; MP4 videos accept up to 100 MB through direct storage uploads. Stories are not supported. Manually entered credentials are not verified until publishing. Public users outside app roles require appropriate Meta review/access.
 
 Publishing claims the draft before sending and saves each platform's resulting ID. Partial failures and uncertain deliveries enter `needs_review` and cannot be automatically resent. Inspect Meta before making a new draft. If the server stops mid-publication, the post stays `publishing`; reconcile the platform outcome manually before changing data. No live publishing is tested without credentials.
 

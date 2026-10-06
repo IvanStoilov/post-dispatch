@@ -7,7 +7,13 @@ const draftFields = {
     .array(z.enum(["instagram", "facebook"]))
     .min(1)
     .max(2),
-  source: z.string().trim().min(1).max(60).optional(),
+  source: z
+    .string()
+    .describe("ChatGPT for ChatGPT agent, Claude for Claude, etc.")
+    .trim()
+    .min(1)
+    .max(60)
+    .optional(),
 };
 export const mcpDraftSchema = z
   .object({

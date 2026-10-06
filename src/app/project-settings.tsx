@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Project } from "@/lib/types";
 export default function ProjectSettings({
   project,
@@ -22,7 +22,43 @@ export default function ProjectSettings({
   const [instagramAccessToken, setInstagramAccessToken] = useState("");
   const [host, setHost] = useState(project.instagramApiHost);
   const [message, setMessage] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const status = new URLSearchParams(window.location.search).get(
+        "connection",
+      );
+      if (status === "facebook" || status === "instagram")
+        setMessage(
+          `${status === "facebook" ? "Facebook" : "Instagram"} connected.`,
+        );
+      else if (status === "cancelled")
+        setMessage("Connection cancelled. Your saved accounts were kept.");
+      else if (status === "failed")
+        setMessage("Connection failed. Try connecting again.");
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
   const [busy, setBusy] = useState(false);
+  async function connect(provider: "facebook" | "instagram") {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/meta/${provider}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "Could not start connection");
+      window.location.assign(result.url);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not connect account",
+      );
+      setBusy(false);
+    }
+  }
   async function call(url: string, body: unknown) {
     const response = await fetch(url, {
       method: url.endsWith("/projects") ? "POST" : "PATCH",
@@ -135,28 +171,44 @@ export default function ProjectSettings({
               {project.facebookConfigured ? "Configured" : "Not connected"}
             </span>
             <h2>Facebook</h2>
-            <label>
-              Page ID
-              <input
-                autoComplete="off"
-                value={facebookPageId}
-                onChange={(e) => setFacebookPageId(e.target.value)}
-              />
-            </label>
-            <label>
-              Page access token
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={facebookPageToken}
-                onChange={(e) => setFacebookPageToken(e.target.value)}
-                placeholder={
-                  project.facebookConfigured
-                    ? "Saved — leave blank to keep"
-                    : "Paste your token"
-                }
-              />
-            </label>
+            <button
+              type="button"
+              className="button primary"
+              disabled={busy}
+              onClick={() => void connect("facebook")}
+            >
+              {project.facebookConfigured
+                ? "Reconnect Facebook"
+                : "Connect Facebook"}
+            </button>
+            <p className="small">
+              Authorize publishing and choose your Facebook Page.
+            </p>
+            <details>
+              <summary>Manual configuration</summary>
+              <label>
+                Page ID
+                <input
+                  autoComplete="off"
+                  value={facebookPageId}
+                  onChange={(e) => setFacebookPageId(e.target.value)}
+                />
+              </label>
+              <label>
+                Page access token
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={facebookPageToken}
+                  onChange={(e) => setFacebookPageToken(e.target.value)}
+                  placeholder={
+                    project.facebookConfigured
+                      ? "Saved — leave blank to keep"
+                      : "Paste your token"
+                  }
+                />
+              </label>
+            </details>
             <button
               type="button"
               className="delete-button"
@@ -172,40 +224,56 @@ export default function ProjectSettings({
               {project.instagramConfigured ? "Configured" : "Not connected"}
             </span>
             <h2>Instagram</h2>
-            <label>
-              Account ID
-              <input
-                autoComplete="off"
-                value={instagramAccountId}
-                onChange={(e) => setInstagramAccountId(e.target.value)}
-              />
-            </label>
-            <label>
-              Access token
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={instagramAccessToken}
-                onChange={(e) => setInstagramAccessToken(e.target.value)}
-                placeholder={
-                  project.instagramConfigured
-                    ? "Saved — leave blank to keep"
-                    : "Paste your token"
-                }
-              />
-            </label>
-            <label>
-              Login method
-              <select
-                value={host}
-                onChange={(e) =>
-                  setHost(e.target.value as Project["instagramApiHost"])
-                }
-              >
-                <option value="graph.facebook.com">Facebook Login</option>
-                <option value="graph.instagram.com">Instagram Login</option>
-              </select>
-            </label>
+            <button
+              type="button"
+              className="button primary"
+              disabled={busy}
+              onClick={() => void connect("instagram")}
+            >
+              {project.instagramConfigured
+                ? "Reconnect Instagram"
+                : "Connect Instagram"}
+            </button>
+            <p className="small">
+              Connect a Business or Creator account. No Facebook Page required.
+            </p>
+            <details>
+              <summary>Manual configuration</summary>
+              <label>
+                Account ID
+                <input
+                  autoComplete="off"
+                  value={instagramAccountId}
+                  onChange={(e) => setInstagramAccountId(e.target.value)}
+                />
+              </label>
+              <label>
+                Access token
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={instagramAccessToken}
+                  onChange={(e) => setInstagramAccessToken(e.target.value)}
+                  placeholder={
+                    project.instagramConfigured
+                      ? "Saved — leave blank to keep"
+                      : "Paste your token"
+                  }
+                />
+              </label>
+              <label>
+                Login method
+                <select
+                  value={host}
+                  onChange={(e) =>
+                    setHost(e.target.value as Project["instagramApiHost"])
+                  }
+                >
+                  <option value="graph.facebook.com">Facebook Login</option>
+                  <option value="graph.instagram.com">Instagram Login</option>
+                </select>
+              </label>
+            </details>
             <button
               type="button"
               className="delete-button"

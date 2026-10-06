@@ -119,6 +119,13 @@ export default function Dashboard({
   const project = projects.find((p) => p.id === projectId);
   const [posts, setPosts] = useState<Post[]>([]);
   const [view, setView] = useState<View>("Inbox");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (new URLSearchParams(window.location.search).has("connection"))
+        setView("Connections");
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [connections, setConnections] = useState({
@@ -150,7 +157,9 @@ export default function Dashboard({
         if (!response.ok) throw new Error("Could not load projects");
         const all: Project[] = await response.json();
         const requested =
-          preferred || localStorage.getItem("postdispatch-project");
+          preferred ||
+          new URLSearchParams(window.location.search).get("projectId") ||
+          localStorage.getItem("postdispatch-project");
         const selected = all.find((p) => p.id === requested) || all[0];
         if (!selected) throw new Error("Create a project to begin");
         const [p, c, o] = await Promise.all([
