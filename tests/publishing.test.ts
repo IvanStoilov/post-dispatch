@@ -6,7 +6,14 @@ import { loadEnvConfig } from "@next/env";
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
-import { posts, projects, users } from "../src/db/schema";
+import {
+  imageUploads,
+  posts,
+  projects,
+  uploadTokens,
+  users,
+} from "../src/db/schema";
+import { createUploadToken, receiveImageUpload } from "../src/lib/uploads";
 import {
   createPost as insertPost,
   listPosts,
@@ -178,10 +185,86 @@ test(
         await assert.rejects(() =>
           getDb()
             .update(posts)
-            .set({ imageUrl: "", imageKey: null, imageBucket: null })
+            .set({
+              status: "publishing",
+              imageUrl: "",
+              imageKey: null,
+              imageBucket: null,
+            })
             .where(eq(posts.id, p.id)),
         );
       });
+      await t.test("uploaded images attach to exactly one draft", async () => {
+        const { uploadUrl, token } = await createUploadToken(projectId);
+        const post = (
+          authorization: string,
+          body = draft.imageFile.dataBase64,
+        ) =>
+          new Request(uploadUrl, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${authorization}` },
+            body: Buffer.from(body, "base64"),
+          });
+        await assert.rejects(
+          () => receiveImageUpload(projectId, post("wrong")),
+          /invalid, expired, or used up/,
+        );
+        await assert.rejects(
+          () => receiveImageUpload(second.project.id, post(token)),
+          /invalid, expired, or used up/,
+        );
+        await assert.rejects(
+          () =>
+            receiveImageUpload(
+              projectId,
+              post(token, Buffer.from("not an image").toString("base64")),
+            ),
+          /valid JPEG/,
+        );
+        const [{ uploadsRemaining }] = await getDb()
+          .select()
+          .from(uploadTokens)
+          .where(eq(uploadTokens.projectId, projectId));
+        assert.equal(uploadsRemaining, 20);
+        const uploads = await Promise.all([
+          receiveImageUpload(projectId, post(token)),
+          receiveImageUpload(projectId, post(token)),
+        ]);
+        assert.notEqual(uploads[0].imageUploadId, uploads[1].imageUploadId);
+        const fromUpload = {
+          ...draft,
+          imageFile: undefined,
+          imageUploadId: uploads[0].imageUploadId,
+        };
+        await assert.rejects(
+          () => insertPost(second.project.id, { ...fromUpload, source }),
+          /not found/,
+        );
+        const p = await createPost(fromUpload);
+        assert.ok(p.imageUrl.startsWith(`/api/posts/${p.id}/image`));
+        await assert.rejects(() => createPost(fromUpload), /already used/);
+        await createPost({
+          ...fromUpload,
+          imageUploadId: uploads[1].imageUploadId,
+        });
+      });
+      await t.test(
+        "assistant drafts may omit the Instagram image until publishing",
+        async () => {
+          const p = await insertPost(
+            projectId,
+            { ...draft, imageFile: undefined, source },
+            { allowMissingImage: true },
+          );
+          createdIds.push(p.id);
+          assert.equal(p.imageUrl, "");
+          await assert.rejects(
+            () =>
+              claimPost(projectId, p.id, { facebook: true, instagram: true }),
+            /Add an image/,
+          );
+        },
+      );
       await t.test("parallel inserts keep every post", async () => {
         const inserted = await Promise.all(
           Array.from({ length: 6 }, () =>
@@ -325,10 +408,16 @@ test(
         }
       } finally {
         try {
-          if (createdProjectIds.length)
+          if (createdProjectIds.length) {
+            for (const upload of await getDb()
+              .delete(imageUploads)
+              .where(inArray(imageUploads.projectId, createdProjectIds))
+              .returning())
+              await removeImage(upload);
             await getDb()
               .delete(projects)
               .where(inArray(projects.id, createdProjectIds));
+          }
         } finally {
           try {
             await getDb().delete(users).where(eq(users.id, userId));

@@ -34,7 +34,8 @@ Endpoint: `POST /api/mcp/<projectId>` (Streamable HTTP, stateless JSON responses
 Send `Authorization: Bearer <project token>` from that project’s MCP integration screen. Each token only authenticates to its own project endpoint. The assistant receives the project name/ID during initialization and can call `get_project`. Supported tools:
 
 - `get_project`: identify the connected project and its configured channels (no secrets).
-- `create_draft`: title, caption, platforms (`facebook`, `instagram`), optional imageUrl or imageFile ({dataBase64, filename?, mimeType?}), optional source. Creates a draft only.
+- `create_upload_token`: returns a short-lived bearer token and the upload endpoint for sending image files over plain HTTP (see Private images).
+- `create_draft`: title, caption, platforms (`facebook`, `instagram`), at most one of imageUploadId, imageUrl, or imageFile ({dataBase64, filename?, mimeType?}, 256 KB max), optional source. Creates a draft only. Assistants may omit the image even for Instagram; the result then has `needsImage: true` and a `reviewUrl`, and the image must be added in the dashboard before publishing.
 - `list_posts`: read this project’s saved posts and delivery state.
 
 There is deliberately no publishing tool. Publishing is initiated through the dashboard.
@@ -85,11 +86,18 @@ Publishing claims the draft before sending and saves each platform's resulting I
 
 Set AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION in `.env`. AWS_S3_BUCKET is optional if the endpoint has exactly one bucket (this installation uses `uploads`). The SDK uses path-style S3 addressing for Neon.
 
-`create_draft` accepts either `imageUrl` or `imageFile`. URLs are downloaded with public-address checks, pinned DNS, redirect checks, and download limits before upload. File submissions use raw base64 bytes in `imageFile.dataBase64`, with optional filename and mimeType. Local filesystem paths are not uploadable through MCP. For example:
+Over MCP, `create_draft` takes one of three image sources:
 
-```json
-{"title":"Update","caption":"A new photo","platforms":["instagram"],"imageFile":{"dataBase64":"<base64 file bytes>","filename":"photo.png"}}
-```
+- `imageUploadId`, preferred for local or generated files. Call `create_upload_token` once, POST each file to `/api/mcp/<projectId>/uploads` with that token, and pass the returned `imageUploadId` to `create_draft`. This keeps file bytes out of the model's tool call, so it needs a client that can make HTTP requests (Claude Code, code execution, scripts):
+
+  ```bash
+  curl -sS -X POST --data-binary @photo.jpg -H "Content-Type: image/jpeg" -H "Authorization: Bearer $UPLOAD_TOKEN" "$APP_URL/api/mcp/$PROJECT_ID/uploads"
+  ```
+
+  Multipart with a field named `file` (`curl -F file=@photo.jpg`) also works, and clients holding the project's static MCP token can use it directly instead of an upload token. Upload tokens are stored hashed and allow 20 uploads within 60 minutes; rejected images don't count. Each upload ID can back one draft and expires 60 minutes after upload. A project can hold at most 50 unclaimed uploads; expired ones are deleted, along with their objects, on the next upload.
+
+- `imageUrl`: downloaded with public-address checks, pinned DNS, redirect checks, and download limits before upload. Temporary signed download links work.
+- `imageFile.dataBase64`: raw base64 bytes with optional filename and mimeType, limited to 256 KB over MCP because the model must type out every byte. The dashboard API still accepts up to 8 MB.
 
 Run `pnpm images:migrate` to copy legacy image URLs into private storage. Failed imports retain their original URL and can be replaced in the editor.
 

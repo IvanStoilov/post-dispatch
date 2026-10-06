@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   assertPublicAddress,
   downloadImage,
+  inlineImageFileSchema,
+  MAX_INLINE_IMAGE_BYTES,
   uploadImage,
 } from "../src/lib/storage";
 import { draftSchema } from "../src/lib/store";
@@ -55,6 +57,40 @@ test("malformed image data and ambiguous inputs are rejected before storing", as
         imageUrl: "https://example.com/a.jpg",
         imageFile: { dataBase64: "YQ==" },
       }),
-    /not both/,
+    /only one/,
   );
+  assert.throws(
+    () =>
+      draftSchema.parse({
+        title: "Test",
+        caption: "Test",
+        platforms: ["facebook"],
+        imageUrl: "https://example.com/a.jpg",
+        imageUploadId: "00000000-0000-4000-8000-000000000001",
+      }),
+    /only one/,
+  );
+});
+test("MCP image inputs: uploads satisfy Instagram, inline base64 stays small", () => {
+  assert.doesNotThrow(() =>
+    draftSchema.parse({
+      title: "Test",
+      caption: "Test",
+      platforms: ["instagram"],
+      imageUploadId: "00000000-0000-4000-8000-000000000001",
+    }),
+  );
+  assert.throws(
+    () =>
+      draftSchema.parse({
+        title: "Test",
+        caption: "Test",
+        platforms: ["instagram"],
+      }),
+    /Instagram requires/,
+  );
+  const small = Buffer.alloc(MAX_INLINE_IMAGE_BYTES).toString("base64");
+  const large = Buffer.alloc(MAX_INLINE_IMAGE_BYTES + 3).toString("base64");
+  assert.ok(inlineImageFileSchema.safeParse({ dataBase64: small }).success);
+  assert.ok(!inlineImageFileSchema.safeParse({ dataBase64: large }).success);
 });

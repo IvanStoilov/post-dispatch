@@ -5,7 +5,8 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { z } from "zod";
 import { getProject, verifyProjectToken } from "./projects";
 import { createPost, listPosts } from "./store";
-import { imageFileSchema } from "./storage";
+import { inlineImageFileSchema } from "./storage";
+import { appOrigin, createUploadToken } from "./uploads";
 export async function handleProjectMcp(req: Request, projectId: string) {
   let project;
   try {
@@ -62,7 +63,7 @@ export async function handleProjectMcp(req: Request, projectId: string) {
     "create_draft",
     {
       description:
-        "Submit a draft to PostDispatch for human review. Provide imageUrl (downloaded into private storage) or imageFile with dataBase64 file bytes and optional filename/mimeType. JPEG, PNG, WebP; maximum 8 MB. Never publishes automatically.",
+        "Submit a draft to PostDispatch for human review. Never publishes automatically. Attach at most one image (JPEG, PNG, or WebP, up to 8 MB): imageUploadId (from uploading the file with create_upload_token) when you can make HTTP requests (preferred for local or generated files); imageUrl when the image is already reachable over public HTTPS (including temporary download links); or imageFile.dataBase64 only for images under 256 KB. Do not base64-encode larger images. If you cannot provide the image, omit it: the draft is still created and the result includes a reviewUrl where a person can add it before publishing.",
       _meta: { securitySchemes: [{ type: "oauth2", scopes: ["posts:write"] }] },
       annotations: {
         readOnlyHint: false,
@@ -73,8 +74,9 @@ export async function handleProjectMcp(req: Request, projectId: string) {
       inputSchema: {
         title: z.string(),
         caption: z.string(),
+        imageUploadId: z.string().optional(),
         imageUrl: z.string().optional(),
-        imageFile: imageFileSchema.optional(),
+        imageFile: inlineImageFileSchema.optional(),
         platforms: z.array(z.enum(["instagram", "facebook"])),
         source: z.string().optional(),
       },
@@ -88,16 +90,63 @@ export async function handleProjectMcp(req: Request, projectId: string) {
           ],
         };
       try {
+        const post = await createPost(
+          project.id,
+          { ...input, source: input.source || "AI assistant" },
+          { allowMissingImage: true },
+        );
+        const result = {
+          ...post,
+          reviewUrl: `${appOrigin()}/`,
+          ...(post.platforms.includes("instagram") && !post.imageUrl
+            ? {
+                needsImage: true,
+                next: "Instagram needs an image. Ask the user to add it at reviewUrl before publishing.",
+              }
+            : {}),
+        };
+        return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      } catch (e) {
         return {
+          isError: true,
           content: [
             {
               type: "text",
-              text: JSON.stringify(
-                await createPost(project.id, {
-                  ...input,
-                  source: input.source || "AI assistant",
-                }),
-              ),
+              text: e instanceof Error ? e.message : "Invalid draft",
+            },
+          ],
+        };
+      }
+    },
+  );
+  server.registerTool(
+    "create_upload_token",
+    {
+      description:
+        'Get a bearer token for uploading image files directly over HTTP, without base64 in tool calls. POST each file\'s raw bytes (or multipart with field "file") to uploadUrl with header "Authorization: Bearer <token>", e.g. using curl; each response returns an imageUploadId for create_draft. One token covers up to 20 JPEG, PNG, or WebP files (8 MB each) for 60 minutes; reuse it for multiple images. Requires the ability to make HTTP requests (shell, code execution); otherwise use imageUrl or omit the image.',
+      inputSchema: {},
+      _meta: { securitySchemes: [{ type: "oauth2", scopes: ["posts:write"] }] },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async () => {
+      if (!grantedScopes.includes("posts:write"))
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: "Missing posts:write permission" },
+          ],
+        };
+      try {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(await createUploadToken(project.id)),
             },
           ],
         };
@@ -106,8 +155,8 @@ export async function handleProjectMcp(req: Request, projectId: string) {
           isError: true,
           content: [
             {
-              type: "text",
-              text: e instanceof Error ? e.message : "Invalid draft",
+              type: "text" as const,
+              text: e instanceof Error ? e.message : "Could not create upload",
             },
           ],
         };
@@ -142,7 +191,7 @@ export async function handleProjectMcp(req: Request, projectId: string) {
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
-    maxRequestBodySize: 12 * 1024 * 1024,
+    maxRequestBodySize: 1024 * 1024,
   });
   await server.connect(transport);
   try {

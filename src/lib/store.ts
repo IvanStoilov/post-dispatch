@@ -4,7 +4,8 @@ import { getDb } from "../db";
 import { posts, type PostRow } from "../db/schema";
 import type { Platform, Post } from "./types";
 import { imageFileSchema, uploadImage, removeImage } from "./storage";
-export const draftSchema = z
+import { claimImageUpload } from "./uploads";
+const draftFields = z
   .object({
     title: z.string().trim().min(1).max(120),
     caption: z.string().trim().min(1).max(2200),
@@ -20,6 +21,7 @@ export const draftSchema = z
       ])
       .default(""),
     imageFile: imageFileSchema.optional(),
+    imageUploadId: z.uuid().optional(),
     keepImage: z.boolean().default(false),
     platforms: z
       .array(z.enum(["instagram", "facebook"]))
@@ -28,20 +30,23 @@ export const draftSchema = z
       .transform((v) => [...new Set(v)]),
     source: z.string().trim().min(1).max(60).default("Manual"),
   })
-  .refine((v) => !(v.imageUrl && v.imageFile), {
-    message: "Provide an image URL or a file, not both",
-  })
   .refine(
     (v) =>
-      !v.platforms.includes("instagram") ||
-      !!v.imageUrl ||
-      !!v.imageFile ||
-      v.keepImage,
-    {
-      message: "Instagram requires an image",
-      path: ["imageUrl"],
-    },
+      [v.imageUrl, v.imageFile, v.imageUploadId].filter(Boolean).length <= 1,
+    { message: "Provide only one of an image URL, file, or upload" },
   );
+export const draftSchema = draftFields.refine(
+  (v) =>
+    !v.platforms.includes("instagram") ||
+    !!v.imageUrl ||
+    !!v.imageFile ||
+    !!v.imageUploadId ||
+    v.keepImage,
+  {
+    message: "Instagram requires an image",
+    path: ["imageUrl"],
+  },
+);
 
 function toPost(row: PostRow): Post {
   const { imageKey, imageBucket, ...safe } = row;
@@ -67,22 +72,35 @@ export async function listPosts(projectId: string): Promise<Post[]> {
       .orderBy(desc(posts.createdAt), desc(posts.id))
   ).map(toPost);
 }
+// allowMissingImage lets assistants file Instagram drafts whose image the
+// reviewer adds in the dashboard; publishing still requires one.
 export async function createPost(
   projectId: string,
   input: unknown,
+  { allowMissingImage = false } = {},
 ): Promise<Post> {
   validId(projectId);
-  const { imageUrl, imageFile, keepImage, ...data } = draftSchema.parse(input);
+  const { imageUrl, imageFile, imageUploadId, keepImage, ...data } = (
+    allowMissingImage ? draftFields : draftSchema
+  ).parse(input);
   if (keepImage) throw new Error("A new draft cannot keep an existing image");
   const image =
     imageUrl || imageFile
       ? await uploadImage(projectId, { imageUrl, imageFile })
       : undefined;
   try {
-    const [post] = await getDb()
-      .insert(posts)
-      .values({ ...data, ...image, projectId, imageUrl: "" })
-      .returning();
+    const post = await getDb().transaction(async (tx) => {
+      const media =
+        image ??
+        (imageUploadId
+          ? await claimImageUpload(tx, projectId, imageUploadId)
+          : undefined);
+      const [row] = await tx
+        .insert(posts)
+        .values({ ...data, ...media, projectId, imageUrl: "" })
+        .returning();
+      return row;
+    });
     return toPost(post);
   } catch (e) {
     if (image) await removeImage(image);
@@ -96,7 +114,8 @@ export async function editPost(
 ): Promise<Post> {
   validId(id);
   validId(projectId);
-  const { imageUrl, imageFile, keepImage, ...data } = draftSchema.parse(input);
+  const { imageUrl, imageFile, imageUploadId, keepImage, ...data } =
+    draftSchema.parse(input);
   const [existing] = await getDb()
     .select()
     .from(posts)
@@ -114,6 +133,7 @@ export async function editPost(
     !existing.imageUrl &&
     !imageUrl &&
     !imageFile &&
+    !imageUploadId &&
     data.platforms.includes("instagram")
   )
     throw new Error("Instagram requires an image");
@@ -133,11 +153,15 @@ export async function editPost(
       if (!current || current.status !== "draft")
         throw new Error("Draft not found or no longer editable");
       previous = current;
-      const media = image
-        ? { ...image, imageUrl: "" }
-        : keepImage
-          ? {}
-          : { imageKey: null, imageBucket: null, imageUrl: "" };
+      const uploaded = imageUploadId
+        ? await claimImageUpload(tx, projectId, imageUploadId)
+        : undefined;
+      const media =
+        (image ?? uploaded)
+          ? { ...(image ?? uploaded), imageUrl: "" }
+          : keepImage
+            ? {}
+            : { imageKey: null, imageBucket: null, imageUrl: "" };
       const [row] = await tx
         .update(posts)
         .set({ ...data, ...media, updatedAt: sql`now()` })
@@ -208,6 +232,12 @@ export async function claimPost(
     for (const platform of post.platforms)
       if (!connected[platform])
         throw new Error(`Connect ${platform} before publishing`);
+    if (
+      post.platforms.includes("instagram") &&
+      !post.imageKey &&
+      !post.imageUrl.startsWith("https://")
+    )
+      throw new Error("Add an image before publishing to Instagram");
     const [claimed] = await tx
       .update(posts)
       .set({ status: "publishing", error: null, updatedAt: sql`now()` })

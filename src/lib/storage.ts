@@ -22,6 +22,15 @@ export const imageFileSchema = z.object({
   filename: z.string().max(255).optional(),
   mimeType: z.string().max(100).optional(),
 });
+// Inline base64 makes the model emit every byte as output tokens, so MCP only
+// accepts it for small images; larger ones go through create_upload_token.
+export const MAX_INLINE_IMAGE_BYTES = 256 * 1024;
+export const inlineImageFileSchema = imageFileSchema.extend({
+  dataBase64: z
+    .string()
+    .min(1)
+    .max(Math.ceil(MAX_INLINE_IMAGE_BYTES / 3) * 4),
+});
 let client: S3Client | undefined;
 let discoveredBucket: Promise<string> | undefined;
 function storage() {
@@ -152,6 +161,9 @@ export async function uploadImage(
       );
     bytes = Buffer.from(value, "base64");
   } else bytes = await downloadImage(input.imageUrl!);
+  return storeImage(projectId, bytes);
+}
+export async function storeImage(projectId: string, bytes: Buffer) {
   if (!bytes.length || bytes.length > MAX_IMAGE_BYTES)
     throw new Error("Images must be between 1 byte and 8 MB");
   let jpeg: Buffer;

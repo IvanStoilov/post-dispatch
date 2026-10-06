@@ -1,9 +1,12 @@
 export async function imageDraftBody(req: Request) {
-  const limit = 12 * 1024 * 1024;
+  const body = await readBody(req, 12 * 1024 * 1024, "Draft request");
+  return JSON.parse(body.toString("utf8"));
+}
+export async function readBody(req: Request, limit: number, label: string) {
   if (Number(req.headers.get("content-length") || 0) > limit)
-    throw new Error("Draft request is too large");
+    throw new Error(`${label} is too large`);
   const reader = req.body?.getReader();
-  if (!reader) throw new Error("Missing draft request body");
+  if (!reader) throw new Error(`Missing ${label.toLowerCase()} body`);
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
@@ -13,12 +16,12 @@ export async function imageDraftBody(req: Request) {
       size += value.length;
       if (size > limit) {
         await reader.cancel();
-        throw new Error("Draft request is too large");
+        throw new Error(`${label} is too large`);
       }
       chunks.push(value);
     }
   } finally {
     reader.releaseLock();
   }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  return Buffer.concat(chunks);
 }

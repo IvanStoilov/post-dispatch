@@ -187,7 +187,7 @@ export const posts = pgTable(
     ),
     check(
       "posts_instagram_image_required",
-      sql`NOT ('instagram'::post_platform = ANY(${table.platforms})) OR ${table.imageKey} IS NOT NULL OR ${table.imageUrl} LIKE 'https://%'`,
+      sql`${table.status} = 'draft' OR NOT ('instagram'::post_platform = ANY(${table.platforms})) OR ${table.imageKey} IS NOT NULL OR ${table.imageUrl} LIKE 'https://%'`,
     ),
     check(
       "posts_image_storage_pair",
@@ -200,6 +200,61 @@ export const posts = pgTable(
   ],
 );
 export type PostRow = typeof posts.$inferSelect;
+// Short-lived bearer tokens minted over MCP so agents can upload image files
+// with plain HTTP; the host's OAuth token is never visible to the model.
+export const uploadTokens = pgTable(
+  "upload_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+    uploadsRemaining: integer("uploads_remaining").notNull(),
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("upload_tokens_project_expires_at_idx").on(
+      table.projectId,
+      table.expiresAt,
+    ),
+    check(
+      "upload_tokens_remaining_non_negative",
+      sql`${table.uploadsRemaining} >= 0`,
+    ),
+  ],
+);
+// Stored images waiting to be claimed once by create_draft.
+export const imageUploads = pgTable(
+  "image_uploads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "restrict" }),
+    imageKey: text("image_key").notNull(),
+    imageBucket: text("image_bucket").notNull(),
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("image_uploads_project_expires_at_idx").on(
+      table.projectId,
+      table.expiresAt,
+    ),
+  ],
+);
 
 // Better Auth OAuth Provider and JWT plugin tables.
 export const oauthJwks = pgTable("oauth_jwks", {
