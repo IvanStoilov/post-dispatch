@@ -451,18 +451,19 @@ h1 {
   position: relative;
   background-size: cover;
   background-position: center;
+  background-repeat: no-repeat;
 }
 .cover-0 {
-  background: #d8e3ce;
+  background-color: #d8e3ce;
 }
 .cover-1 {
-  background: #e5dbca;
+  background-color: #e5dbca;
 }
 .cover-2 {
-  background: #d4dfdf;
+  background-color: #d4dfdf;
 }
 .cover-3 {
-  background: #e1d8e7;
+  background-color: #e1d8e7;
 }
 .cover-art {
   height: 100%;
@@ -592,6 +593,8 @@ h1 {
 }
 .post-actions {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: space-between;
   padding-top: 14px;
@@ -1549,4 +1552,12 @@ blockquote {
   .auth-steps {
     display: none;
   }
+}
+
+.button.danger {
+  color: #fff;
+  background: #a65345;
+}
+.button.danger:hover {
+  background: #8e4337;
 }

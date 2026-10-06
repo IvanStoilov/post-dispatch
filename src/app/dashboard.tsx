@@ -125,6 +125,7 @@ export default function Dashboard({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [confirm, setConfirm] = useState<Post | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Post | null>(null);
   const [origin, setOrigin] = useState("");
   const refresh = useCallback(
     async (preferred = projectId) => {
@@ -263,8 +264,9 @@ export default function Dashboard({
     try {
       await request(`/api/posts/${id}`, "DELETE");
       setEditing(null);
+      setDeleteConfirm(null);
       await refresh();
-      setNotice("Draft deleted.");
+      setNotice("Post deleted.");
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Delete failed");
     } finally {
@@ -324,7 +326,7 @@ export default function Dashboard({
             <select
               aria-label="Active project"
               value={projectId}
-              disabled={busy || !!editing || !!confirm}
+              disabled={busy || !!editing || !!confirm || !!deleteConfirm}
               onChange={(e) => switchProject(e.target.value)}
             >
               {projects.map((p) => (
@@ -622,6 +624,15 @@ export default function Dashboard({
                                   ? "Delivery in progress. Check Meta if interrupted."
                                   : "Check your channels before resubmitting."}
                             </span>
+                          )}
+                          {p.status !== "publishing" && (
+                            <button
+                              className="button delete-button"
+                              disabled={busy}
+                              onClick={() => setDeleteConfirm(p)}
+                            >
+                              Delete
+                            </button>
                           )}
                         </div>
                       </div>
@@ -986,7 +997,13 @@ export default function Dashboard({
                     type="button"
                     className="delete-button"
                     disabled={busy}
-                    onClick={() => void remove(editing)}
+                    onClick={() => {
+                      const post = posts.find((p) => p.id === editing);
+                      if (post) {
+                        setEditing(null);
+                        setDeleteConfirm(post);
+                      }
+                    }}
                   >
                     Delete draft
                   </button>
@@ -1012,6 +1029,42 @@ export default function Dashboard({
                 </div>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+      {deleteConfirm && (
+        <div className="modal-backdrop">
+          <section
+            className="modal confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-title"
+          >
+            <h2 id="delete-title">Delete this post?</h2>
+            <p>
+              “{deleteConfirm.title}” and its stored image will be permanently
+              removed from PostDispatch.
+            </p>
+            <p className="small">
+              Posts already published on Facebook or Instagram will remain
+              there.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="button secondary"
+                disabled={busy}
+                onClick={() => setDeleteConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="button danger"
+                disabled={busy}
+                onClick={() => void remove(deleteConfirm.id)}
+              >
+                {busy ? "Deleting…" : "Delete post"}
+              </button>
+            </div>
           </section>
         </div>
       )}

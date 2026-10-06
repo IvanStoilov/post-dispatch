@@ -161,6 +161,18 @@ test(
           );
         },
       );
+      await t.test("in-progress publishing blocks deletion", async () => {
+        const p = await createPost({ ...draft, platforms: ["facebook"] });
+        await claimPost(projectId, p.id, { facebook: true, instagram: true });
+        await assert.rejects(
+          () => deletePost(projectId, p.id),
+          /currently publishing/,
+        );
+        assert.equal(
+          (await listPosts(projectId)).find((row) => row.id === p.id)!.status,
+          "publishing",
+        );
+      });
       await t.test("database enforces required Instagram media", async () => {
         const p = await createPost(draft);
         await assert.rejects(() =>
@@ -211,10 +223,7 @@ test(
             () => editPost(projectId, p.id, draft),
             /no longer editable/,
           );
-          await assert.rejects(
-            () => deletePost(projectId, p.id),
-            /no longer deletable/,
-          );
+
           assert.deepEqual(result.results, {
             facebook: "id-1",
             instagram: "id-3",
@@ -228,6 +237,10 @@ test(
             /already been submitted/,
           );
           assert.equal(calls.length, 3);
+          await deletePost(projectId, p.id);
+          assert.ok(
+            !(await listPosts(projectId)).some((row) => row.id === p.id),
+          );
         },
       );
       await t.test(
@@ -258,6 +271,10 @@ test(
             /already been submitted/,
           );
           assert.equal(n, 2);
+          await deletePost(projectId, p.id);
+          assert.ok(
+            !(await listPosts(projectId)).some((row) => row.id === p.id),
+          );
         },
       );
       await t.test(

@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import { posts, type PostRow } from "../db/schema";
@@ -171,11 +171,11 @@ export async function deletePost(projectId: string, id: string) {
       and(
         eq(posts.projectId, validId(projectId)),
         eq(posts.id, id),
-        eq(posts.status, "draft"),
+        ne(posts.status, "publishing"),
       ),
     )
     .returning();
-  if (!deleted) throw new Error("Draft not found or no longer deletable");
+  if (!deleted) throw new Error("Post not found or currently publishing");
   await cleanupImage(deleted);
 }
 export async function getPostImage(projectId: string, id: string) {
