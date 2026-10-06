@@ -66,7 +66,7 @@ export async function createUploadToken(projectId: string) {
     maxBytes: MAX_IMAGE_BYTES,
     acceptedTypes: ["image/jpeg", "image/png", "image/webp"],
     example: `curl -sS -X POST --data-binary @image.jpg -H "Content-Type: image/jpeg" -H "Authorization: Bearer ${token}" "${uploadUrl}"`,
-    next: "POST each image file to uploadUrl with this token. Each response returns an imageUploadId to pass to create_draft.",
+    next: 'POST each image file to uploadUrl with this token. Each response returns an imageUploadId; pass it to create_draft as image: { type: "UPLOAD_ID", uploadId: imageUploadId }.',
   };
 }
 // Accepts the project's static MCP token, or spends one use of an upload
@@ -189,7 +189,7 @@ export async function receiveImageUpload(projectId: string, req: Request) {
       return {
         imageUploadId: upload.id,
         expiresAt: new Date(upload.expiresAt).toISOString(),
-        next: "Pass imageUploadId to create_draft before it expires.",
+        next: 'Pass image: { type: "UPLOAD_ID", uploadId: imageUploadId } to create_draft before it expires.',
       };
     } catch (e) {
       await removeImage(image);

@@ -35,8 +35,9 @@ Send `Authorization: Bearer <project token>` from that project’s MCP integrati
 
 - `get_project`: identify the connected project and its configured channels (no secrets).
 - `create_upload_token`: returns a short-lived bearer token and the upload endpoint for sending image files over plain HTTP (see Private images).
-- `create_draft`: title, caption, platforms (`facebook`, `instagram`), at most one of imageUploadId, imageUrl, or imageFile ({dataBase64, filename?, mimeType?}, 256 KB max), optional source. Creates a draft only. Assistants may omit the image even for Instagram; the result then has `needsImage: true` and a `reviewUrl`, and the image must be added in the dashboard before publishing.
+- `create_draft`: title, caption, platforms (`facebook`, `instagram`), optional typed image (EXTERNAL_URL, INLINE_BASE64, UPLOAD_ID, or OPENAPI_FILE), optional source. Creates a draft only. Assistants may omit the image even for Instagram; the result then has `needsImage: true` and a `reviewUrl`, and the image must be added in the dashboard before publishing.
 - `list_posts`: read this project’s saved posts and delivery state.
+- `create_draft_from_file`: file-specific companion for ChatGPT attachments using `openai/fileParams`. Its top-level `image` is `{download_url, file_id, mime_type?, file_name?}`. This tool shares the same draft creation logic and OAuth/bearer permissions.
 
 There is deliberately no publishing tool. Publishing is initiated through the dashboard.
 
@@ -86,9 +87,9 @@ Publishing claims the draft before sending and saves each platform's resulting I
 
 Set AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION in `.env`. AWS_S3_BUCKET is optional if the endpoint has exactly one bucket (this installation uses `uploads`). The SDK uses path-style S3 addressing for Neon.
 
-Over MCP, `create_draft` takes one of three image sources:
+Over MCP, `create_draft` has one optional `image` discriminated union. The old top-level imageUrl/imageFile/imageUploadId inputs are removed from MCP; the dashboard API remains compatible. Choose one of four image sources:
 
-- `imageUploadId`, preferred for local or generated files. Call `create_upload_token` once, POST each file to `/api/mcp/<projectId>/uploads` with that token, and pass the returned `imageUploadId` to `create_draft`. This keeps file bytes out of the model's tool call, so it needs a client that can make HTTP requests (Claude Code, code execution, scripts):
+- `image: {"type":"UPLOAD_ID","uploadId":"<imageUploadId>"}`, preferred for local or generated files. Call `create_upload_token` once, POST each file to `/api/mcp/<projectId>/uploads` with that token, and pass the returned `imageUploadId` in `image.uploadId` with type `UPLOAD_ID` to `create_draft`. This keeps file bytes out of the model's tool call, so it needs a client that can make HTTP requests (Claude Code, code execution, scripts):
 
   ```bash
   curl -sS -X POST --data-binary @photo.jpg -H "Content-Type: image/jpeg" -H "Authorization: Bearer $UPLOAD_TOKEN" "$APP_URL/api/mcp/$PROJECT_ID/uploads"
@@ -96,8 +97,20 @@ Over MCP, `create_draft` takes one of three image sources:
 
   Multipart with a field named `file` (`curl -F file=@photo.jpg`) also works, and clients holding the project's static MCP token can use it directly instead of an upload token. Upload tokens are stored hashed and allow 20 uploads within 60 minutes; rejected images don't count. Each upload ID can back one draft and expires 60 minutes after upload. A project can hold at most 50 unclaimed uploads; expired ones are deleted, along with their objects, on the next upload.
 
-- `imageUrl`: downloaded with public-address checks, pinned DNS, redirect checks, and download limits before upload. Temporary signed download links work.
-- `imageFile.dataBase64`: raw base64 bytes with optional filename and mimeType, limited to 256 KB over MCP because the model must type out every byte. The dashboard API accepts up to 4.5 MB.
+- `image: {"type":"EXTERNAL_URL","url":"https://…/image.png"}`: downloaded with public-address checks, pinned DNS, redirect checks, and download limits before upload. Temporary signed download links work.
+- `image: {"type":"INLINE_BASE64","dataBase64":"…","filename":"image.png","mimeType":"image/png"}`: raw base64 bytes with optional filename and mimeType, limited to 256 KB over MCP because the model must type out every byte. The dashboard API accepts up to 4.5 MB.
+- `image: {"type":"OPENAPI_FILE","download_url":"https://…","file_id":"file_…","mime_type":"image/png","file_name":"image.png"}`: imports a host-provided temporary file download immediately into private storage. File IDs and download URLs are not persisted or returned.
+
+For ChatGPT attachments, use `create_draft_from_file`. OpenAI's `openai/fileParams` metadata requires a plain top-level file object with `download_url` and `file_id` required, and optional `mime_type` / `file_name` declared. A typed union with an additional required `type` does not meet that contract, so the file-specific tool accepts the host object and converts it to `OPENAPI_FILE` internally. `create_draft` also accepts that type when a client already has the resolved download fields. Refresh the ChatGPT connection's tools after deploying this schema change.
+
+```json
+{
+  "title": "An update",
+  "caption": "Our latest photo",
+  "platforms": ["instagram"],
+  "image": { "type": "EXTERNAL_URL", "url": "https://example.com/image.png" }
+}
+```
 
 Run `pnpm images:migrate` to copy legacy image URLs into private storage. Failed imports retain their original URL and can be replaced in the editor.
 

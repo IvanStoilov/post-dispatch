@@ -330,8 +330,50 @@ test(
             );
             return JSON.parse(data.result.content[0].text);
           }
+          const toolResponse = await handleProjectMcp(
+            new Request(origin + `/api/mcp/${extra.project.id}`, {
+              method: "POST",
+              headers: {
+                authorization: `Bearer ${extra.mcpToken}`,
+                "Content-Type": "application/json",
+                accept: "application/json, text/event-stream",
+              },
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: 4,
+                method: "tools/list",
+                params: {},
+              }),
+            }),
+            extra.project.id,
+          );
+          const tools = (await toolResponse.json()).result.tools;
+          const mainTool = tools.find(
+            (tool: { name: string }) => tool.name === "create_draft",
+          );
+          assert.ok(mainTool.inputSchema.properties.image);
+          for (const removed of ["imageUrl", "imageFile", "imageUploadId"])
+            assert.ok(!(removed in mainTool.inputSchema.properties));
+          assert.equal(mainTool._meta.securitySchemes[0].type, "oauth2");
+          const fileTool = tools.find(
+            (tool: { name: string }) => tool.name === "create_draft_from_file",
+          );
+          assert.deepEqual(fileTool._meta["openai/fileParams"], ["image"]);
+          const hostSchema = fileTool.inputSchema.properties.image;
+          assert.deepEqual(hostSchema.required.sort(), [
+            "download_url",
+            "file_id",
+          ]);
+          for (const field of [
+            "download_url",
+            "file_id",
+            "mime_type",
+            "file_name",
+          ])
+            assert.ok(hostSchema.properties[field]);
           const post = await mcpImage({
-            imageFile: {
+            image: {
+              type: "INLINE_BASE64",
               dataBase64: jpeg.toString("base64"),
               filename: "test.jpg",
             },
@@ -382,7 +424,9 @@ test(
             [401, 403].includes((await fetch(unsigned)).status),
             "Bucket must remain private",
           );
-          const imported = await mcpImage({ imageUrl: signed });
+          const imported = await mcpImage({
+            image: { type: "EXTERNAL_URL", url: signed },
+          });
           assert.notEqual(
             (await getPostImage(extra.project.id, imported.id)).imageKey,
             row.imageKey,
@@ -391,6 +435,58 @@ test(
             (
               await previewImage(request(imported.imageUrl, "GET", a.cookie), {
                 params: Promise.resolve({ id: imported.id }),
+              })
+            ).status,
+            200,
+          );
+          const openapi = await mcpImage({
+            image: {
+              type: "OPENAPI_FILE",
+              download_url: signed,
+              file_id: "file_test",
+              mime_type: "image/jpeg",
+              file_name: "test.jpg",
+            },
+          });
+          assert.match(openapi.imageUrl, /^\/api\/posts\//);
+          assert.ok(!JSON.stringify(openapi).includes("file_test"));
+          const fileResponse = await handleProjectMcp(
+            new Request(origin + `/api/mcp/${extra.project.id}`, {
+              method: "POST",
+              headers: {
+                authorization: `Bearer ${extra.mcpToken}`,
+                "Content-Type": "application/json",
+                accept: "application/json, text/event-stream",
+              },
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: 3,
+                method: "tools/call",
+                params: {
+                  name: "create_draft_from_file",
+                  arguments: {
+                    title: "ChatGPT file",
+                    caption: "ChatGPT file",
+                    platforms: ["instagram"],
+                    image: {
+                      download_url: signed,
+                      file_id: "file_host",
+                      mime_type: "image/jpeg",
+                      file_name: "host.jpg",
+                    },
+                  },
+                },
+              }),
+            }),
+            extra.project.id,
+          );
+          const fileResult = await fileResponse.json();
+          assert.ok(!fileResult.result.isError, JSON.stringify(fileResult));
+          const filePost = JSON.parse(fileResult.result.content[0].text);
+          assert.equal(
+            (
+              await previewImage(request(filePost.imageUrl, "GET", a.cookie), {
+                params: Promise.resolve({ id: filePost.id }),
               })
             ).status,
             200,

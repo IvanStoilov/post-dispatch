@@ -459,16 +459,19 @@ test(
           ),
         );
         const code = new URL(allowed.url).searchParams.get("code")!;
+        const rejected = await token({
+          ...exchange,
+          code,
+          code_verifier: randomBytes(32).toString("base64url"),
+        });
+        assert.equal(rejected.status, 401);
+        const rejectedBody = await rejected.json();
+        assert.equal(rejectedBody.error, "invalid_request");
         assert.equal(
-          (
-            await token({
-              ...exchange,
-              code,
-              code_verifier: randomBytes(32).toString("base64url"),
-            })
-          ).status,
-          400,
+          rejectedBody.error_description,
+          "code verification failed",
         );
+        assert.equal(rejectedBody.access_token, undefined);
         const v = new URL(await authorize(query()), origin);
         const allowed2 = await checked(
           await consentRoute(
