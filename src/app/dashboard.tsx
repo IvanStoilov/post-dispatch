@@ -419,7 +419,11 @@ export default function Dashboard({
             >
               <Icon name={icon} />
               <span>{name}</span>
-              {name === "Inbox" && <b>{drafts.length}</b>}
+              {name === "Inbox" ? (
+                <b>{drafts.length}</b>
+              ) : name === "Published" ? (
+                <b>{published.length}</b>
+              ) : null}
             </button>
           ))}
         </nav>

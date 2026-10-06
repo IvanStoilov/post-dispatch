@@ -23,11 +23,11 @@ export default function MediaGallery({
           aria-label={`${title} video`}
         />
       ) : (
-        <div
-          className="gallery-image"
+        <img
+          src={asset.url}
+          className="gallery-image object-contain h-full w-auto"
           role="img"
           aria-label={`${title}, image ${selected + 1} of ${assets.length}`}
-          style={{ backgroundImage: `url(${JSON.stringify(asset.url)})` }}
         />
       )}
       {assets.length > 1 && (
