@@ -3,7 +3,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
+export default function AuthForm({
+  mode,
+  oauthQuery,
+}: {
+  mode: "signin" | "signup";
+  oauthQuery?: string;
+}) {
   const router = useRouter();
   const signup = mode === "signup";
   const [name, setName] = useState("");
@@ -27,17 +33,28 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             email: email.trim(),
             password,
             callbackURL: "/",
+            ...(oauthQuery ? { oauth_query: oauthQuery } : {}),
           })
         : await authClient.signIn.email({
             email: email.trim(),
             password,
             callbackURL: "/",
+            ...(oauthQuery ? { oauth_query: oauthQuery } : {}),
           });
       if (result.error) {
         setError(
           result.error.message || "Unable to sign in. Please try again.",
         );
         setBusy(false);
+        return;
+      }
+      if (
+        oauthQuery &&
+        result.data &&
+        "url" in result.data &&
+        typeof result.data.url === "string"
+      ) {
+        window.location.assign(result.data.url);
         return;
       }
       router.replace("/");
@@ -166,7 +183,12 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
           </form>
           <div className="auth-switch">
             {signup ? "Already have an account?" : "New to PostDispatch?"}{" "}
-            <Link href={signup ? "/signin" : "/signup"}>
+            <Link
+              href={
+                (signup ? "/signin" : "/signup") +
+                (oauthQuery ? `?${oauthQuery}` : "")
+              }
+            >
               {signup ? "Sign in" : "Create an account"}
             </Link>
           </div>

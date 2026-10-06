@@ -105,6 +105,9 @@ export default function Dashboard({
   const [projectId, setProjectId] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
   const [mcpToken, setMcpToken] = useState("");
+  const [oauthConnections, setOAuthConnections] = useState<
+    { clientId: string; name: string; scopes: string[] }[]
+  >([]);
   const requestSequence = useRef(0);
   const project = projects.find((p) => p.id === projectId);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -143,12 +146,18 @@ export default function Dashboard({
           preferred || localStorage.getItem("postdispatch-project");
         const selected = all.find((p) => p.id === requested) || all[0];
         if (!selected) throw new Error("Create a project to begin");
-        const [p, c] = await Promise.all([
+        const [p, c, o] = await Promise.all([
           fetch(`/api/posts?projectId=${selected.id}`, { cache: "no-store" }),
           fetch(`/api/connections?projectId=${selected.id}`),
+          fetch(`/api/projects/${selected.id}/oauth`, { cache: "no-store" }),
         ]);
-        if (!p.ok || !c.ok) throw new Error("Could not load project workspace");
-        const [data, config] = await Promise.all([p.json(), c.json()]);
+        if (!p.ok || !c.ok || !o.ok)
+          throw new Error("Could not load project workspace");
+        const [data, config, grants] = await Promise.all([
+          p.json(),
+          c.json(),
+          o.json(),
+        ]);
         if (sequence !== requestSequence.current) return;
         setProjects(all);
         setProjectId(selected.id);
@@ -156,6 +165,7 @@ export default function Dashboard({
         setOrigin(window.location.origin);
         setPosts(data);
         setConnections(config);
+        setOAuthConnections(grants);
       } catch (e) {
         if (sequence === requestSequence.current)
           setNotice(e instanceof Error ? e.message : "Could not load project");
@@ -179,6 +189,7 @@ export default function Dashboard({
     setPosts([]);
     setNotice("");
     setMcpToken("");
+    setOAuthConnections([]);
     setCreatingProject(false);
     setLoading(true);
   }
@@ -697,6 +708,7 @@ export default function Dashboard({
                   onCreated={async (id, token) => {
                     setCreatingProject(false);
                     setMcpToken("");
+                    setOAuthConnections([]);
                     await refresh(id);
                     setMcpToken(token);
                   }}
@@ -710,8 +722,8 @@ export default function Dashboard({
                     Create a Meta developer app and grant its publishing
                     permissions. Save the account IDs and access tokens for this
                     project above. Configured means credentials are present; the
-                    first publish verifies access. Instagram images must be
-                    publicly accessible JPEGs.
+                    first publish verifies access. Stored images are shared with
+                    Meta through temporary signed links.
                   </p>
                   <a
                     href="https://developers.facebook.com/docs/instagram-platform/content-publishing/"
@@ -741,7 +753,9 @@ export default function Dashboard({
                   </p>
                 </div>
                 <span className="connection-state">
-                  {connections.mcp ? "Token configured" : "Setup needed"}
+                  {connections.mcp
+                    ? "OAuth ready · Bearer token configured"
+                    : "OAuth ready"}
                 </span>
               </section>
               <div className="setup-grid">
@@ -749,8 +763,9 @@ export default function Dashboard({
                   <span className="step">01</span>
                   <h3>Set up your endpoint</h3>
                   <p>
-                    This endpoint is bound to {project?.name}. Use its project
-                    token with clients that support bearer authentication.
+                    This endpoint is bound to {project?.name}. ChatGPT can
+                    connect with OAuth. Other clients can continue using its
+                    project bearer token.
                   </p>
                   <div className="endpoint">
                     <code>
@@ -774,6 +789,7 @@ export default function Dashboard({
                       Copy
                     </button>
                   </div>
+                  <h3>Project bearer token</h3>
                   <button
                     className="button secondary"
                     disabled={busy}
@@ -813,19 +829,69 @@ export default function Dashboard({
                 </section>
                 <section className="setup-card">
                   <span className="step">02</span>
-                  <h3>Give your assistant a brief</h3>
-                  <p>Try a prompt like this after connecting your client:</p>
+                  <h3>Connect ChatGPT with OAuth</h3>
+                  <ol className="oauth-steps">
+                    <li>Open ChatGPT Plugins and add a custom MCP server.</li>
+                    <li>Paste this project’s endpoint and select OAuth.</li>
+                    <li>
+                      Use dynamic client registration (DCR); leave Client ID and
+                      Client Secret blank.
+                    </li>
+                    <li>
+                      Sign in to PostDispatch and approve access to{" "}
+                      {project?.name}.
+                    </li>
+                  </ol>
+                  <p>Then select PostDispatch in your chat and try:</p>
                   <blockquote>
                     “Create a Facebook draft about our latest update. Send it to
                     PostDispatch using create_draft so I can review it.”
                   </blockquote>
                   <p className="small">
-                    Remote clients need a public HTTPS URL. Client
-                    authentication support varies; OAuth is a next step for
-                    broader compatibility.
+                    Remote clients need a public HTTPS URL. OAuth grants access
+                    only to this project; publishing stays in your hands.
                   </p>
                 </section>
               </div>
+              <section className="setup-card oauth-connections">
+                <h3>OAuth connections</h3>
+                {oauthConnections.length ? (
+                  oauthConnections.map((connection) => (
+                    <div key={connection.clientId} className="oauth-connection">
+                      <span>{connection.name}</span>
+                      <button
+                        className="button secondary"
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          try {
+                            await request(
+                              `/api/projects/${projectId}/oauth?clientId=${encodeURIComponent(connection.clientId)}`,
+                              "DELETE",
+                            );
+                            await refresh();
+                            setNotice(
+                              "OAuth connection disconnected. Project bearer tokens remain active.",
+                            );
+                          } catch (e) {
+                            setNotice(
+                              e instanceof Error
+                                ? e.message
+                                : "Unable to disconnect",
+                            );
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p>No OAuth clients connected to this project yet.</p>
+                )}
+              </section>
               <section className="tools-panel">
                 <div>
                   <h3>Your project. Your publishing desk.</h3>

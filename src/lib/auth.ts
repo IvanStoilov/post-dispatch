@@ -1,3 +1,6 @@
+import { jwt } from "better-auth/plugins";
+import { oauthPlugins, appOrigin } from "./oauth-provider";
+import * as schema from "../db/schema";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
@@ -24,8 +27,21 @@ function makeAuth() {
         session: sessions,
         account: accounts,
         verification: verifications,
+        jwks: schema.oauthJwks,
+        oauthClient: schema.oauthClients,
+        oauthResource: schema.oauthResources,
+        oauthClientResource: schema.oauthClientResources,
+        oauthRefreshToken: schema.oauthRefreshTokens,
+        oauthAccessToken: schema.oauthAccessTokens,
+        oauthConsent: schema.oauthConsents,
+        oauthClientAssertion: schema.oauthClientAssertions,
       },
     }),
+    disabledPaths: ["/token"],
+    plugins: [
+      jwt({ jwt: { issuer: appOrigin() + "/api/auth" } }),
+      ...oauthPlugins(),
+    ],
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
@@ -64,7 +80,12 @@ function makeAuth() {
 }
 const state = globalThis as typeof globalThis & {
   dispatchAuth?: ReturnType<typeof makeAuth>;
+  dispatchAuthVersion?: string;
 };
 export function getAuth() {
+  if (state.dispatchAuthVersion !== "oauth-v1") {
+    state.dispatchAuth = undefined;
+    state.dispatchAuthVersion = "oauth-v1";
+  }
   return (state.dispatchAuth ??= makeAuth());
 }

@@ -8,11 +8,18 @@ export function proxy(req: NextRequest) {
       { error: "Invalid host. Configure APP_URL for this deployment." },
       { status: 403 },
     );
-  if (origin && origin !== expected.origin)
+  const oauthProtocol = [
+    "/api/auth/oauth2/token",
+    "/api/auth/oauth2/register",
+    "/api/auth/oauth2/revoke",
+    "/api/auth/oauth2/introspect",
+  ].includes(req.nextUrl.pathname);
+  if (origin && origin !== expected.origin && !oauthProtocol)
     return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
   const path = req.nextUrl.pathname;
   if (
     path.startsWith("/api/auth/") ||
+    path.startsWith("/.well-known/") ||
     path === "/signin" ||
     path === "/signup" ||
     path === "/api/mcp" ||

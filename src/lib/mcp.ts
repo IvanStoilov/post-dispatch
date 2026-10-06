@@ -1,3 +1,5 @@
+import { getAuth } from "./auth";
+import { oauthChallenge } from "./oauth";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
@@ -14,11 +16,21 @@ export async function handleProjectMcp(req: Request, projectId: string) {
       { status: 401 },
     );
   }
-  if (!verifyProjectToken(project, req.headers.get("authorization")))
-    return Response.json(
-      { error: "Invalid project or token" },
-      { status: 401 },
-    );
+  let grantedScopes = ["posts:read", "posts:write"];
+  if (!verifyProjectToken(project, req.headers.get("authorization"))) {
+    const token = req.headers
+      .get("authorization")
+      ?.match(/^Bearer (.+)$/i)?.[1];
+    if (!token) return oauthChallenge(projectId);
+    try {
+      const access = await getAuth().api.verifyMcpOAuthToken({
+        body: { token, projectId },
+      });
+      grantedScopes = access.scopes;
+    } catch {
+      return oauthChallenge(projectId);
+    }
+  }
   const context = {
     id: project.id,
     name: project.name,
@@ -39,6 +51,7 @@ export async function handleProjectMcp(req: Request, projectId: string) {
       description:
         "Identify the connected project and its available publishing channels",
       inputSchema: {},
+      _meta: { securitySchemes: [{ type: "oauth2", scopes: ["posts:read"] }] },
       annotations: { readOnlyHint: true },
     },
     async () => ({
@@ -50,6 +63,13 @@ export async function handleProjectMcp(req: Request, projectId: string) {
     {
       description:
         "Submit a draft to PostDispatch for human review. Provide imageUrl (downloaded into private storage) or imageFile with dataBase64 file bytes and optional filename/mimeType. JPEG, PNG, WebP; maximum 8 MB. Never publishes automatically.",
+      _meta: { securitySchemes: [{ type: "oauth2", scopes: ["posts:write"] }] },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
       inputSchema: {
         title: z.string(),
         caption: z.string(),
@@ -60,6 +80,13 @@ export async function handleProjectMcp(req: Request, projectId: string) {
       },
     },
     async (input) => {
+      if (!grantedScopes.includes("posts:write"))
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: "Missing posts:write permission" },
+          ],
+        };
       try {
         return {
           content: [
@@ -92,13 +119,25 @@ export async function handleProjectMcp(req: Request, projectId: string) {
     {
       description: "List saved posts and publishing status",
       inputSchema: {},
+      _meta: { securitySchemes: [{ type: "oauth2", scopes: ["posts:read"] }] },
       annotations: { readOnlyHint: true },
     },
-    async () => ({
-      content: [
-        { type: "text", text: JSON.stringify(await listPosts(project.id)) },
-      ],
-    }),
+    async () =>
+      grantedScopes.includes("posts:read")
+        ? {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(await listPosts(project.id)),
+              },
+            ],
+          }
+        : {
+            isError: true,
+            content: [
+              { type: "text" as const, text: "Missing posts:read permission" },
+            ],
+          },
   );
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,

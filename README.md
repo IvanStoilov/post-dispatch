@@ -50,7 +50,20 @@ Example draft arguments:
 }
 ```
 
-Remote clients need a reachable HTTPS endpoint. This initial implementation supports clients that can supply bearer headers. OAuth discovery and consent flows for broader hosted ChatGPT/Claude compatibility are not yet implemented. Daily generation requires a separate scheduled AI workflow; MCP is the delivery interface, not a scheduler.
+Remote clients need a reachable HTTPS endpoint. Both project bearer tokens and OAuth are supported on the same endpoint. Bearer tokens and their hashes/rotation are unchanged.
+
+### ChatGPT / OAuth
+
+1. Set `APP_URL` to your canonical production HTTPS origin in Vercel (no trailing path), with a stable `BETTER_AUTH_SECRET`. Redeploy after adding these changes and environment settings. Apply migrations with `pnpm db:migrate` against the deployment database.
+2. Copy a project's endpoint from MCP integration.
+3. In ChatGPT Plugins, add a custom MCP server, paste the endpoint, and select OAuth. Choose dynamic client registration (DCR), leaving Client ID and Client Secret blank. CIMD is not enabled by this implementation.
+4. Sign in to PostDispatch and approve the named project, then install/select the connection in your chat.
+
+OAuth uses Better Auth's provider, S256 PKCE, exact registered redirect URI matching, single-use codes, and signed consent queries. Tokens have one exact project resource as audience. Every MCP call checks token activity/expiry, scopes, and current project ownership. Password signup/signin preserves the OAuth continuation. Opaque access tokens are stored as hashes and expire after 15 minutes; rotating refresh tokens last up to 30 days and require `offline_access`. Public clients use `token_endpoint_auth_method: none`; confidential DCR clients are also supported by the provider. No custom OAuth client secrets are required for ChatGPT's DCR flow. Registration alone never grants project access.
+
+Public discovery is at `/.well-known/oauth-authorization-server/api/auth` and `/.well-known/oauth-protected-resource/api/mcp/<projectId>`. The issuer is `<APP_URL>/api/auth`. Registration, authorization, token and revocation endpoints are under `/api/auth/oauth2/*`. OAuth scopes are `posts:read`, `posts:write`, and optional `offline_access`. The MCP integration screen lists approved clients with a Disconnect button; this revokes only that user's OAuth grants for the selected project and leaves bearer tokens intact. Publishing/delete-post tools are never exposed through MCP.
+
+OAuth tables live in Drizzle alongside the existing auth tables. Credentials stay in Postgres across Vercel invocations; no in-memory authorization-code or token store is used. Daily generation requires a separate scheduled AI workflow; MCP is the delivery interface, not a scheduler.
 
 ## Meta publishing setup
 
@@ -60,7 +73,7 @@ Create a Meta developer app and obtain authorized publishing tokens for your acc
 - Instagram account ID and access token, with content publishing permissions.
 - Instagram login method (Facebook Login or Instagram Login).
 
-All four account/token values are stored in the `projects` database table. Tokens are write-only in settings responses: blank token fields keep existing values; Disconnect clears the channel ID/token. Meta access tokens are stored server-side as database secrets; restrict database access and backups accordingly. Project MCP tokens are stored as SHA-256 hashes, are returned only when created/replaced, and never grant publishing access. No credentials are exposed to MCP tools.
+All four account/token values are stored in the `projects` database table. Tokens are write-only in settings responses: blank token fields keep existing values; Disconnect clears the channel ID/token. Meta access tokens are stored server-side as database secrets; restrict database access and backups accordingly. Project MCP tokens are stored as SHA-256 hashes, are returned only when created/replaced, and never grant publishing access. No channel credentials are exposed to MCP tools.
 
 Existing posts are assigned to the default Personal workspace project by migration 0001. Existing environment credentials were copied into that project during this upgrade. The global Meta credential variables and MCP_TOKEN are no longer used by the runtime. Legacy `/api/mcp` connections must use the default project's new endpoint; its migrated MCP token remains valid until replaced.
 
@@ -100,7 +113,7 @@ Drizzle Kit loads `.env*` using Next's environment loader, matching the applicat
 
 Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing requires draft status; deletion is available for drafts, published posts, and posts needing review, but is blocked while publishing. Deleting removes the PostDispatch record and its private image, with a confirmation in the dashboard. Posts on Facebook and Instagram are not deleted. Each channel's result is persisted separately; network calls happen outside the transaction. A durable delivery worker and reconciliation remain future improvements.
 
-Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each project has a separate MCP token and cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login, email verification, password reset emails, OAuth for hosted MCP clients, or scheduler.
+Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each project has a separate MCP token and cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login, email verification, password reset emails, a scheduler.
 
 ## Validation
 
