@@ -1,6 +1,29 @@
 "use client";
+import { Facebook } from "@/components/channel-icons";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ConnectionShell } from "@/components/connection-shell";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+
 export default function SelectFacebookPage() {
   const [pages, setPages] = useState<{ id: string; name: string }[]>([]);
   const [project, setProject] = useState("");
@@ -47,29 +70,61 @@ export default function SelectFacebookPage() {
     }
   }
   return (
-    <main style={{ maxWidth: 560, margin: "80px auto", padding: 24 }}>
-      <form className="setup-card project-form" onSubmit={save}>
-        <h1>Connect a Facebook Page</h1>
-        <p>Select the Page to publish to from {project || "your project"}.</p>
-        <label>
-          Facebook Page
-          <select
-            value={selected}
-            onChange={(event) => setSelected(event.target.value)}
-          >
-            {pages.map((page) => (
-              <option key={page.id} value={page.id}>
-                {page.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p role="alert">{error}</p>
-        <button className="button primary" disabled={busy || !selected}>
-          {busy ? "Connecting…" : "Connect selected Page"}
-        </button>
-        <Link href="/">Cancel and return to PostDispatch</Link>
+    <ConnectionShell>
+      <form onSubmit={save}>
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <h1 className="flex items-center gap-2">
+                <Facebook className="size-5" aria-hidden="true" />
+                Connect a Facebook Page
+              </h1>
+            </CardTitle>
+            <CardDescription>
+              Select the Page to publish to from {project || "your project"}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="facebook-page">Facebook Page</FieldLabel>
+                <Select
+                  value={selected}
+                  disabled={busy || !pages.length}
+                  onValueChange={setSelected}
+                >
+                  <SelectTrigger id="facebook-page" className="w-full">
+                    <SelectValue placeholder="Select a Page…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {pages.map((page) => (
+                        <SelectItem key={page.id} value={page.id}>
+                          {page.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+            </FieldGroup>
+          </CardContent>
+          <CardFooter className="flex-wrap justify-between gap-3">
+            <Button variant="ghost" asChild>
+              <Link href="/?view=Connections">Cancel</Link>
+            </Button>
+            <Button type="submit" disabled={busy || !selected}>
+              {busy && <Spinner data-icon="inline-start" />}
+              {busy ? "Connecting…" : "Connect selected Page"}
+            </Button>
+          </CardFooter>
+        </Card>
       </form>
-    </main>
+    </ConnectionShell>
   );
 }

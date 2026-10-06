@@ -1,6 +1,52 @@
 "use client";
+import { Facebook, Instagram } from "@/components/channel-icons";
 import { useEffect, useState } from "react";
 import type { Project } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+  CardAction,
+} from "@/components/ui/card";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldDescription,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { Plus, Save } from "lucide-react";
 export default function ProjectSettings({
   project,
   creating,
@@ -39,6 +85,9 @@ export default function ProjectSettings({
     return () => clearTimeout(timer);
   }, []);
   const [busy, setBusy] = useState(false);
+  const [disconnecting, setDisconnecting] = useState<
+    "facebook" | "instagram" | null
+  >(null);
   async function connect(provider: "facebook" | "instagram") {
     setBusy(true);
     setMessage("");
@@ -129,168 +178,285 @@ export default function ProjectSettings({
     }
   }
   return (
-    <>
+    <div className="flex flex-col gap-6">
       {creating && (
-        <form className="setup-card project-form" onSubmit={create}>
-          <h3>Create a project</h3>
-          <label>
-            Project name
-            <input
-              required
-              maxLength={120}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Your brand or business"
-            />
-          </label>
-          <button className="button primary" disabled={busy}>
-            Create project
-          </button>
-          <p className="small">
-            Each project has its own posts and channel settings. Generate its
-            MCP token in MCP integration.
-          </p>
+        <form onSubmit={create}>
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <h2>Create a project</h2>
+              </CardTitle>
+              <CardDescription>
+                Keep each brand’s drafts, channels, and assistants together.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="new-project">Project name</FieldLabel>
+                  <Input
+                    id="new-project"
+                    name="newProjectName"
+                    autoComplete="off"
+                    required
+                    maxLength={120}
+                    value={newName}
+                    disabled={busy}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Your brand or business…"
+                  />
+                </Field>
+              </FieldGroup>
+            </CardContent>
+            <CardFooter>
+              <Button type="submit" disabled={busy}>
+                {busy ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <Plus data-icon="inline-start" aria-hidden="true" />
+                )}
+                Create project
+              </Button>
+            </CardFooter>
+          </Card>
         </form>
       )}
-      <form className="project-form" onSubmit={save}>
-        <section className="setup-card">
-          <label>
-            Project name
-            <input
-              required
-              maxLength={120}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-        </section>
-        <div className="connection-grid">
-          <section className="connection-card">
-            <span className="channel-logo facebook">f</span>
-            <span className="connection-state">
-              {project.facebookConfigured ? "Configured" : "Not connected"}
-            </span>
-            <h2>Facebook</h2>
-            <button
-              type="button"
-              className="button primary"
-              disabled={busy}
-              onClick={() => void connect("facebook")}
-            >
-              {project.facebookConfigured
-                ? "Reconnect Facebook"
-                : "Connect Facebook"}
-            </button>
-            <p className="small">
-              Authorize publishing and choose your Facebook Page.
-            </p>
-            <details>
-              <summary>Manual configuration</summary>
-              <label>
-                Page ID
-                <input
+      <form onSubmit={save} className="flex flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <h2>Project details</h2>
+            </CardTitle>
+            <CardDescription>
+              These settings apply only to this project.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="project-name">Project name</FieldLabel>
+                <Input
+                  id="project-name"
+                  name="projectName"
                   autoComplete="off"
-                  value={facebookPageId}
-                  onChange={(e) => setFacebookPageId(e.target.value)}
+                  required
+                  maxLength={120}
+                  value={name}
+                  disabled={busy}
+                  onChange={(e) => setName(e.target.value)}
+                  className="max-w-md"
                 />
-              </label>
-              <label>
-                Page access token
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={facebookPageToken}
-                  onChange={(e) => setFacebookPageToken(e.target.value)}
-                  placeholder={
-                    project.facebookConfigured
-                      ? "Saved — leave blank to keep"
-                      : "Paste your token"
-                  }
-                />
-              </label>
-            </details>
-            <button
-              type="button"
-              className="delete-button"
-              disabled={busy}
-              onClick={() => void disconnect("facebook")}
-            >
-              Disconnect Facebook
-            </button>
-          </section>
-          <section className="connection-card">
-            <span className="channel-logo instagram">◎</span>
-            <span className="connection-state">
-              {project.instagramConfigured ? "Configured" : "Not connected"}
-            </span>
-            <h2>Instagram</h2>
-            <button
-              type="button"
-              className="button primary"
-              disabled={busy}
-              onClick={() => void connect("instagram")}
-            >
-              {project.instagramConfigured
-                ? "Reconnect Instagram"
-                : "Connect Instagram"}
-            </button>
-            <p className="small">
-              Connect a Business or Creator account. No Facebook Page required.
-            </p>
-            <details>
-              <summary>Manual configuration</summary>
-              <label>
-                Account ID
-                <input
-                  autoComplete="off"
-                  value={instagramAccountId}
-                  onChange={(e) => setInstagramAccountId(e.target.value)}
-                />
-              </label>
-              <label>
-                Access token
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={instagramAccessToken}
-                  onChange={(e) => setInstagramAccessToken(e.target.value)}
-                  placeholder={
-                    project.instagramConfigured
-                      ? "Saved — leave blank to keep"
-                      : "Paste your token"
-                  }
-                />
-              </label>
-              <label>
-                Login method
-                <select
-                  value={host}
-                  onChange={(e) =>
-                    setHost(e.target.value as Project["instagramApiHost"])
-                  }
-                >
-                  <option value="graph.facebook.com">Facebook Login</option>
-                  <option value="graph.instagram.com">Instagram Login</option>
-                </select>
-              </label>
-            </details>
-            <button
-              type="button"
-              className="delete-button"
-              disabled={busy}
-              onClick={() => void disconnect("instagram")}
-            >
-              Disconnect Instagram
-            </button>
-          </section>
+              </Field>
+            </FieldGroup>
+          </CardContent>
+        </Card>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {(["facebook", "instagram"] as const).map((provider) => {
+            const facebook = provider === "facebook";
+            const configured = facebook
+              ? project.facebookConfigured
+              : project.instagramConfigured;
+            const Icon = facebook ? Facebook : Instagram;
+            const label = facebook ? "Facebook" : "Instagram";
+            return (
+              <Card key={provider}>
+                <CardHeader>
+                  <CardTitle>
+                    <h2 className="flex items-center gap-2">
+                      <Icon className="size-5" aria-hidden="true" />
+                      {label}
+                    </h2>
+                  </CardTitle>
+                  <CardDescription>
+                    {facebook
+                      ? "Publish to your Facebook Page."
+                      : "Publish to a Business or Creator account."}
+                  </CardDescription>
+                  <CardAction>
+                    <Badge variant={configured ? "secondary" : "outline"}>
+                      {configured ? "Configured" : "Not connected"}
+                    </Badge>
+                  </CardAction>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-5">
+                  <Button
+                    type="button"
+                    size="lg"
+                    variant={configured ? "outline" : "default"}
+                    disabled={busy}
+                    onClick={() => void connect(provider)}
+                  >
+                    {configured ? `Reconnect ${label}` : `Connect ${label}`}
+                  </Button>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {facebook
+                      ? "Sign in with Facebook, grant publishing access, and choose your Page."
+                      : "Sign in with Instagram and grant publishing access. No Facebook Page needed."}
+                  </p>
+                  <Accordion type="single" collapsible>
+                    <AccordionItem value="manual">
+                      <AccordionTrigger>Manual configuration</AccordionTrigger>
+                      <AccordionContent>
+                        <FieldGroup className="py-3">
+                          <Field>
+                            <FieldLabel htmlFor={`${provider}-id`}>
+                              {facebook ? "Page ID" : "Account ID"}
+                            </FieldLabel>
+                            <Input
+                              id={`${provider}-id`}
+                              name={`${provider}Id`}
+                              autoComplete="off"
+                              spellCheck={false}
+                              value={
+                                facebook ? facebookPageId : instagramAccountId
+                              }
+                              disabled={busy}
+                              onChange={(e) =>
+                                facebook
+                                  ? setFacebookPageId(e.target.value)
+                                  : setInstagramAccountId(e.target.value)
+                              }
+                            />
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor={`${provider}-token`}>
+                              {facebook ? "Page access token" : "Access token"}
+                            </FieldLabel>
+                            <Input
+                              id={`${provider}-token`}
+                              name={`${provider}Token`}
+                              type="password"
+                              autoComplete="new-password"
+                              value={
+                                facebook
+                                  ? facebookPageToken
+                                  : instagramAccessToken
+                              }
+                              disabled={busy}
+                              onChange={(e) =>
+                                facebook
+                                  ? setFacebookPageToken(e.target.value)
+                                  : setInstagramAccessToken(e.target.value)
+                              }
+                              placeholder={
+                                configured
+                                  ? "Leave blank to keep saved token…"
+                                  : "Paste your token…"
+                              }
+                            />
+                            <FieldDescription>
+                              Saved tokens are never displayed.
+                            </FieldDescription>
+                          </Field>
+                          {!facebook && (
+                            <Field>
+                              <FieldLabel htmlFor="instagram-host">
+                                Login method
+                              </FieldLabel>
+                              <Select
+                                value={host}
+                                disabled={busy}
+                                onValueChange={(value) =>
+                                  setHost(value as Project["instagramApiHost"])
+                                }
+                              >
+                                <SelectTrigger
+                                  id="instagram-host"
+                                  className="w-full"
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectGroup>
+                                    <SelectItem value="graph.facebook.com">
+                                      Facebook Login
+                                    </SelectItem>
+                                    <SelectItem value="graph.instagram.com">
+                                      Instagram Login
+                                    </SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                            </Field>
+                          )}
+                        </FieldGroup>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </CardContent>
+                <CardFooter className="justify-between gap-3">
+                  <span className="truncate text-xs text-muted-foreground">
+                    {configured
+                      ? `Account ${facebook ? project.facebookPageId : project.instagramAccountId}`
+                      : "Connect an account to start publishing"}
+                  </span>
+                  {configured && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setDisconnecting(provider)}
+                    >
+                      Disconnect
+                    </Button>
+                  )}
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
-        <div className="project-save">
-          <span role="status">{message}</span>
-          <button className="button primary" disabled={busy}>
+        {message && (
+          <Alert role="status" aria-live="polite">
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        )}
+        <div className="flex justify-end">
+          <Button type="submit" size="lg" disabled={busy}>
+            {busy ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <Save data-icon="inline-start" aria-hidden="true" />
+            )}
             {busy ? "Saving…" : "Save project settings"}
-          </button>
+          </Button>
         </div>
       </form>
-    </>
+      <AlertDialog
+        open={!!disconnecting}
+        onOpenChange={(open) => {
+          if (!open && !busy) setDisconnecting(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Disconnect{" "}
+              {disconnecting === "facebook" ? "Facebook" : "Instagram"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This project will stop publishing to this account. You can
+              reconnect it later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={busy}
+              onClick={(event) => {
+                event.preventDefault();
+                if (disconnecting)
+                  void disconnect(disconnecting).then(() =>
+                    setDisconnecting(null),
+                  );
+              }}
+            >
+              Disconnect
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }

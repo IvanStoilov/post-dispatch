@@ -3,6 +3,16 @@ import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { oauthConsentContext } from "@/lib/oauth";
 import ConsentForm from "./consent-form";
+import Link from "next/link";
+import { ConnectionShell } from "@/components/connection-shell";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 export default async function Page({
   searchParams,
 }: {
@@ -29,12 +39,23 @@ export default async function Page({
   }
   if (!context)
     return (
-      <main className="auth-shell oauth-shell">
-        <section className="auth-card">
-          <h1>Unable to connect</h1>
-          <p>{error}</p>
-        </section>
-      </main>
+      <ConnectionShell>
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <h1>Unable to connect</h1>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="break-words text-sm text-muted-foreground">{error}</p>
+          </CardContent>
+          <CardFooter>
+            <Button asChild>
+              <Link href="/">Back to workspace</Link>
+            </Button>
+          </CardFooter>
+        </Card>
+      </ConnectionShell>
     );
   return (
     <ConsentForm

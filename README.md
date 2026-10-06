@@ -4,6 +4,12 @@ AI drafts. You approve. PostDispatch publishes.
 
 A Next.js local MVP for a personal publishing desk: persistent draft inbox, ordered image galleries or single-video posts, editing, channel filters, search, human approval, Meta publishing, and an authenticated Streamable HTTP MCP endpoint.
 
+## Frontend design
+
+The frontend uses shadcn/ui (Radix Nova) and Tailwind CSS 4. Shared colors, radii, and typography live in the CSS-first `@theme inline` configuration in `src/app/globals.css`. Use semantic utilities such as `bg-primary`, `text-muted-foreground`, `font-sans`, and `text-page` when extending the UI. Manrope is bundled locally through Fontsource.
+
+Components are source files in `src/components/ui`; add new ones with `pnpm dlx shadcn@latest add <component>`. The installed design skills are in `.agents/skills`.
+
 ## Run
 
 ```sh

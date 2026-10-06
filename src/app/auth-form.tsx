@@ -1,8 +1,30 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { Brand } from "@/components/brand";
+import { FlowPanel } from "@/components/flow-panel";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+import { ArrowRight, AlertCircle } from "lucide-react";
 export default function AuthForm({
   mode,
   oauthQuery,
@@ -18,11 +40,13 @@ export default function AuthForm({
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const confirmationInput = useRef<HTMLInputElement>(null);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (signup && password !== confirmation) {
       setError("Your passwords do not match.");
+      confirmationInput.current?.focus();
       return;
     }
     setBusy(true);
@@ -64,139 +88,168 @@ export default function AuthForm({
       setBusy(false);
     }
   }
+  const mismatch = signup && error === "Your passwords do not match.";
   return (
-    <main className="auth-shell">
-      <section className="auth-story">
-        <Link href="/" className="brand">
-          <span className="brand-mark">➤</span>
-          <span>
-            PostDispatch<span className="brand-dot">.</span>
-          </span>
-        </Link>
-        <div className="auth-story-content">
-          <span className="eyebrow">YOUR PUBLISHING DESK</span>
-          <h1>
-            Good ideas.
-            <br />
-            Your final say.
-          </h1>
-          <p>
-            A home for your projects, your AI drafts, and the posts you’re ready
-            to share.
-          </p>
-          <div className="auth-steps">
-            <span>
-              01 <b>AI drafts</b>
-            </span>
-            <span>
-              02 <b>You approve</b>
-            </span>
-            <span>
-              03 <b>We dispatch</b>
-            </span>
+    <main className="grid min-h-svh lg:grid-cols-2">
+      <section className="hidden flex-col justify-between border-r px-12 py-10 lg:flex xl:px-20">
+        <Brand />
+        <div className="mx-auto flex w-full max-w-md flex-col gap-10 py-16">
+          <div className="flex flex-col gap-5">
+            <p className="text-display font-semibold">
+              Your ideas.
+              <br />
+              Ready for the world.
+            </p>
+            <p className="max-w-sm text-base leading-relaxed text-muted-foreground">
+              One place to turn AI drafts into posts you’re proud to publish.
+            </p>
           </div>
+          <FlowPanel />
         </div>
-        <small>Thoughtfully prepared. Personally approved.</small>
+        <p className="text-sm text-muted-foreground">
+          A little more intention in every post.
+        </p>
       </section>
-      <section className="auth-main">
-        <div className="auth-card">
-          <span className="eyebrow">
-            {signup ? "MAKE YOURSELF AT HOME" : "BACK TO YOUR DESK"}
-          </span>
-          <h2>{signup ? "Create your account." : "Welcome back."}</h2>
-          <p>
-            {signup
-              ? "Your projects and publishing plans start here."
-              : "Sign in to pick up where you left off."}
-          </p>
-          <form onSubmit={submit}>
-            {signup && (
-              <label>
-                Your name
-                <input
-                  autoFocus
-                  required
-                  autoComplete="name"
-                  maxLength={120}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ivan"
-                />
-              </label>
-            )}
-            <label>
-              Email address
-              <input
-                autoFocus={!signup}
-                type="email"
-                required
-                autoComplete="email"
-                maxLength={254}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                required
-                minLength={8}
-                maxLength={128}
-                autoComplete={signup ? "new-password" : "current-password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={signup ? "At least 8 characters" : "Your password"}
-              />
-            </label>
-            {signup && (
-              <label>
-                Confirm password
-                <input
-                  type="password"
-                  required
-                  minLength={8}
-                  maxLength={128}
-                  autoComplete="new-password"
-                  value={confirmation}
-                  onChange={(e) => setConfirmation(e.target.value)}
-                  placeholder="One more time"
-                />
-              </label>
-            )}
-            {error && (
-              <div className="auth-error" role="alert">
-                {error}
-              </div>
-            )}
-            <button
-              className="button primary auth-submit"
-              disabled={busy}
-              type="submit"
-            >
-              {busy
-                ? signup
-                  ? "Creating your account…"
-                  : "Signing in…"
-                : signup
-                  ? "Create account"
-                  : "Sign in"}
-              <span>→</span>
-            </button>
-          </form>
-          <div className="auth-switch">
-            {signup ? "Already have an account?" : "New to PostDispatch?"}{" "}
-            <Link
-              href={
-                (signup ? "/signin" : "/signup") +
-                (oauthQuery ? `?${oauthQuery}` : "")
-              }
-            >
-              {signup ? "Sign in" : "Create an account"}
-            </Link>
-          </div>
+      <section className="flex min-w-0 flex-col items-center justify-center gap-10 bg-card px-6 py-12 sm:px-10">
+        <div className="lg:hidden">
+          <Brand />
         </div>
+        <Card className="w-full max-w-sm ring-0">
+          <CardHeader>
+            <CardTitle>
+              <h1>{signup ? "Create your account" : "Welcome back"}</h1>
+            </CardTitle>
+            <CardDescription>
+              {signup
+                ? "Bring your projects and posts together."
+                : "Sign in to your publishing workspace."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form id="auth-form" onSubmit={submit}>
+              <FieldGroup>
+                {signup && (
+                  <Field>
+                    <FieldLabel htmlFor="name">Your name</FieldLabel>
+                    <Input
+                      id="name"
+                      name="name"
+                      required
+                      autoComplete="name"
+                      maxLength={120}
+                      value={name}
+                      disabled={busy}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Your name…"
+                    />
+                  </Field>
+                )}
+                <Field>
+                  <FieldLabel htmlFor="email">Email address</FieldLabel>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    spellCheck={false}
+                    maxLength={254}
+                    value={email}
+                    disabled={busy}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com…"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    minLength={8}
+                    maxLength={128}
+                    autoComplete={signup ? "new-password" : "current-password"}
+                    value={password}
+                    disabled={busy}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  {signup && (
+                    <FieldDescription>
+                      Use at least 8 characters.
+                    </FieldDescription>
+                  )}
+                </Field>
+                {signup && (
+                  <Field data-invalid={mismatch}>
+                    <FieldLabel htmlFor="confirmation">
+                      Confirm password
+                    </FieldLabel>
+                    <Input
+                      ref={confirmationInput}
+                      id="confirmation"
+                      name="confirmation"
+                      type="password"
+                      required
+                      minLength={8}
+                      maxLength={128}
+                      autoComplete="new-password"
+                      aria-invalid={mismatch}
+                      aria-describedby={
+                        mismatch ? "confirmation-error" : undefined
+                      }
+                      value={confirmation}
+                      disabled={busy}
+                      onChange={(e) => setConfirmation(e.target.value)}
+                    />
+                    {mismatch && (
+                      <FieldError id="confirmation-error">{error}</FieldError>
+                    )}
+                  </Field>
+                )}
+                {error && !mismatch && (
+                  <Alert variant="destructive">
+                    <AlertCircle aria-hidden="true" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={busy}
+                  className="w-full"
+                >
+                  {busy && <Spinner data-icon="inline-start" />}
+                  {busy
+                    ? signup
+                      ? "Creating account…"
+                      : "Signing in…"
+                    : signup
+                      ? "Create account"
+                      : "Sign in"}
+                  {!busy && (
+                    <ArrowRight data-icon="inline-end" aria-hidden="true" />
+                  )}
+                </Button>
+              </FieldGroup>
+            </form>
+          </CardContent>
+          <CardFooter className="justify-center gap-1.5">
+            <span>
+              {signup ? "Already have an account?" : "New to PostDispatch?"}
+            </span>
+            <Button variant="link" asChild>
+              <Link
+                href={
+                  (signup ? "/signin" : "/signup") +
+                  (oauthQuery ? `?${oauthQuery}` : "")
+                }
+              >
+                {signup ? "Sign in" : "Create an account"}
+              </Link>
+            </Button>
+          </CardFooter>
+        </Card>
       </section>
     </main>
   );

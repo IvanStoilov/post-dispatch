@@ -1,22 +1,83 @@
 "use client";
 import { useEffect, useState, useRef, useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import ProjectSettings from "./project-settings";
-import MediaGallery from "./media-gallery";
-import type { Post, Platform, Project, PostAsset } from "@/lib/types";
-type MediaItem = {
-  id: string;
-  file?: File;
-  asset?: PostAsset;
-  uploadId?: string;
-};
+import AssistantSettings from "./assistant-settings";
+import DraftEditor, { type Draft, type MediaItem } from "./draft-editor";
+import { PostCard } from "@/components/post-card";
+import { Brand } from "@/components/brand";
+import { FlowPanel } from "@/components/flow-panel";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+} from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  InputGroup,
+  InputGroupInput,
+  InputGroupAddon,
+} from "@/components/ui/input-group";
+import { Alert, AlertDescription, AlertAction } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyContent,
+} from "@/components/ui/empty";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuBadge,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import {
+  Inbox,
+  Send,
+  Plug,
+  Code2,
+  Plus,
+  Search,
+  X,
+  LogOut,
+  ShieldCheck,
+  Check,
+  Trash2,
+} from "lucide-react";
+import type { Post, Platform, Project } from "@/lib/types";
 type View = "Inbox" | "Published" | "Connections" | "MCP integration";
-type Draft = Pick<
-  Post,
-  "title" | "caption" | "imageUrl" | "platforms" | "source"
->;
 const blank: Draft = {
   title: "",
   caption: "",
@@ -24,82 +85,59 @@ const blank: Draft = {
   platforms: ["facebook"],
   source: "Manual",
 };
-function Icon({ name, size = 20 }: { name: string; size?: number }) {
-  const paths: Record<string, React.ReactNode> = {
-    inbox: (
-      <>
-        <path d="M4 4h16v16H4z" />
-        <path d="M4 13h5l2 3h2l2-3h5" />
-      </>
-    ),
-    send: (
-      <>
-        <path d="m3 3 18 9-18 9 4-9-4-9Z" />
-        <path d="M7 12h14" />
-      </>
-    ),
-    grid: (
-      <>
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
-      </>
-    ),
-    link: (
-      <>
-        <path d="m10 13 4-4m-6 6-2 2a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 2 2-2a4 4 0 0 0-6-6l-2 2" />
-      </>
-    ),
-    spark: (
-      <>
-        <path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z" />
-      </>
-    ),
-    plus: <path d="M12 5v14M5 12h14" />,
-    check: <path d="m5 12 4 4L19 6" />,
-    search: (
-      <>
-        <circle cx="10" cy="10" r="6" />
-        <path d="m15 15 5 5" />
-      </>
-    ),
-    arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
-    close: <path d="m6 6 12 12M6 18 18 6" />,
-    clock: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 2" />
-      </>
-    ),
-    code: (
-      <>
-        <path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-13-2 14" />
-      </>
-    ),
-  };
+const navigation = [
+  { view: "Inbox" as View, icon: Inbox },
+  { view: "Published" as View, icon: Send },
+  { view: "Connections" as View, icon: Plug },
+  { view: "MCP integration" as View, icon: Code2 },
+];
+function WorkspaceNavigation({
+  view,
+  projectId,
+  drafts,
+  published,
+  onNavigate,
+}: {
+  view: View;
+  projectId: string;
+  drafts: number;
+  published: number;
+  onNavigate: (view: View) => void;
+}) {
+  const { setOpenMobile } = useSidebar();
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.65"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {paths[name] || paths.grid}
-    </svg>
-  );
-}
-function PlatformBadge({ platform }: { platform: Platform }) {
-  return (
-    <span className={`platform ${platform}`}>
-      <span>{platform === "instagram" ? "◎" : "f"}</span>
-      {platform === "instagram" ? "Instagram" : "Facebook"}
-    </span>
+    <SidebarMenu>
+      {navigation.map(({ view: name, icon: Icon }) => (
+        <SidebarMenuItem key={name} isActive={view === name}>
+          <SidebarMenuButton asChild isActive={view === name} size="lg">
+            <Link
+              aria-current={view === name ? "page" : undefined}
+              href={`/?${new URLSearchParams({ view: name, projectId })}`}
+              onClick={(event) => {
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                )
+                  return;
+                event.preventDefault();
+                onNavigate(name);
+                setOpenMobile(false);
+              }}
+            >
+              <Icon aria-hidden="true" />
+              <span>{name}</span>
+            </Link>
+          </SidebarMenuButton>
+          {(name === "Inbox" || name === "Published") && (
+            <SidebarMenuBadge>
+              {name === "Inbox" ? drafts : published}
+            </SidebarMenuBadge>
+          )}
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
   );
 }
 export default function Dashboard({
@@ -121,8 +159,14 @@ export default function Dashboard({
   const [view, setView] = useState<View>("Inbox");
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (new URLSearchParams(window.location.search).has("connection"))
-        setView("Connections");
+      const query = new URLSearchParams(window.location.search);
+      const requested = query.get("view") as View;
+      if (query.has("connection")) setView("Connections");
+      else if (navigation.some((item) => item.view === requested))
+        setView(requested);
+      if (["all", "facebook", "instagram"].includes(query.get("channel") || ""))
+        setFilter(query.get("channel")!);
+      setSearch(query.get("search") || "");
     }, 0);
     return () => clearTimeout(timer);
   }, []);
@@ -136,7 +180,7 @@ export default function Dashboard({
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<Draft>(blank);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-  const imageFileInput = useRef<HTMLInputElement>(null);
+  const [initialDraft, setInitialDraft] = useState("");
 
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -199,7 +243,7 @@ export default function Dashboard({
       clearInterval(timer);
     };
   }, [projectId, refresh]);
-  function switchProject(id: string) {
+  const switchProject = useCallback((id: string) => {
     ++requestSequence.current;
     setProjectId(id);
     setPosts([]);
@@ -208,7 +252,7 @@ export default function Dashboard({
     setOAuthConnections([]);
     setCreatingProject(false);
     setLoading(true);
-  }
+  }, []);
   async function rotateMcpToken() {
     setBusy(true);
     try {
@@ -352,112 +396,194 @@ export default function Dashboard({
         .includes(search.toLowerCase()),
   );
   function newDraft() {
+    setNotice("");
     setMediaItems([]);
-    setForm({ ...blank, platforms: ["facebook"] });
+    const draft: Draft = { ...blank, platforms: ["facebook"] };
+    setForm(draft);
+    setInitialDraft(JSON.stringify({ form: draft, assets: [] }));
     setEditing("new");
   }
   function edit(p: Post) {
+    setNotice("");
     setMediaItems(p.assets.map((asset) => ({ id: asset.id, asset })));
-    setForm({
+    const draft: Draft = {
       title: p.title,
       caption: p.caption,
       imageUrl: "",
       platforms: p.platforms,
       source: p.source,
-    });
+    };
+    setForm(draft);
+    setInitialDraft(
+      JSON.stringify({
+        form: draft,
+        assets: p.assets.map((asset) => asset.id),
+      }),
+    );
     setEditing(p.id);
   }
-  const nav: [View, string][] = [
-    ["Inbox", "inbox"],
-    ["Published", "send"],
-    ["Connections", "link"],
-    ["MCP integration", "code"],
-  ];
+  function navigate(next: View, id = projectId) {
+    setView(next);
+    setSearch("");
+    setFilter("all");
+    const query = new URLSearchParams({ view: next, projectId: id });
+    window.history.pushState(null, "", `/?${query}`);
+  }
+  useEffect(() => {
+    function restoreView() {
+      const query = new URLSearchParams(window.location.search);
+      const value = query.get("view") as View;
+      setView(navigation.some((item) => item.view === value) ? value : "Inbox");
+      setSearch(query.get("search") || "");
+      setFilter(
+        ["facebook", "instagram"].includes(query.get("channel") || "")
+          ? query.get("channel")!
+          : "all",
+      );
+      const id = query.get("projectId");
+      if (id && id !== projectId) switchProject(id);
+    }
+    window.addEventListener("popstate", restoreView);
+    return () => window.removeEventListener("popstate", restoreView);
+  }, [projectId, switchProject]);
+  function updateFilter(value: string) {
+    setFilter(value);
+    const query = new URLSearchParams(window.location.search);
+    query.set("channel", value);
+    window.history.replaceState(null, "", `/?${query}`);
+  }
+  function updateSearch(value: string) {
+    setSearch(value);
+    const query = new URLSearchParams(window.location.search);
+    if (value) query.set("search", value);
+    else query.delete("search");
+    window.history.replaceState(null, "", `/?${query}`);
+  }
+  async function revoke(clientId: string) {
+    setBusy(true);
+    try {
+      await request(
+        `/api/projects/${projectId}/oauth?clientId=${encodeURIComponent(clientId)}`,
+        "DELETE",
+      );
+      await refresh();
+      setNotice("Assistant disconnected. Project bearer tokens remain active.");
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "Unable to disconnect",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  const inbox = view === "Inbox" || view === "Published";
+  const headings: Record<View, [string, string]> = {
+    Inbox: ["Draft inbox", "Review the ideas. Make the final call."],
+    Published: ["Published posts", "The posts you’ve approved and shared."],
+    Connections: [
+      "Projects & channels",
+      "Choose where this project’s posts go live.",
+    ],
+    "MCP integration": [
+      "Connect your assistant",
+      "Bring drafts from your conversations into this project.",
+    ],
+  };
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <Link className="brand" href="/">
-          <span className="brand-mark">
-            <Icon name="send" size={23} />
-          </span>
-          <span>
-            PostDispatch<span className="brand-dot">.</span>
-          </span>
-        </Link>
-        <div className="workspace">
-          <span className="workspace-avatar">
-            {project?.name.charAt(0) || "P"}
-          </span>
-          <label>
-            <small>PROJECT</small>
-            <select
-              aria-label="Active project"
-              value={projectId}
-              disabled={busy || !!editing || !!confirm || !!deleteConfirm}
-              onChange={(e) => switchProject(e.target.value)}
+    <SidebarProvider>
+      <a
+        href="#main-content"
+        className="sr-only fixed top-4 left-4 rounded-lg bg-card p-3 focus:not-sr-only focus:z-50"
+      >
+        Skip to content
+      </a>
+      <Sidebar>
+        <SidebarHeader className="gap-6 px-5 pt-7 pb-5">
+          <Brand />
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="active-project"
+              className="text-xs font-medium text-muted-foreground"
             >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <button
-          className="new-project-button"
-          disabled={busy}
-          onClick={() => {
-            setView("Connections");
-            setCreatingProject(true);
-          }}
-        >
-          + New project
-        </button>
-        <div className="nav-label">WORKSPACE</div>
-        <nav>
-          {nav.map(([name, icon]) => (
-            <button
-              key={name}
-              className={`nav-item ${view === name ? "active" : ""}`}
-              onClick={() => {
-                setView(name);
-                setSearch("");
-                setFilter("all");
+              Your project
+            </label>
+            <Select
+              value={projectId}
+              disabled={
+                busy || !!editing || !!confirm || !!deleteConfirm || loading
+              }
+              onValueChange={(id) => {
+                switchProject(id);
+                const query = new URLSearchParams(window.location.search);
+                query.set("projectId", id);
+                window.history.replaceState(null, "", `/?${query}`);
               }}
             >
-              <Icon name={icon} />
-              <span>{name}</span>
-              {name === "Inbox" ? (
-                <b>{drafts.length}</b>
-              ) : name === "Published" ? (
-                <b>{published.length}</b>
-              ) : null}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="approval-note">
-            <span className="little-spark">
-              <Icon name="spark" />
-            </span>
-            <strong>You have the final say.</strong>
-            <p>
-              AI brings the ideas.
-              <br />
-              You choose what goes live.
-            </p>
+              <SelectTrigger
+                id="active-project"
+                aria-label="Active project"
+                className="w-full"
+              >
+                <SelectValue placeholder="Loading projects…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {projects.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy || loading}
+              onClick={() => {
+                navigate("Connections");
+                setCreatingProject(true);
+              }}
+              className="justify-start"
+            >
+              <Plus data-icon="inline-start" aria-hidden="true" />
+              New project
+            </Button>
           </div>
-          <div className="profile">
-            <span className="profile-avatar">
-              {user.name.charAt(0).toUpperCase()}
-            </span>
-            <div>
-              {user.name}
-              <small>{user.email}</small>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup className="px-3">
+            <SidebarGroupLabel>Publishing workspace</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <nav aria-label="Workspace">
+                <WorkspaceNavigation
+                  view={view}
+                  projectId={projectId}
+                  drafts={drafts.length}
+                  published={published.length}
+                  onNavigate={navigate}
+                />
+              </nav>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter className="gap-5 px-5 pb-5">
+          <div className="flex items-center gap-2.5">
+            <Avatar>
+              <AvatarFallback>
+                {user.name.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{user.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {user.email}
+              </p>
             </div>
-            <button
-              className="signout-button"
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Sign out"
               onClick={async () => {
                 await authClient.signOut();
                 localStorage.removeItem("postdispatch-project");
@@ -465,870 +591,326 @@ export default function Dashboard({
                 router.refresh();
               }}
             >
-              Sign out
-            </button>
+              <LogOut aria-hidden="true" />
+            </Button>
           </div>
-        </div>
-      </aside>
-      <div className="main">
-        <header className="topbar">
-          <span>
-            Workspace <span className="slash">/</span> <strong>{view}</strong>
-          </span>
-          <span className="topbar-right">
-            <span className="online-dot" /> Human approval enabled
-          </span>
+        </SidebarFooter>
+      </Sidebar>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b bg-card px-5 sm:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <SidebarTrigger />
+            <Separator orientation="vertical" className="h-4" />
+            <span className="truncate text-sm text-muted-foreground">
+              {project?.name || "Workspace"}
+            </span>
+            <span className="text-muted-foreground/50" aria-hidden="true">
+              /
+            </span>
+            <span className="shrink-0 text-sm font-medium">{view}</span>
+          </div>
+          <Badge variant="secondary" className="hidden sm:inline-flex">
+            <ShieldCheck aria-hidden="true" />
+            Human approval
+          </Badge>
         </header>
-        <main className="content">
-          <div className="page-heading">
-            <div>
-              <div className="eyebrow">YOUR PUBLISHING DESK</div>
-              <h1>
-                {view === "Inbox"
-                  ? "Good ideas, ready to go."
-                  : view === "Published"
-                    ? "Out in the world."
-                    : view === "Connections"
-                      ? "Connect your channels."
-                      : "From conversation to draft."}
-              </h1>
-              <p>
-                {view === "Inbox"
-                  ? "A home for your AI drafts. Review, refine, and send them out."
-                  : view === "Published"
-                    ? "Every post you’ve approved and shared, in one place."
-                    : view === "Connections"
-                      ? "Give your drafts somewhere to land."
-                      : "Let your AI assistant drop its best ideas right into your inbox."}
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-7 px-5 py-8 sm:px-8 lg:py-10"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-page font-semibold">{headings[view][0]}</h1>
+              <p className="text-sm text-muted-foreground">
+                {headings[view][1]}
               </p>
             </div>
-            <button className="button primary" onClick={newDraft}>
-              <Icon name="plus" size={18} /> New draft
-            </button>
+            <Button
+              size="lg"
+              disabled={loading || busy || !project}
+              onClick={newDraft}
+            >
+              <Plus data-icon="inline-start" aria-hidden="true" />
+              New draft
+            </Button>
           </div>
-          {notice && (
-            <div className="notice" role="status">
-              <span>{notice}</span>
-              <button
-                aria-label="Dismiss notification"
-                onClick={() => setNotice("")}
-              >
-                <Icon name="close" size={16} />
-              </button>
-            </div>
+          {notice && !editing && (
+            <Alert role="status" aria-live="polite">
+              <AlertDescription>{notice}</AlertDescription>
+              <AlertAction>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Dismiss notification"
+                  onClick={() => setNotice("")}
+                >
+                  <X aria-hidden="true" />
+                </Button>
+              </AlertAction>
+            </Alert>
           )}
-          {(view === "Inbox" || view === "Published") && (
+          {inbox && (
             <>
-              <div className="stats">
-                <div className="stat">
-                  <span className="stat-icon mint">
-                    <Icon name="inbox" />
-                  </span>
-                  <div>
-                    <small>Awaiting your review</small>
-                    <strong>
-                      {posts.filter((p) => p.status === "draft").length}
-                      <span> drafts</span>
-                    </strong>
-                  </div>
-                </div>
-                <div className="stat">
-                  <span className="stat-icon lavender">
-                    <Icon name="send" />
-                  </span>
-                  <div>
-                    <small>Published posts</small>
-                    <strong>
-                      {published.length}
-                      <span> sent out</span>
-                    </strong>
-                  </div>
-                </div>
-                <div className="stat">
-                  <span className="stat-icon peach">
-                    <Icon name="link" />
-                  </span>
-                  <div>
-                    <small>Connected channels</small>
-                    <strong>
-                      {Number(connections.facebook) +
-                        Number(connections.instagram)}
-                      <span> of 2 channels</span>
-                    </strong>
-                  </div>
-                  <button
-                    className="stat-link"
-                    aria-label="Manage connections"
-                    onClick={() => setView("Connections")}
-                  >
-                    <Icon name="arrow" size={19} />
-                  </button>
-                </div>
-              </div>
-              <div className="inbox-toolbar">
-                <div className="tabs">
-                  <button
-                    className={filter === "all" ? "selected" : ""}
-                    onClick={() => setFilter("all")}
-                  >
-                    All posts{" "}
-                    <span>
-                      {view === "Published" ? published.length : drafts.length}
-                    </span>
-                  </button>
-                  <button
-                    className={filter === "instagram" ? "selected" : ""}
-                    onClick={() => setFilter("instagram")}
-                  >
-                    Instagram
-                  </button>
-                  <button
-                    className={filter === "facebook" ? "selected" : ""}
-                    onClick={() => setFilter("facebook")}
-                  >
-                    Facebook
-                  </button>
-                </div>
-                <label className="search">
-                  <Icon name="search" size={17} />
-                  <input
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <ToggleGroup
+                  type="single"
+                  value={filter}
+                  onValueChange={(value) => {
+                    if (value) updateFilter(value);
+                  }}
+                  aria-label="Filter by channel"
+                  variant="outline"
+                  spacing={0}
+                >
+                  <ToggleGroupItem value="all">All posts</ToggleGroupItem>
+                  <ToggleGroupItem value="instagram">Instagram</ToggleGroupItem>
+                  <ToggleGroupItem value="facebook">Facebook</ToggleGroupItem>
+                </ToggleGroup>
+                <InputGroup className="sm:w-64">
+                  <InputGroupInput
+                    name="search"
+                    type="search"
                     aria-label="Search posts"
-                    placeholder="Search your posts…"
+                    autoComplete="off"
+                    placeholder="Search posts…"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(event) => updateSearch(event.target.value)}
                   />
-                </label>
+                  <InputGroupAddon>
+                    <Search aria-hidden="true" />
+                  </InputGroupAddon>
+                </InputGroup>
               </div>
-              <div className="section-title">
-                <h2>
-                  {view === "Published" ? "Published" : "Draft inbox"}{" "}
-                  <span>{visible.length}</span>
-                </h2>
-                <span>Newest first</span>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  {loading
+                    ? "Loading posts…"
+                    : `${visible.length} ${view === "Published" ? "published" : visible.length === 1 ? "draft" : "drafts"}`}
+                </p>
+                <span className="text-xs text-muted-foreground">
+                  Newest first
+                </span>
               </div>
               {loading ? (
-                <div className="empty">
-                  <Icon name="clock" size={32} />
-                  <h3>Opening your inbox…</h3>
-                </div>
-              ) : visible.length ? (
-                <div className="post-grid">
-                  {visible.map((p, i) => (
-                    <article className="post-card" key={p.id}>
-                      <div
-                        className={`post-cover cover-${i % 4}`}
-                        style={
-                          p.imageUrl
-                            ? {
-                                backgroundImage: `url(${JSON.stringify(p.imageUrl)})`,
-                              }
-                            : undefined
-                        }
-                      >
-                        {!!p.assets.length && (
-                          <MediaGallery assets={p.assets} title={p.title} />
-                        )}
-                        {!p.assets.length && !p.imageUrl && (
-                          <div className="cover-art">
-                            <span className="cover-kicker">A LITTLE IDEA.</span>
-                            <strong>{p.title}</strong>
-                            <span className="cover-footer">
-                              POSTDISPATCH <Icon name="spark" size={20} />
-                            </span>
-                          </div>
-                        )}
-                        <span className={`status-chip ${p.status}`}>
-                          <span />
-                          {p.status === "draft"
-                            ? "Awaiting review"
-                            : p.status === "published"
-                              ? "Published"
-                              : p.status === "publishing"
-                                ? "Publishing…"
-                                : "Needs review"}
-                        </span>
-                      </div>
-                      <div className="post-body">
-                        <div className="platforms">
-                          {p.platforms.map((platform) => (
-                            <PlatformBadge key={platform} platform={platform} />
-                          ))}
-                        </div>
-                        <h3>{p.title}</h3>
-                        <p className="caption">{p.caption}</p>
-                        {p.error && <p className="post-error">{p.error}</p>}
-                        <div className="post-meta">
-                          <span>
-                            <Icon
-                              name={p.source === "Manual" ? "grid" : "spark"}
-                              size={13}
-                            />
-                            {p.source}
-                          </span>
-                          <time dateTime={p.createdAt}>
-                            {new Date(p.createdAt).toLocaleDateString(
-                              undefined,
-                              { month: "short", day: "numeric" },
-                            )}
-                          </time>
-                        </div>
-                        <div className="post-actions">
-                          {p.status === "draft" ? (
-                            <>
-                              <button
-                                className="button secondary"
-                                disabled={busy}
-                                onClick={() => edit(p)}
-                              >
-                                Review & edit
-                              </button>
-                              <button
-                                className="button publish-button"
-                                disabled={busy}
-                                onClick={() => setConfirm(p)}
-                              >
-                                Publish <Icon name="arrow" size={16} />
-                              </button>
-                            </>
-                          ) : (
-                            <span className="delivery-note">
-                              {p.status === "published"
-                                ? "✓ Delivered to your channels"
-                                : p.status === "publishing"
-                                  ? "Delivery in progress. Check Meta if interrupted."
-                                  : "Check your channels before resubmitting."}
-                            </span>
-                          )}
-                          {p.status !== "publishing" && (
-                            <button
-                              className="button delete-button"
-                              disabled={busy}
-                              onClick={() => setDeleteConfirm(p)}
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </article>
+                <div
+                  aria-label="Loading posts"
+                  role="status"
+                  className="grid gap-6 md:grid-cols-2 xl:grid-cols-3"
+                >
+                  {[0, 1, 2].map((item) => (
+                    <div
+                      key={item}
+                      className="flex flex-col gap-4 rounded-xl border bg-card p-4"
+                    >
+                      <Skeleton className="aspect-[4/3] w-full" />
+                      <Skeleton className="h-5 w-2/3" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
                   ))}
                 </div>
-              ) : (
-                <div className="empty">
-                  <div className="empty-art">
-                    <div className="paper-back" />
-                    <div className="paper-front">
-                      <Icon name="send" size={30} />
-                      <i />
-                      <i />
-                      <i />
-                    </div>
-                    <span className="empty-spark">✦</span>
-                  </div>
-                  <h3>
-                    {search || filter !== "all"
-                      ? "No matching posts"
-                      : view === "Published"
-                        ? "Your first dispatch is ahead."
-                        : "Your next great post starts here."}
-                  </h3>
-                  <p>
-                    {search || filter !== "all"
-                      ? "Try another search or channel."
-                      : view === "Published"
-                        ? "Approved posts will appear here once they’re published."
-                        : "Create a draft yourself, or connect an AI assistant\nto fill your inbox with fresh ideas."}
-                  </p>
-                  {view === "Inbox" && !search && filter === "all" && (
-                    <div className="empty-actions">
-                      <button className="button primary" onClick={newDraft}>
-                        <Icon name="plus" size={17} /> Create your first draft
-                      </button>
-                      <button
-                        className="button secondary"
-                        onClick={() => setView("MCP integration")}
-                      >
-                        Connect your assistant <Icon name="arrow" size={16} />
-                      </button>
-                    </div>
-                  )}
+              ) : visible.length ? (
+                <div className="grid items-stretch gap-6 md:grid-cols-2 xl:grid-cols-3">
+                  {visible.map((post) => (
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      busy={busy}
+                      onEdit={() => edit(post)}
+                      onPublish={() => setConfirm(post)}
+                      onDelete={() => setDeleteConfirm(post)}
+                    />
+                  ))}
                 </div>
-              )}
-              <div className="footer-note">
-                <Icon name="check" size={14} /> Nothing goes live until you say
-                so.
-              </div>
-            </>
-          )}
-          {view === "Connections" && (
-            <>
-              {project && (
-                <ProjectSettings
-                  key={project.id}
-                  project={project}
-                  creating={creatingProject}
-                  onSaved={() => refresh()}
-                  onCreated={async (id, token) => {
-                    setCreatingProject(false);
-                    setMcpToken("");
-                    setOAuthConnections([]);
-                    await refresh(id);
-                    setMcpToken(token);
-                  }}
-                />
-              )}
-              <section className="info-panel">
-                <Icon name="link" />
-                <div>
-                  <h3>A direct connection to Meta</h3>
-                  <p>
-                    Create a Meta developer app and grant its publishing
-                    permissions. Save the account IDs and access tokens for this
-                    project above. Configured means credentials are present; the
-                    first publish verifies access. Stored images are shared with
-                    Meta through temporary signed links.
-                  </p>
-                  <a
-                    href="https://developers.facebook.com/docs/instagram-platform/content-publishing/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Meta publishing documentation ↗
-                  </a>
-                </div>
-              </section>
-            </>
-          )}
-          {view === "MCP integration" && (
-            <>
-              <section className="mcp-hero">
-                <span className="mcp-icon">
-                  <Icon name="spark" size={30} />
-                </span>
-                <div>
-                  <span className="eyebrow">
-                    A SHORTER PATH FROM IDEA TO POST
-                  </span>
-                  <h2>Your assistant. Your inbox.</h2>
-                  <p>
-                    Send drafts through MCP, then come back here to make them
-                    yours.
-                  </p>
-                </div>
-                <span className="connection-state">
-                  {connections.mcp
-                    ? "OAuth ready · Bearer token configured"
-                    : "OAuth ready"}
-                </span>
-              </section>
-              <div className="setup-grid">
-                <section className="setup-card">
-                  <span className="step">01</span>
-                  <h3>Set up your endpoint</h3>
-                  <p>
-                    This endpoint is bound to {project?.name}. ChatGPT can
-                    connect with OAuth. Other clients can continue using its
-                    project bearer token.
-                  </p>
-                  <div className="endpoint">
-                    <code>
-                      {origin}/api/mcp/{projectId}
-                    </code>
-                    <button
-                      aria-label="Copy MCP endpoint"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(
-                            `${origin}/api/mcp/${projectId}`,
-                          );
-                          setNotice("Endpoint copied.");
-                        } catch {
-                          setNotice(
-                            "Copy the endpoint from the text shown here.",
-                          );
-                        }
+              ) : search || filter !== "all" || view === "Published" ? (
+                <Empty className="min-h-80 border">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      {view === "Published" ? (
+                        <Send aria-hidden="true" />
+                      ) : (
+                        <Search aria-hidden="true" />
+                      )}
+                    </EmptyMedia>
+                    <EmptyTitle>
+                      <h2>
+                        {search || filter !== "all"
+                          ? "No matching posts"
+                          : "Your first dispatch is ahead"}
+                      </h2>
+                    </EmptyTitle>
+                    <EmptyDescription>
+                      {search || filter !== "all"
+                        ? "Try another search or channel."
+                        : "Published posts appear here after you approve and send them."}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (search || filter !== "all") {
+                          updateSearch("");
+                          updateFilter("all");
+                        } else navigate("Inbox");
                       }}
                     >
-                      Copy
-                    </button>
+                      {search || filter !== "all"
+                        ? "Clear filters"
+                        : "Back to inbox"}
+                    </Button>
+                  </EmptyContent>
+                </Empty>
+              ) : (
+                <div className="grid overflow-hidden rounded-2xl border bg-card lg:grid-cols-[1.2fr_1fr]">
+                  <Empty className="items-start px-8 py-14 text-left sm:px-12">
+                    <EmptyHeader className="items-start text-left">
+                      <EmptyMedia variant="icon">
+                        <Inbox aria-hidden="true" />
+                      </EmptyMedia>
+                      <EmptyTitle>
+                        <h2>A good post starts with a draft.</h2>
+                      </EmptyTitle>
+                      <EmptyDescription>
+                        Create one yourself, or let your assistant send ideas
+                        here. Your project’s drafts stay private until you’re
+                        ready to share.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent className="items-start">
+                      <Button size="lg" onClick={newDraft}>
+                        <Plus data-icon="inline-start" aria-hidden="true" />
+                        Create your first draft
+                      </Button>
+                      <Button
+                        variant="link"
+                        onClick={() => navigate("MCP integration")}
+                      >
+                        Connect your assistant
+                      </Button>
+                    </EmptyContent>
+                  </Empty>
+                  <div className="border-t bg-background p-8 sm:p-12 lg:border-t-0 lg:border-l">
+                    <FlowPanel />
                   </div>
-                  <h3>Project bearer token</h3>
-                  <button
-                    className="button secondary"
-                    disabled={busy}
-                    onClick={() => void rotateMcpToken()}
-                  >
-                    {connections.mcp
-                      ? "Replace MCP token"
-                      : "Generate MCP token"}
-                  </button>
-                  {mcpToken && (
-                    <div className="token-reveal">
-                      <p>Copy this token now. It is shown only once.</p>
-                      <code>{mcpToken}</code>
-                      <button
-                        className="button secondary"
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(mcpToken);
-                            setNotice("Token copied.");
-                          } catch {
-                            setNotice("Copy the token shown here.");
-                          }
-                        }}
-                      >
-                        Copy token
-                      </button>
-                    </div>
-                  )}
-                  <p className="small">
-                    Replacing a token disconnects clients using the previous
-                    token.
-                  </p>
-                  <p className="small">
-                    Header:{" "}
-                    <code>Authorization: Bearer YOUR_PROJECT_TOKEN</code>
-                  </p>
-                </section>
-                <section className="setup-card">
-                  <span className="step">02</span>
-                  <h3>Connect ChatGPT with OAuth</h3>
-                  <ol className="oauth-steps">
-                    <li>Open ChatGPT Plugins and add a custom MCP server.</li>
-                    <li>Paste this project’s endpoint and select OAuth.</li>
-                    <li>
-                      Use dynamic client registration (DCR); leave Client ID and
-                      Client Secret blank.
-                    </li>
-                    <li>
-                      Sign in to PostDispatch and approve access to{" "}
-                      {project?.name}.
-                    </li>
-                  </ol>
-                  <p>Then select PostDispatch in your chat and try:</p>
-                  <blockquote>
-                    “Create a Facebook draft about our latest update. Send it to
-                    PostDispatch using create_draft so I can review it.”
-                  </blockquote>
-                  <p className="small">
-                    Remote clients need a public HTTPS URL. OAuth grants access
-                    only to this project; publishing stays in your hands.
-                  </p>
-                </section>
-              </div>
-              <section className="setup-card oauth-connections">
-                <h3>OAuth connections</h3>
-                {oauthConnections.length ? (
-                  oauthConnections.map((connection) => (
-                    <div key={connection.clientId} className="oauth-connection">
-                      <span>{connection.name}</span>
-                      <button
-                        className="button secondary"
-                        disabled={busy}
-                        onClick={async () => {
-                          setBusy(true);
-                          try {
-                            await request(
-                              `/api/projects/${projectId}/oauth?clientId=${encodeURIComponent(connection.clientId)}`,
-                              "DELETE",
-                            );
-                            await refresh();
-                            setNotice(
-                              "OAuth connection disconnected. Project bearer tokens remain active.",
-                            );
-                          } catch (e) {
-                            setNotice(
-                              e instanceof Error
-                                ? e.message
-                                : "Unable to disconnect",
-                            );
-                          } finally {
-                            setBusy(false);
-                          }
-                        }}
-                      >
-                        Disconnect
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <p>No OAuth clients connected to this project yet.</p>
-                )}
-              </section>
-              <section className="tools-panel">
-                <div>
-                  <h3>Your project. Your publishing desk.</h3>
-                  <p>
-                    Your assistant can identify this project with get_project.
-                    It prepares; you publish.
-                  </p>
                 </div>
-                <div>
-                  <code>create_draft</code>
-                  <span>
-                    Submit a post with up to 10 images or one video for your
-                    review
-                  </span>
-                </div>
-                <div>
-                  <code>list_posts</code>
-                  <span>Read drafts and delivery status</span>
-                </div>
-              </section>
-              <section className="info-panel">
-                <Icon name="clock" />
-                <div>
-                  <h3>Want fresh drafts every day?</h3>
-                  <p>
-                    Connect a scheduler to your AI workflow. It generates the
-                    post and calls create_draft; each post waits in this inbox
-                    for your approval.
-                  </p>
-                </div>
-              </section>
+              )}
+              <p className="flex items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground">
+                <Check className="size-3.5" aria-hidden="true" />
+                Nothing goes live until you approve it.
+              </p>
             </>
+          )}
+          {view === "Connections" && project && (
+            <ProjectSettings
+              key={project.id}
+              project={project}
+              creating={creatingProject}
+              onSaved={() => refresh()}
+              onCreated={async (id, token) => {
+                setCreatingProject(false);
+                setOAuthConnections([]);
+                await refresh(id);
+                setMcpToken(token);
+                navigate("MCP integration", id);
+                setNotice(
+                  "Project created. Copy its bearer token below, or connect your assistant with OAuth.",
+                );
+              }}
+            />
+          )}
+          {view === "MCP integration" && (
+            <AssistantSettings
+              project={project}
+              endpoint={`${origin}/api/mcp/${projectId}`}
+              token={mcpToken}
+              busy={busy || loading}
+              configured={connections.mcp}
+              grants={oauthConnections}
+              onRotate={() => void rotateMcpToken()}
+              onRevoke={revoke}
+              onNotice={setNotice}
+            />
           )}
         </main>
       </div>
-      {editing && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !busy) setEditing(null);
-          }}
-        >
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="draft-title"
-          >
-            <div className="modal-heading">
-              <div>
-                <span className="eyebrow">MAKE IT YOURS</span>
-                <h2 id="draft-title">
-                  {editing === "new" ? "A fresh draft." : "Review your draft."}
-                </h2>
-              </div>
-              <button
-                className="icon-button"
-                aria-label="Close editor"
-                onClick={() => setEditing(null)}
-                disabled={busy}
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-            <form onSubmit={save}>
-              <label>
-                Post title
-                <input
-                  autoFocus
-                  required
-                  maxLength={120}
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="Give this idea a name"
-                />
-              </label>
-              <label>
-                Caption
-                <textarea
-                  required
-                  maxLength={2200}
-                  rows={6}
-                  value={form.caption}
-                  onChange={(e) =>
-                    setForm({ ...form, caption: e.target.value })
-                  }
-                  placeholder="What would you like to share?"
-                />
-                <span className="character-count">
-                  {form.caption.length} / 2,200
-                </span>
-              </label>
-              <label>
-                Images or video
-                <input
-                  type="file"
-                  multiple
-                  ref={imageFileInput}
-                  accept="image/jpeg,image/png,image/webp,video/mp4,.mp4"
-                  disabled={busy}
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    e.target.value = "";
-                    const videos = files.filter(
-                      (file) =>
-                        file.type === "video/mp4" ||
-                        file.name.toLowerCase().endsWith(".mp4"),
-                    );
-                    if (videos.length && files.length !== 1) {
-                      setNotice("Choose multiple images or a single video");
-                      return;
-                    }
-                    if (
-                      files.some(
-                        (file) =>
-                          file.size > (videos.length ? 100_000_000 : 4_500_000),
-                      )
-                    ) {
-                      setNotice(
-                        "Images must be 4.5 MB or smaller; videos must be 100 MB or smaller",
-                      );
-                      return;
-                    }
-                    const previous =
-                      videos.length ||
-                      mediaItems.some(
-                        (item) =>
-                          item.asset?.kind === "VIDEO" ||
-                          item.file?.type === "video/mp4" ||
-                          item.file?.name.toLowerCase().endsWith(".mp4"),
-                      )
-                        ? []
-                        : mediaItems;
-                    if (previous.length + files.length > 10) {
-                      setNotice("A post supports up to 10 images");
-                      return;
-                    }
-                    setMediaItems([
-                      ...previous,
-                      ...files.map((file) => ({
-                        id: crypto.randomUUID(),
-                        file,
-                      })),
-                    ]);
-                    setNotice("");
-                    if (videos.length) setForm({ ...form, imageUrl: "" });
-                  }}
-                />
-                <small>
-                  Up to 10 images (4.5 MB each), or one MP4 video (100 MB).
-                  Stored privately. Instagram videos publish as Reels.
-                </small>
-              </label>
-              {!!mediaItems.filter((item) => item.asset).length && (
-                <div className="editor-gallery">
-                  <MediaGallery
-                    assets={mediaItems.flatMap((item) =>
-                      item.asset ? [item.asset] : [],
-                    )}
-                    title={form.title}
-                  />
-                </div>
-              )}
-              {!!mediaItems.length && (
-                <ol className="asset-list" aria-label="Post media order">
-                  {mediaItems.map((item, index) => (
-                    <li key={item.id}>
-                      <span>
-                        {index + 1}.{" "}
-                        {item.file?.name ||
-                          `${item.asset?.kind === "VIDEO" ? "Video" : "Image"} ${index + 1}`}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={busy || index === 0}
-                        aria-label={`Move asset ${index + 1} up`}
-                        onClick={() =>
-                          setMediaItems((items) => {
-                            const next = [...items];
-                            [next[index - 1], next[index]] = [
-                              next[index],
-                              next[index - 1],
-                            ];
-                            return next;
-                          })
-                        }
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy || index === mediaItems.length - 1}
-                        aria-label={`Move asset ${index + 1} down`}
-                        onClick={() =>
-                          setMediaItems((items) => {
-                            const next = [...items];
-                            [next[index], next[index + 1]] = [
-                              next[index + 1],
-                              next[index],
-                            ];
-                            return next;
-                          })
-                        }
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        aria-label={`Remove asset ${index + 1}`}
-                        onClick={() =>
-                          setMediaItems((items) =>
-                            items.filter((value) => value.id !== item.id),
-                          )
-                        }
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              )}
-              <label>
-                Media URLs <span className="optional">optional</span>
-                <textarea
-                  rows={3}
-                  value={form.imageUrl}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setForm({ ...form, imageUrl: e.target.value })
-                  }
-                  placeholder={"https://…/image-1.jpg\nhttps://…/image-2.jpg"}
-                />
-                <small>
-                  One public HTTPS URL per line. Imported after the selected
-                  files, in order. Use multiple image URLs or one MP4 URL.
-                  Instagram requires an image or video.
-                </small>
-              </label>
-              <div className="form-channels">
-                <span>Publish to</span>
-                {(["facebook", "instagram"] as Platform[]).map((p) => (
-                  <label key={p}>
-                    <input
-                      type="checkbox"
-                      checked={form.platforms.includes(p)}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          platforms: e.target.checked
-                            ? [...form.platforms, p]
-                            : form.platforms.filter((v) => v !== p),
-                        })
-                      }
-                    />
-                    <PlatformBadge platform={p} />
-                  </label>
-                ))}
-              </div>
-              {notice && (
-                <p className="form-message" role="status">
-                  {notice}
-                </p>
-              )}
-              <div className="modal-actions">
-                {editing !== "new" ? (
-                  <button
-                    type="button"
-                    className="delete-button"
-                    disabled={busy}
-                    onClick={() => {
-                      const post = posts.find((p) => p.id === editing);
-                      if (post) {
-                        setEditing(null);
-                        setDeleteConfirm(post);
-                      }
-                    }}
-                  >
-                    Delete draft
-                  </button>
-                ) : (
-                  <span />
-                )}
-                <div>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={busy}
-                    onClick={() => setEditing(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="button primary"
-                    disabled={busy || !form.platforms.length}
-                  >
-                    {busy ? "Saving…" : "Save draft"}
-                    <Icon name="check" size={16} />
-                  </button>
-                </div>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
-      {deleteConfirm && (
-        <div className="modal-backdrop">
-          <section
-            className="modal confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-title"
-          >
-            <h2 id="delete-title">Delete this post?</h2>
-            <p>
-              “{deleteConfirm.title}” and its stored media will be permanently
-              removed from PostDispatch.
-            </p>
-            <p className="small">
-              Posts already published on Facebook or Instagram will remain
-              there.
-            </p>
-            <div className="modal-actions">
-              <button
-                className="button secondary"
-                disabled={busy}
-                onClick={() => setDeleteConfirm(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="button danger"
-                disabled={busy}
-                onClick={() => void remove(deleteConfirm.id)}
-              >
-                {busy ? "Deleting…" : "Delete post"}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-      {confirm && (
-        <div className="modal-backdrop">
-          <section
-            className="modal confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="publish-title"
-          >
-            <span className="stat-icon mint">
-              <Icon name="send" size={25} />
-            </span>
-            <h2 id="publish-title">Ready to send it out?</h2>
-            <p>
-              “{confirm.title}” will be published now to{" "}
-              {confirm.platforms.join(" and ")}.
-            </p>
-            <p className="small">
-              This creates a real post on your connected accounts.
-            </p>
-            <div className="modal-actions">
-              <button
-                className="button secondary"
-                onClick={() => setConfirm(null)}
-              >
-                Keep reviewing
-              </button>
-              <button className="button primary" onClick={() => void publish()}>
-                Publish now <Icon name="arrow" size={16} />
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-    </div>
+      <DraftEditor
+        editing={editing}
+        initialSnapshot={initialDraft}
+        form={form}
+        setForm={setForm}
+        items={mediaItems}
+        setItems={setMediaItems}
+        busy={busy}
+        notice={notice}
+        onNotice={setNotice}
+        onSave={save}
+        onClose={() => setEditing(null)}
+        onDelete={() => {
+          const post = posts.find((item) => item.id === editing);
+          if (post) {
+            setEditing(null);
+            setDeleteConfirm(post);
+          }
+        }}
+      />
+      <AlertDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => {
+          if (!open && !busy) setDeleteConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{deleteConfirm?.title}” and its stored media will be permanently
+              removed from PostDispatch. Posts already published on Facebook or
+              Instagram remain there.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={busy}
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleteConfirm) void remove(deleteConfirm.id);
+              }}
+            >
+              <Trash2 data-icon="inline-start" aria-hidden="true" />
+              {busy ? "Deleting…" : "Delete post"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={!!confirm}
+        onOpenChange={(open) => {
+          if (!open && !busy) setConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publish this post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{confirm?.title}” will go live now on{" "}
+              {confirm?.platforms.join(" and ")}. This creates a real post on
+              your connected accounts.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>
+              Keep reviewing
+            </AlertDialogCancel>
+            <AlertDialogAction disabled={busy} onClick={() => void publish()}>
+              <Send data-icon="inline-start" aria-hidden="true" />
+              Publish now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </SidebarProvider>
   );
 }

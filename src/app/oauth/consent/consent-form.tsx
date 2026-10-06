@@ -1,5 +1,18 @@
 "use client";
 import { useState } from "react";
+import { ConnectionShell } from "@/components/connection-shell";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+import { Check, ShieldCheck } from "lucide-react";
 export default function ConsentForm({
   query,
   projectName,
@@ -33,48 +46,65 @@ export default function ConsentForm({
     }
   }
   return (
-    <main className="auth-shell oauth-shell">
-      <section className="auth-card">
-        <span className="eyebrow">CONNECT YOUR ASSISTANT</span>
-        <h1>Connect {projectName}?</h1>
-        <p>{clientName} is requesting access to this PostDispatch project.</p>
-        <ul>
-          {scopes.includes("posts:read") && (
-            <li>Read posts and publishing status</li>
+    <ConnectionShell>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h1>Connect {projectName}?</h1>
+          </CardTitle>
+          <CardDescription>
+            {clientName} is requesting access to this PostDispatch project.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <ul className="flex flex-col gap-3 text-sm">
+            {[
+              ["posts:read", "Read posts and publishing status"],
+              ["posts:write", "Create drafts for your review"],
+              ["offline_access", "Keep the connection using renewable access"],
+            ]
+              .filter(([scope]) => scopes.includes(scope))
+              .map(([scope, text]) => (
+                <li key={scope} className="flex items-start gap-2">
+                  <Check
+                    className="mt-0.5 size-4 shrink-0 text-primary"
+                    aria-hidden="true"
+                  />
+                  {text}
+                </li>
+              ))}
+          </ul>
+          <Alert>
+            <ShieldCheck aria-hidden="true" />
+            <AlertDescription>
+              Publishing requires your approval in PostDispatch. Other projects
+              stay private.
+            </AlertDescription>
+          </Alert>
+          <p className="break-words text-xs leading-relaxed text-muted-foreground">
+            You will return to {redirectHost}. The requesting app supplies its
+            client name.
+          </p>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
-          {scopes.includes("posts:write") && (
-            <li>Create drafts for your review</li>
-          )}
-          {scopes.includes("offline_access") && (
-            <li>Keep the connection using renewable access</li>
-          )}
-        </ul>
-        <p>
-          Publishing still requires your approval in PostDispatch. Other
-          projects stay private.
-        </p>
-        <small>
-          You will return to {redirectHost}. Client names are supplied by the
-          requesting app.
-        </small>
-        {error && <p role="alert">{error}</p>}
-        <div className="modal-actions">
-          <button
-            className="button secondary"
+        </CardContent>
+        <CardFooter className="justify-end gap-2">
+          <Button
+            variant="outline"
             disabled={busy}
             onClick={() => void consent(false)}
           >
             Deny
-          </button>
-          <button
-            className="button primary"
-            disabled={busy}
-            onClick={() => void consent(true)}
-          >
+          </Button>
+          <Button disabled={busy} onClick={() => void consent(true)}>
+            {busy && <Spinner data-icon="inline-start" />}
             {busy ? "Connecting…" : "Allow access"}
-          </button>
-        </div>
-      </section>
-    </main>
+          </Button>
+        </CardFooter>
+      </Card>
+    </ConnectionShell>
   );
 }
