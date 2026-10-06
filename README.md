@@ -78,7 +78,7 @@ All four account/token values are stored in the `projects` database table. Token
 
 Existing posts are assigned to the default Personal workspace project by migration 0001. Existing environment credentials were copied into that project during this upgrade. The global Meta credential variables and MCP_TOKEN are no longer used by the runtime. Legacy `/api/mcp` connections must use the default project's new endpoint; its migrated MCP token remains valid until replaced.
 
-MVP formats: Facebook text or single image, Instagram single image. Instagram requires an image. URL imports and file uploads accept JPEG, PNG, or WebP up to 8 MB / 20 megapixels, converted to JPEG. No videos, carousels, Stories, or account OAuth onboarding yet. Credentials shown as configured have not been verified until the first publish. Public users outside app roles require appropriate Meta review/access.
+MVP formats: Facebook text or single image, Instagram single image. Instagram requires an image. URL imports and file uploads accept JPEG, PNG, or WebP up to 4.5 MB (Vercel's function request limit) / 20 megapixels, converted to JPEG. No videos, carousels, Stories, or account OAuth onboarding yet. Credentials shown as configured have not been verified until the first publish. Public users outside app roles require appropriate Meta review/access.
 
 Publishing claims the draft before sending and saves each platform's resulting ID. Partial failures and uncertain deliveries enter `needs_review` and cannot be automatically resent. Inspect Meta before making a new draft. If the server stops mid-publication, the post stays `publishing`; reconcile the platform outcome manually before changing data. No live publishing is tested without credentials.
 
@@ -97,7 +97,7 @@ Over MCP, `create_draft` takes one of three image sources:
   Multipart with a field named `file` (`curl -F file=@photo.jpg`) also works, and clients holding the project's static MCP token can use it directly instead of an upload token. Upload tokens are stored hashed and allow 20 uploads within 60 minutes; rejected images don't count. Each upload ID can back one draft and expires 60 minutes after upload. A project can hold at most 50 unclaimed uploads; expired ones are deleted, along with their objects, on the next upload.
 
 - `imageUrl`: downloaded with public-address checks, pinned DNS, redirect checks, and download limits before upload. Temporary signed download links work.
-- `imageFile.dataBase64`: raw base64 bytes with optional filename and mimeType, limited to 256 KB over MCP because the model must type out every byte. The dashboard API still accepts up to 8 MB.
+- `imageFile.dataBase64`: raw base64 bytes with optional filename and mimeType, limited to 256 KB over MCP because the model must type out every byte. The dashboard API accepts up to 4.5 MB.
 
 Run `pnpm images:migrate` to copy legacy image URLs into private storage. Failed imports retain their original URL and can be replaced in the editor.
 

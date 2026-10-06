@@ -13,7 +13,10 @@ import ipaddr from "ipaddr.js";
 import sharp from "sharp";
 import { z } from "zod";
 
-export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+// Vercel rejects function request bodies over 4.5 MB before our code runs.
+export const MAX_IMAGE_BYTES = 4_500_000;
+export const MAX_IMAGE_LABEL = "4.5 MB";
+export const IMAGE_TOO_LARGE = `Images must be ${MAX_IMAGE_LABEL} or smaller. Resize to at most 2048 px on the long edge (images are stored at up to 1440×1800) and try again.`;
 export const imageFileSchema = z.object({
   dataBase64: z
     .string()
@@ -123,7 +126,7 @@ export async function downloadImage(
         }
         if (Number(response.headers["content-length"] || 0) > MAX_IMAGE_BYTES) {
           response.destroy();
-          reject(new Error("Images must be 8 MB or smaller"));
+          reject(new Error(IMAGE_TOO_LARGE));
           return;
         }
         const chunks: Buffer[] = [];
@@ -131,7 +134,7 @@ export async function downloadImage(
         response.on("data", (chunk: Buffer) => {
           length += chunk.length;
           if (length > MAX_IMAGE_BYTES) {
-            response.destroy(new Error("Images must be 8 MB or smaller"));
+            response.destroy(new Error(IMAGE_TOO_LARGE));
             return;
           }
           chunks.push(chunk);
@@ -164,8 +167,8 @@ export async function uploadImage(
   return storeImage(projectId, bytes);
 }
 export async function storeImage(projectId: string, bytes: Buffer) {
-  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES)
-    throw new Error("Images must be between 1 byte and 8 MB");
+  if (!bytes.length) throw new Error("The image is empty");
+  if (bytes.length > MAX_IMAGE_BYTES) throw new Error(IMAGE_TOO_LARGE);
   let jpeg: Buffer;
   try {
     const image = sharp(bytes, {

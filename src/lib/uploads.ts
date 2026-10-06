@@ -4,7 +4,12 @@ import { z } from "zod";
 import { getDb } from "../db";
 import { imageUploads, uploadTokens } from "../db/schema";
 import { getProject, verifyProjectToken } from "./projects";
-import { MAX_IMAGE_BYTES, removeImage, storeImage } from "./storage";
+import {
+  IMAGE_TOO_LARGE,
+  MAX_IMAGE_BYTES,
+  removeImage,
+  storeImage,
+} from "./storage";
 import { readBody } from "./request-body";
 
 const TOKEN_TTL_MINUTES = 60;
@@ -156,9 +161,11 @@ export async function receiveImageUpload(projectId: string, req: Request) {
       bytes = await uploadBytes(req);
     } catch (e) {
       if (e instanceof UploadError) throw e;
+      if (e instanceof Error && /too large/.test(e.message))
+        throw new UploadError(IMAGE_TOO_LARGE, 413);
       throw new UploadError(
         e instanceof Error ? e.message : "Could not read the image",
-        413,
+        400,
       );
     }
     let image;

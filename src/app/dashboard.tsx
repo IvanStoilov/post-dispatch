@@ -991,8 +991,8 @@ export default function Dashboard({
                   accept="image/jpeg,image/png,image/webp"
                   onChange={(e) => {
                     const file = e.target.files?.[0] ?? null;
-                    if (file && file.size > 8 * 1024 * 1024) {
-                      setNotice("Images must be 8 MB or smaller");
+                    if (file && file.size > 4_500_000) {
+                      setNotice("Images must be 4.5 MB or smaller");
                       e.target.value = "";
                       return;
                     }
@@ -1000,7 +1000,9 @@ export default function Dashboard({
                     if (file) setForm({ ...form, imageUrl: "" });
                   }}
                 />
-                <small>JPEG, PNG, or WebP up to 8 MB. Stored privately.</small>
+                <small>
+                  JPEG, PNG, or WebP up to 4.5 MB. Stored privately.
+                </small>
               </label>
               {editing !== "new" &&
                 !!posts.find((p) => p.id === editing)?.imageUrl && (

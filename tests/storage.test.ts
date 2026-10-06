@@ -5,6 +5,8 @@ import {
   downloadImage,
   inlineImageFileSchema,
   MAX_INLINE_IMAGE_BYTES,
+  MAX_IMAGE_BYTES,
+  storeImage,
   uploadImage,
 } from "../src/lib/storage";
 import { draftSchema } from "../src/lib/store";
@@ -93,4 +95,10 @@ test("MCP image inputs: uploads satisfy Instagram, inline base64 stays small", (
   const large = Buffer.alloc(MAX_INLINE_IMAGE_BYTES + 3).toString("base64");
   assert.ok(inlineImageFileSchema.safeParse({ dataBase64: small }).success);
   assert.ok(!inlineImageFileSchema.safeParse({ dataBase64: large }).success);
+});
+test("images over the 4.5 MB request limit get a resize hint", async () => {
+  await assert.rejects(
+    () => storeImage("unused", Buffer.alloc(MAX_IMAGE_BYTES + 1)),
+    /4\.5 MB or smaller\. Resize/,
+  );
 });

@@ -63,7 +63,7 @@ export async function handleProjectMcp(req: Request, projectId: string) {
     "create_draft",
     {
       description:
-        "Submit a draft to PostDispatch for human review. Never publishes automatically. Attach at most one image (JPEG, PNG, or WebP, up to 8 MB): imageUploadId (from uploading the file with create_upload_token) when you can make HTTP requests (preferred for local or generated files); imageUrl when the image is already reachable over public HTTPS (including temporary download links); or imageFile.dataBase64 only for images under 256 KB. Do not base64-encode larger images. If you cannot provide the image, omit it: the draft is still created and the result includes a reviewUrl where a person can add it before publishing.",
+        "Submit a draft to PostDispatch for human review. Never publishes automatically. Attach at most one image (JPEG, PNG, or WebP, up to 4.5 MB; resize larger photos to at most 2048 px on the long edge first): imageUploadId (from uploading the file with create_upload_token) when you can make HTTP requests (preferred for local or generated files); imageUrl when the image is already reachable over public HTTPS (including temporary download links); or imageFile.dataBase64 only for images under 256 KB. Do not base64-encode larger images. If you cannot provide the image, omit it: the draft is still created and the result includes a reviewUrl where a person can add it before publishing.",
       _meta: { securitySchemes: [{ type: "oauth2", scopes: ["posts:write"] }] },
       annotations: {
         readOnlyHint: false,
@@ -123,7 +123,7 @@ export async function handleProjectMcp(req: Request, projectId: string) {
     "create_upload_token",
     {
       description:
-        'Get a bearer token for uploading image files directly over HTTP, without base64 in tool calls. POST each file\'s raw bytes (or multipart with field "file") to uploadUrl with header "Authorization: Bearer <token>", e.g. using curl; each response returns an imageUploadId for create_draft. One token covers up to 20 JPEG, PNG, or WebP files (8 MB each) for 60 minutes; reuse it for multiple images. Requires the ability to make HTTP requests (shell, code execution); otherwise use imageUrl or omit the image.',
+        'Get a bearer token for uploading image files directly over HTTP, without base64 in tool calls. POST each file\'s raw bytes (or multipart with field "file") to uploadUrl with header "Authorization: Bearer <token>", e.g. using curl; each response returns an imageUploadId for create_draft. One token covers up to 20 JPEG, PNG, or WebP files (4.5 MB each; resize larger photos to at most 2048 px on the long edge before uploading) for 60 minutes; reuse it for multiple images. Requires the ability to make HTTP requests (shell, code execution); otherwise use imageUrl or omit the image.',
       inputSchema: {},
       _meta: { securitySchemes: [{ type: "oauth2", scopes: ["posts:write"] }] },
       annotations: {
