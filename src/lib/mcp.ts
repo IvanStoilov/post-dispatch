@@ -5,12 +5,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { z } from "zod";
 import { getProject, verifyProjectToken } from "./projects";
 import { createPost, listPosts } from "./store";
-import {
-  mcpDraftSchema,
-  fileDraftSchema,
-  filesDraftSchema,
-  draftStorageInput,
-} from "./mcp-images";
+import { mcpDraftSchema, filesDraftSchema } from "./mcp-images";
 import {
   createDirectUpload,
   completeDirectUpload,
@@ -80,7 +75,7 @@ export async function handleProjectMcp(req: Request, projectId: string) {
     try {
       const post = await createPost(
         project.id,
-        { ...draftStorageInput(input), source: input.source || "AI assistant" },
+        { ...input, source: input.source || "AI assistant" },
         { allowMissingImage: true },
       );
       const result = {
@@ -124,31 +119,12 @@ export async function handleProjectMcp(req: Request, projectId: string) {
     "create_draft",
     {
       description:
-        "Submit a draft for human review. Never publishes automatically. Use assets: an ordered array of 1–10 images OR one MP4 video. Each asset has type EXTERNAL_URL (url), UPLOAD_ID (uploadId), OPENAPI_FILE (host-provided download_url, file_id, optional mime_type/file_name), or INLINE_BASE64 (dataBase64, optional filename/mimeType; images only, 256 KB). Optional kind IMAGE or VIDEO is checked against the actual file. JPEG/PNG/WebP images up to 4.5 MB each; MP4 video up to 100 MB. For ChatGPT attachments use create_draft_from_files. For local video uploads call create_asset_upload, PUT bytes to its URL, then complete_asset_upload. The legacy image field still accepts one image. Omit media if unavailable; Instagram drafts require media before publishing.",
+        "Submit a draft for human review. Never publishes automatically. Use assets: an ordered array of 1–10 images OR one MP4 video. Each asset has type EXTERNAL_URL (url), UPLOAD_ID (uploadId), OPENAPI_FILE (host-provided download_url, file_id, optional mime_type/file_name), or INLINE_BASE64 (dataBase64, optional filename/mimeType; images only, 256 KB). Optional kind IMAGE or VIDEO is checked against the actual file. JPEG/PNG/WebP images up to 4.5 MB each; MP4 video up to 100 MB. For ChatGPT attachments use create_draft_from_files. For local video uploads call create_asset_upload, PUT bytes to its URL, then complete_asset_upload. Omit media if unavailable; Instagram drafts require media before publishing.",
       inputSchema: mcpDraftSchema,
       _meta: draftMetadata,
       annotations: draftAnnotations,
     },
     submitDraft,
-  );
-  // fileParams cannot annotate a discriminated union: its listed top-level
-  // field must resolve to a file object with only download_url/file_id required.
-  server.registerTool(
-    "create_draft_from_file",
-    {
-      description:
-        "Create a draft using a file attached or generated in ChatGPT. The host supplies image.download_url and image.file_id through openai/fileParams; optional image.mime_type and image.file_name are supported. The server downloads it immediately and stores it privately. JPEG, PNG or WebP up to 4.5 MB, or one MP4 up to 100 MB. Never publishes automatically; do not invent file IDs or download URLs.",
-      inputSchema: fileDraftSchema,
-      _meta: { ...draftMetadata, "openai/fileParams": ["image"] },
-      annotations: draftAnnotations,
-    },
-    (input) => {
-      const { image, ...draft } = input;
-      return submitDraft({
-        ...draft,
-        assets: [{ ...image, type: "OPENAPI_FILE" }],
-      });
-    },
   );
   server.registerTool(
     "create_draft_from_files",
@@ -226,7 +202,7 @@ export async function handleProjectMcp(req: Request, projectId: string) {
     "create_upload_token",
     {
       description:
-        'Get a bearer token for uploading image files directly over HTTP, without base64 in tool calls. POST each file\'s raw bytes (or multipart with field "file") to uploadUrl with header "Authorization: Bearer <token>", e.g. using curl; each response returns an imageUploadId; pass it to create_draft as assets: [{ type: "UPLOAD_ID", uploadId: imageUploadId }]. One token covers up to 20 JPEG, PNG, or WebP files (4.5 MB each; resize larger photos to at most 2048 px on the long edge before uploading) for 60 minutes; reuse it for multiple images. Requires the ability to make HTTP requests (shell, code execution); otherwise use image: { type: "EXTERNAL_URL", url: "https://..." }, create_draft_from_file for ChatGPT files, or omit the image.',
+        'Get a bearer token for uploading image files directly over HTTP, without base64 in tool calls. POST each file\'s raw bytes (or multipart with field "file") to uploadUrl with header "Authorization: Bearer <token>", e.g. using curl; each response returns an imageUploadId; pass it to create_draft as assets: [{ type: "UPLOAD_ID", uploadId: imageUploadId }]. One token covers up to 20 JPEG, PNG, or WebP files (4.5 MB each; resize larger photos to at most 2048 px on the long edge before uploading) for 60 minutes; reuse it for multiple images. Requires the ability to make HTTP requests (shell, code execution); otherwise use assets: [{ type: "EXTERNAL_URL", url: "https://..." }], create_draft_from_files for ChatGPT files, or omit media.',
       inputSchema: {},
       _meta: { securitySchemes: [{ type: "oauth2", scopes: ["posts:write"] }] },
       annotations: {

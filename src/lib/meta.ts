@@ -8,6 +8,8 @@ import {
 import { getProject, publicProject } from "./projects";
 import { publicationImageUrl } from "./storage";
 import { setTimeout as delay } from "node:timers/promises";
+import { metaRequest } from "./meta-client";
+import { withLogContext } from "./logger";
 export async function connections(projectId: string) {
   const project = publicProject(await getProject(projectId));
   return {
@@ -27,13 +29,12 @@ async function graph(
   fields: Record<string, string>,
   signal: AbortSignal,
 ) {
-  const response = await fetch(endpoint(host, id, edge), {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: new URLSearchParams(fields),
-    signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
-  });
-  const data = await response.json();
+  const { response, data } = await metaRequest(
+    endpoint(host, id, edge),
+    token,
+    signal,
+    fields,
+  );
   if (!response.ok || data.error)
     throw new Error(data.error?.message || "Meta rejected the request");
   if (!data.id) throw new Error("Meta did not return a post ID");
@@ -48,15 +49,11 @@ export async function waitForInstagramContainer(
   signal: AbortSignal,
 ) {
   for (let attempt = 0; attempt < 4; attempt++) {
-    const response = await fetch(
+    const { response, data } = await metaRequest(
       `${endpoint(host, id)}?fields=status_code,status`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
-        cache: "no-store",
-      },
+      token,
+      signal,
     );
-    const data = await response.json();
     if (!response.ok || data.error)
       throw new Error(
         data.error?.message || "Could not check Instagram media processing",
@@ -74,6 +71,11 @@ export async function waitForInstagramContainer(
   );
 }
 export async function publishPost(projectId: string, id: string) {
+  return withLogContext({ projectId, postId: id }, () =>
+    publish(projectId, id),
+  );
+}
+async function publish(projectId: string, id: string) {
   const project = await getProject(projectId);
   const post = await claimPost(projectId, id, {
     facebook: !!(project.facebookPageId && project.facebookPageToken),

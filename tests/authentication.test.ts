@@ -351,15 +351,26 @@ test(
           const mainTool = tools.find(
             (tool: { name: string }) => tool.name === "create_draft",
           );
-          assert.ok(mainTool.inputSchema.properties.image);
-          for (const removed of ["imageUrl", "imageFile", "imageUploadId"])
+          assert.equal(mainTool.inputSchema.properties.assets.type, "array");
+          for (const removed of [
+            "image",
+            "imageUrl",
+            "imageFile",
+            "imageUploadId",
+          ])
             assert.ok(!(removed in mainTool.inputSchema.properties));
           assert.equal(mainTool._meta.securitySchemes[0].type, "oauth2");
           const fileTool = tools.find(
-            (tool: { name: string }) => tool.name === "create_draft_from_file",
+            (tool: { name: string }) => tool.name === "create_draft_from_files",
           );
-          assert.deepEqual(fileTool._meta["openai/fileParams"], ["image"]);
-          const hostSchema = fileTool.inputSchema.properties.image;
+          assert.ok(
+            !tools.some(
+              (tool: { name: string }) =>
+                tool.name === "create_draft_from_file",
+            ),
+          );
+          assert.deepEqual(fileTool._meta["openai/fileParams"], ["assets"]);
+          const hostSchema = fileTool.inputSchema.properties.assets.items;
           assert.deepEqual(hostSchema.required.sort(), [
             "download_url",
             "file_id",
@@ -372,11 +383,13 @@ test(
           ])
             assert.ok(hostSchema.properties[field]);
           const post = await mcpImage({
-            image: {
-              type: "INLINE_BASE64",
-              dataBase64: jpeg.toString("base64"),
-              filename: "test.jpg",
-            },
+            assets: [
+              {
+                type: "INLINE_BASE64",
+                dataBase64: jpeg.toString("base64"),
+                filename: "test.jpg",
+              },
+            ],
           });
           assert.match(post.imageUrl, /^\/api\/posts\//);
           assert.ok(!("imageKey" in post));
@@ -425,7 +438,7 @@ test(
             "Bucket must remain private",
           );
           const imported = await mcpImage({
-            image: { type: "EXTERNAL_URL", url: signed },
+            assets: [{ type: "EXTERNAL_URL", url: signed }],
           });
           assert.notEqual(
             (await getPostImage(extra.project.id, imported.id)).imageKey,
@@ -440,13 +453,15 @@ test(
             200,
           );
           const openapi = await mcpImage({
-            image: {
-              type: "OPENAPI_FILE",
-              download_url: signed,
-              file_id: "file_test",
-              mime_type: "image/jpeg",
-              file_name: "test.jpg",
-            },
+            assets: [
+              {
+                type: "OPENAPI_FILE",
+                download_url: signed,
+                file_id: "file_test",
+                mime_type: "image/jpeg",
+                file_name: "test.jpg",
+              },
+            ],
           });
           assert.match(openapi.imageUrl, /^\/api\/posts\//);
           assert.ok(!JSON.stringify(openapi).includes("file_test"));
@@ -463,17 +478,19 @@ test(
                 id: 3,
                 method: "tools/call",
                 params: {
-                  name: "create_draft_from_file",
+                  name: "create_draft_from_files",
                   arguments: {
                     title: "ChatGPT file",
                     caption: "ChatGPT file",
                     platforms: ["instagram"],
-                    image: {
-                      download_url: signed,
-                      file_id: "file_host",
-                      mime_type: "image/jpeg",
-                      file_name: "host.jpg",
-                    },
+                    assets: [
+                      {
+                        download_url: signed,
+                        file_id: "file_host",
+                        mime_type: "image/jpeg",
+                        file_name: "host.jpg",
+                      },
+                    ],
                   },
                 },
               }),

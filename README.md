@@ -35,12 +35,11 @@ Send `Authorization: Bearer <project token>` from that project’s MCP integrati
 
 - `get_project`: identify the connected project and its configured channels (no secrets).
 - `create_upload_token`: returns a short-lived bearer token and the upload endpoint for sending image files over plain HTTP (see Private images).
-- `create_draft`: title, caption, platforms (`facebook`, `instagram`), optional ordered `assets` array, optional source. Supports up to 10 images OR one MP4 video. Each source uses EXTERNAL_URL, INLINE_BASE64 (images only), UPLOAD_ID, or OPENAPI_FILE; optional `kind` IMAGE/VIDEO is checked against the bytes. The previous `image` field remains supported for a single image. Missing Instagram media returns `needsMedia` / `needsImage` and a `reviewUrl`.
+- `create_draft`: title, caption, platforms (`facebook`, `instagram`), optional ordered `assets` array, optional source. Supports up to 10 images OR one MP4 video. Each source uses EXTERNAL_URL, INLINE_BASE64 (images only), UPLOAD_ID, or OPENAPI_FILE; optional `kind` IMAGE/VIDEO is checked against the bytes. Missing Instagram media returns `needsMedia` / `needsImage` and a `reviewUrl`.
 - `create_asset_upload`: prepares a private S3 PUT URL for an image or video. Requires `mimeType` and exact `fileSize` in bytes. PUT the bytes, then finalize.
 - `complete_asset_upload`: verifies an uploaded file, copies it to an immutable key, and returns `assetUploadId` for `assets: [{"type":"UPLOAD_ID","uploadId":"..."}]`.
 - `create_draft_from_files`: ChatGPT attachment tool with `openai/fileParams: ["assets"]`; `assets` is an ordered array of plain `{download_url,file_id,mime_type?,file_name?}` file objects. Supports multiple images or one video.
 - `list_posts`: read this project’s saved posts and delivery state.
-- `create_draft_from_file`: file-specific companion for ChatGPT attachments using `openai/fileParams`. Its top-level `image` is `{download_url, file_id, mime_type?, file_name?}`. This tool shares the same draft creation logic and OAuth/bearer permissions.
 
 There is deliberately no publishing tool. Publishing is initiated through the dashboard.
 
@@ -112,7 +111,7 @@ A post contains an ordered asset list: **up to 10 images, or one video**. Mixed 
 
 Other sources are `{type:"INLINE_BASE64",dataBase64,filename?,mimeType?}` for small images (256 KB maximum), and `{type:"OPENAPI_FILE",download_url,file_id,mime_type?,file_name?,kind?}` for host-resolved temporary downloads. Kind can be omitted: the actual bytes determine IMAGE vs VIDEO. URL imports enforce HTTPS, public DNS/IPs, bounded sizes and redirects. Temporary source URLs and ChatGPT file IDs are not saved in posts or returned to clients.
 
-For ChatGPT attachments use `create_draft_from_files` with a plain `assets` array of `{download_url,file_id,mime_type?,file_name?}`. OpenAI's `openai/fileParams` requires plain top-level file objects or arrays, so this companion converts host-resolved files internally. `create_draft_from_file` and the previous single-image `create_draft.image` remain compatible. Refresh the ChatGPT connection's tools after deployment.
+For ChatGPT attachments use `create_draft_from_files` with a plain `assets` array of `{download_url,file_id,mime_type?,file_name?}`. OpenAI's `openai/fileParams` requires plain top-level file objects or arrays, so this companion converts host-resolved files internally. Both draft tools use `assets`, including for a single image or video. Refresh the ChatGPT connection's tools after deployment.
 
 Local files use a direct-to-S3 upload:
 
@@ -155,6 +154,12 @@ Drizzle Kit loads `.env*` using Next's environment loader, matching the applicat
 Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing requires draft status; deletion is available for drafts, published posts, and posts needing review, but is blocked while publishing. Deleting removes the PostDispatch record and its private image, with a confirmation in the dashboard. Posts on Facebook and Instagram are not deleted. Each channel's result is persisted separately; network calls happen outside the transaction. A durable delivery worker and reconciliation remain future improvements.
 
 Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each project has a separate MCP token and cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login, email verification, password reset emails, a scheduler.
+
+## Meta debug logs
+
+Winston writes JSON debug logs to the server terminal locally and to Vercel runtime logs in production. Each Meta POST and Instagram processing GET logs `meta.request` and `meta.response`, with request ID, project/post IDs, request fields, HTTP status, duration, response body (including error codes/subcodes), and available Meta trace/usage headers. Network, timeout, response-read and JSON parsing failures log `meta.failure`. Requests never log authorization headers; access tokens and URL credentials/query strings are redacted, and long strings are truncated.
+
+Debug logging is enabled by default. Set `LOG_LEVEL=info` to suppress it, or `LOG_LEVEL=debug` to enable it explicitly, then restart/redeploy. Logs contain post captions and media object paths, so keep access to server logs limited. Retry a submission and filter Vercel runtime logs by its post ID to see the failing call and Meta's response.
 
 ## Validation
 
