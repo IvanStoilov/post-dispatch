@@ -1,69 +1,875 @@
-import Image from "next/image";
-
-export default function Home() {
+"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import type { Post, Platform } from "@/lib/types";
+type View = "Inbox" | "Published" | "Connections" | "MCP integration";
+type Draft = Pick<
+  Post,
+  "title" | "caption" | "imageUrl" | "platforms" | "source"
+>;
+const blank: Draft = {
+  title: "",
+  caption: "",
+  imageUrl: "",
+  platforms: ["facebook"],
+  source: "Manual",
+};
+function Icon({ name, size = 20 }: { name: string; size?: number }) {
+  const paths: Record<string, React.ReactNode> = {
+    inbox: (
+      <>
+        <path d="M4 4h16v16H4z" />
+        <path d="M4 13h5l2 3h2l2-3h5" />
+      </>
+    ),
+    send: (
+      <>
+        <path d="m3 3 18 9-18 9 4-9-4-9Z" />
+        <path d="M7 12h14" />
+      </>
+    ),
+    grid: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </>
+    ),
+    link: (
+      <>
+        <path d="m10 13 4-4m-6 6-2 2a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 2 2-2a4 4 0 0 0-6-6l-2 2" />
+      </>
+    ),
+    spark: (
+      <>
+        <path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z" />
+      </>
+    ),
+    plus: <path d="M12 5v14M5 12h14" />,
+    check: <path d="m5 12 4 4L19 6" />,
+    search: (
+      <>
+        <circle cx="10" cy="10" r="6" />
+        <path d="m15 15 5 5" />
+      </>
+    ),
+    arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
+    close: <path d="m6 6 12 12M6 18 18 6" />,
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+    code: (
+      <>
+        <path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-13-2 14" />
+      </>
+    ),
+  };
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.65"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name] || paths.grid}
+    </svg>
+  );
+}
+function PlatformBadge({ platform }: { platform: Platform }) {
+  return (
+    <span className={`platform ${platform}`}>
+      <span>{platform === "instagram" ? "◎" : "f"}</span>
+      {platform === "instagram" ? "Instagram" : "Facebook"}
+    </span>
+  );
+}
+export default function Home() {
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [view, setView] = useState<View>("Inbox");
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [connections, setConnections] = useState({
+    facebook: false,
+    instagram: false,
+    mcp: false,
+  });
+  const [editing, setEditing] = useState<string | null>(null);
+  const [form, setForm] = useState<Draft>(blank);
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [confirm, setConfirm] = useState<Post | null>(null);
+  const [origin, setOrigin] = useState("");
+  async function refresh() {
+    try {
+      const [p, c] = await Promise.all([
+        fetch("/api/posts", { cache: "no-store" }),
+        fetch("/api/connections"),
+      ]);
+      if (!p.ok || !c.ok) throw new Error("Could not load your workspace");
+      setOrigin(window.location.origin);
+      setPosts(await p.json());
+      setConnections(await c.json());
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Could not load posts");
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    const initial = setTimeout(() => void refresh(), 0);
+    const timer = setInterval(() => void refresh(), 15000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(timer);
+    };
+  }, []);
+  async function request(url: string, method: string, body?: unknown) {
+    const response = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Request failed");
+    return result;
+  }
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await request(
+        editing === "new" ? "/api/posts" : `/api/posts/${editing}`,
+        editing === "new" ? "POST" : "PATCH",
+        form,
+      );
+      setEditing(null);
+      setNotice("Draft saved. Ready when you are.");
+      await refresh();
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function publish() {
+    if (!confirm) return;
+    setBusy(true);
+    const p = confirm;
+    setConfirm(null);
+    try {
+      await request(`/api/posts/${p.id}/publish`, "POST");
+      setNotice("Published successfully.");
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Publishing failed");
+    } finally {
+      await refresh();
+      setBusy(false);
+    }
+  }
+  async function remove(id: string) {
+    setBusy(true);
+    try {
+      await request(`/api/posts/${id}`, "DELETE");
+      setEditing(null);
+      await refresh();
+      setNotice("Draft deleted.");
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  const drafts = posts.filter((p) => p.status !== "published");
+  const published = posts.filter((p) => p.status === "published");
+  const visible = (view === "Published" ? published : drafts).filter(
+    (p) =>
+      (filter === "all" || p.platforms.includes(filter as Platform)) &&
+      `${p.title} ${p.caption} ${p.source}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
+  );
+  function newDraft() {
+    setForm({ ...blank, platforms: ["facebook"] });
+    setEditing("new");
+  }
+  function edit(p: Post) {
+    setForm({
+      title: p.title,
+      caption: p.caption,
+      imageUrl: p.imageUrl,
+      platforms: p.platforms,
+      source: p.source,
+    });
+    setEditing(p.id);
+  }
+  const nav: [View, string][] = [
+    ["Inbox", "inbox"],
+    ["Published", "send"],
+    ["Connections", "link"],
+    ["MCP integration", "code"],
+  ];
+  return (
+    <div className="shell">
+      <aside className="sidebar">
+        <Link className="brand" href="/">
+          <span className="brand-mark">
+            <Icon name="send" size={23} />
+          </span>
+          <span>
+            PostDispatch<span className="brand-dot">.</span>
+          </span>
+        </Link>
+        <div className="workspace">
+          <span className="workspace-avatar">P</span>
+          <div>
+            Personal workspace<small>Your publishing desk</small>
+          </div>
+          <span className="workspace-arrow">⌄</span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="nav-label">WORKSPACE</div>
+        <nav>
+          {nav.map(([name, icon]) => (
+            <button
+              key={name}
+              className={`nav-item ${view === name ? "active" : ""}`}
+              onClick={() => {
+                setView(name);
+                setSearch("");
+                setFilter("all");
+              }}
+            >
+              <Icon name={icon} />
+              <span>{name}</span>
+              {name === "Inbox" && <b>{drafts.length}</b>}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="approval-note">
+            <span className="little-spark">
+              <Icon name="spark" />
+            </span>
+            <strong>You have the final say.</strong>
+            <p>
+              AI brings the ideas.
+              <br />
+              You choose what goes live.
+            </p>
+          </div>
+          <div className="profile">
+            <span className="profile-avatar">Y</span>
+            <div>
+              Your workspace<small>Personal account</small>
+            </div>
+            <span className="online-dot" />
+          </div>
         </div>
-      </main>
+      </aside>
+      <div className="main">
+        <header className="topbar">
+          <span>
+            Workspace <span className="slash">/</span> <strong>{view}</strong>
+          </span>
+          <span className="topbar-right">
+            <span className="online-dot" /> Human approval enabled
+          </span>
+        </header>
+        <main className="content">
+          <div className="page-heading">
+            <div>
+              <div className="eyebrow">YOUR PUBLISHING DESK</div>
+              <h1>
+                {view === "Inbox"
+                  ? "Good ideas, ready to go."
+                  : view === "Published"
+                    ? "Out in the world."
+                    : view === "Connections"
+                      ? "Connect your channels."
+                      : "From conversation to draft."}
+              </h1>
+              <p>
+                {view === "Inbox"
+                  ? "A home for your AI drafts. Review, refine, and send them out."
+                  : view === "Published"
+                    ? "Every post you’ve approved and shared, in one place."
+                    : view === "Connections"
+                      ? "Give your drafts somewhere to land."
+                      : "Let your AI assistant drop its best ideas right into your inbox."}
+              </p>
+            </div>
+            <button className="button primary" onClick={newDraft}>
+              <Icon name="plus" size={18} /> New draft
+            </button>
+          </div>
+          {notice && (
+            <div className="notice" role="status">
+              <span>{notice}</span>
+              <button
+                aria-label="Dismiss notification"
+                onClick={() => setNotice("")}
+              >
+                <Icon name="close" size={16} />
+              </button>
+            </div>
+          )}
+          {(view === "Inbox" || view === "Published") && (
+            <>
+              <div className="stats">
+                <div className="stat">
+                  <span className="stat-icon mint">
+                    <Icon name="inbox" />
+                  </span>
+                  <div>
+                    <small>Awaiting your review</small>
+                    <strong>
+                      {posts.filter((p) => p.status === "draft").length}
+                      <span> drafts</span>
+                    </strong>
+                  </div>
+                </div>
+                <div className="stat">
+                  <span className="stat-icon lavender">
+                    <Icon name="send" />
+                  </span>
+                  <div>
+                    <small>Published posts</small>
+                    <strong>
+                      {published.length}
+                      <span> sent out</span>
+                    </strong>
+                  </div>
+                </div>
+                <div className="stat">
+                  <span className="stat-icon peach">
+                    <Icon name="link" />
+                  </span>
+                  <div>
+                    <small>Connected channels</small>
+                    <strong>
+                      {Number(connections.facebook) +
+                        Number(connections.instagram)}
+                      <span> of 2 channels</span>
+                    </strong>
+                  </div>
+                  <button
+                    className="stat-link"
+                    aria-label="Manage connections"
+                    onClick={() => setView("Connections")}
+                  >
+                    <Icon name="arrow" size={19} />
+                  </button>
+                </div>
+              </div>
+              <div className="inbox-toolbar">
+                <div className="tabs">
+                  <button
+                    className={filter === "all" ? "selected" : ""}
+                    onClick={() => setFilter("all")}
+                  >
+                    All posts{" "}
+                    <span>
+                      {view === "Published" ? published.length : drafts.length}
+                    </span>
+                  </button>
+                  <button
+                    className={filter === "instagram" ? "selected" : ""}
+                    onClick={() => setFilter("instagram")}
+                  >
+                    Instagram
+                  </button>
+                  <button
+                    className={filter === "facebook" ? "selected" : ""}
+                    onClick={() => setFilter("facebook")}
+                  >
+                    Facebook
+                  </button>
+                </div>
+                <label className="search">
+                  <Icon name="search" size={17} />
+                  <input
+                    aria-label="Search posts"
+                    placeholder="Search your posts…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="section-title">
+                <h2>
+                  {view === "Published" ? "Published" : "Draft inbox"}{" "}
+                  <span>{visible.length}</span>
+                </h2>
+                <span>Newest first</span>
+              </div>
+              {loading ? (
+                <div className="empty">
+                  <Icon name="clock" size={32} />
+                  <h3>Opening your inbox…</h3>
+                </div>
+              ) : visible.length ? (
+                <div className="post-grid">
+                  {visible.map((p, i) => (
+                    <article className="post-card" key={p.id}>
+                      <div
+                        className={`post-cover cover-${i % 4}`}
+                        style={
+                          p.imageUrl
+                            ? {
+                                backgroundImage: `url(${JSON.stringify(p.imageUrl)})`,
+                              }
+                            : undefined
+                        }
+                      >
+                        {!p.imageUrl && (
+                          <div className="cover-art">
+                            <span className="cover-kicker">A LITTLE IDEA.</span>
+                            <strong>{p.title}</strong>
+                            <span className="cover-footer">
+                              POSTDISPATCH <Icon name="spark" size={20} />
+                            </span>
+                          </div>
+                        )}
+                        <span className={`status-chip ${p.status}`}>
+                          <span />
+                          {p.status === "draft"
+                            ? "Awaiting review"
+                            : p.status === "published"
+                              ? "Published"
+                              : p.status === "publishing"
+                                ? "Publishing…"
+                                : "Needs review"}
+                        </span>
+                      </div>
+                      <div className="post-body">
+                        <div className="platforms">
+                          {p.platforms.map((platform) => (
+                            <PlatformBadge key={platform} platform={platform} />
+                          ))}
+                        </div>
+                        <h3>{p.title}</h3>
+                        <p className="caption">{p.caption}</p>
+                        {p.error && <p className="post-error">{p.error}</p>}
+                        <div className="post-meta">
+                          <span>
+                            <Icon
+                              name={p.source === "Manual" ? "grid" : "spark"}
+                              size={13}
+                            />
+                            {p.source}
+                          </span>
+                          <time dateTime={p.createdAt}>
+                            {new Date(p.createdAt).toLocaleDateString(
+                              undefined,
+                              { month: "short", day: "numeric" },
+                            )}
+                          </time>
+                        </div>
+                        <div className="post-actions">
+                          {p.status === "draft" ? (
+                            <>
+                              <button
+                                className="button secondary"
+                                disabled={busy}
+                                onClick={() => edit(p)}
+                              >
+                                Review & edit
+                              </button>
+                              <button
+                                className="button publish-button"
+                                disabled={busy}
+                                onClick={() => setConfirm(p)}
+                              >
+                                Publish <Icon name="arrow" size={16} />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="delivery-note">
+                              {p.status === "published"
+                                ? "✓ Delivered to your channels"
+                                : p.status === "publishing"
+                                  ? "Delivery in progress. Check Meta if interrupted."
+                                  : "Check your channels before resubmitting."}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty">
+                  <div className="empty-art">
+                    <div className="paper-back" />
+                    <div className="paper-front">
+                      <Icon name="send" size={30} />
+                      <i />
+                      <i />
+                      <i />
+                    </div>
+                    <span className="empty-spark">✦</span>
+                  </div>
+                  <h3>
+                    {search || filter !== "all"
+                      ? "No matching posts"
+                      : view === "Published"
+                        ? "Your first dispatch is ahead."
+                        : "Your next great post starts here."}
+                  </h3>
+                  <p>
+                    {search || filter !== "all"
+                      ? "Try another search or channel."
+                      : view === "Published"
+                        ? "Approved posts will appear here once they’re published."
+                        : "Create a draft yourself, or connect an AI assistant\nto fill your inbox with fresh ideas."}
+                  </p>
+                  {view === "Inbox" && !search && filter === "all" && (
+                    <div className="empty-actions">
+                      <button className="button primary" onClick={newDraft}>
+                        <Icon name="plus" size={17} /> Create your first draft
+                      </button>
+                      <button
+                        className="button secondary"
+                        onClick={() => setView("MCP integration")}
+                      >
+                        Connect your assistant <Icon name="arrow" size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="footer-note">
+                <Icon name="check" size={14} /> Nothing goes live until you say
+                so.
+              </div>
+            </>
+          )}
+          {view === "Connections" && (
+            <>
+              <div className="connection-grid">
+                {(["instagram", "facebook"] as Platform[]).map((p) => (
+                  <section className="connection-card" key={p}>
+                    <span className={`channel-logo ${p}`}>
+                      {p === "instagram" ? "◎" : "f"}
+                    </span>
+                    <span
+                      className={`connection-state ${connections[p] ? "connected" : ""}`}
+                    >
+                      {connections[p] ? "Configured" : "Not connected"}
+                    </span>
+                    <h2>{p === "instagram" ? "Instagram" : "Facebook"}</h2>
+                    <p>
+                      {p === "instagram"
+                        ? "Share image posts to your Business or Creator account."
+                        : "Publish text and image posts to your Facebook Page."}
+                    </p>
+                    <div className="config-fields">
+                      <small>Configure in .env.local</small>
+                      <code>
+                        {p === "instagram"
+                          ? "INSTAGRAM_ACCOUNT_ID"
+                          : "FACEBOOK_PAGE_ID"}
+                      </code>
+                      <code>
+                        {p === "instagram"
+                          ? "INSTAGRAM_ACCESS_TOKEN"
+                          : "FACEBOOK_PAGE_TOKEN"}
+                      </code>
+                    </div>
+                  </section>
+                ))}
+              </div>
+              <section className="info-panel">
+                <Icon name="link" />
+                <div>
+                  <h3>A direct connection to Meta</h3>
+                  <p>
+                    Create a Meta developer app and grant its publishing
+                    permissions. Add your account IDs and access tokens to
+                    .env.local, then restart the server. Configured means
+                    credentials are present; the first publish verifies access.
+                    Instagram images must be publicly accessible JPEGs.
+                  </p>
+                  <a
+                    href="https://developers.facebook.com/docs/instagram-platform/content-publishing/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Meta publishing documentation ↗
+                  </a>
+                </div>
+              </section>
+            </>
+          )}
+          {view === "MCP integration" && (
+            <>
+              <section className="mcp-hero">
+                <span className="mcp-icon">
+                  <Icon name="spark" size={30} />
+                </span>
+                <div>
+                  <span className="eyebrow">
+                    A SHORTER PATH FROM IDEA TO POST
+                  </span>
+                  <h2>Your assistant. Your inbox.</h2>
+                  <p>
+                    Send drafts through MCP, then come back here to make them
+                    yours.
+                  </p>
+                </div>
+                <span className="connection-state">
+                  {connections.mcp ? "Token configured" : "Setup needed"}
+                </span>
+              </section>
+              <div className="setup-grid">
+                <section className="setup-card">
+                  <span className="step">01</span>
+                  <h3>Set up your endpoint</h3>
+                  <p>
+                    Add a strong MCP_TOKEN to .env.local and restart the app.
+                    Use this Streamable HTTP endpoint with clients that support
+                    bearer authentication.
+                  </p>
+                  <div className="endpoint">
+                    <code>{origin}/api/mcp</code>
+                    <button
+                      aria-label="Copy MCP endpoint"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(
+                            `${origin}/api/mcp`,
+                          );
+                          setNotice("Endpoint copied.");
+                        } catch {
+                          setNotice(
+                            "Copy the endpoint from the text shown here.",
+                          );
+                        }
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <p className="small">
+                    Header: <code>Authorization: Bearer YOUR_MCP_TOKEN</code>
+                  </p>
+                </section>
+                <section className="setup-card">
+                  <span className="step">02</span>
+                  <h3>Give your assistant a brief</h3>
+                  <p>Try a prompt like this after connecting your client:</p>
+                  <blockquote>
+                    “Create a Facebook draft about our latest update. Send it to
+                    PostDispatch using create_draft so I can review it.”
+                  </blockquote>
+                  <p className="small">
+                    Remote clients need a public HTTPS URL. Client
+                    authentication support varies; OAuth is a next step for
+                    broader compatibility.
+                  </p>
+                </section>
+              </div>
+              <section className="tools-panel">
+                <div>
+                  <h3>Two tools. One clear boundary.</h3>
+                  <p>Your assistant prepares. You publish.</p>
+                </div>
+                <div>
+                  <code>create_draft</code>
+                  <span>Submit a post for your review</span>
+                </div>
+                <div>
+                  <code>list_posts</code>
+                  <span>Read drafts and delivery status</span>
+                </div>
+              </section>
+              <section className="info-panel">
+                <Icon name="clock" />
+                <div>
+                  <h3>Want fresh drafts every day?</h3>
+                  <p>
+                    Connect a scheduler to your AI workflow. It generates the
+                    post and calls create_draft; each post waits in this inbox
+                    for your approval.
+                  </p>
+                </div>
+              </section>
+            </>
+          )}
+        </main>
+      </div>
+      {editing && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !busy) setEditing(null);
+          }}
+        >
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="draft-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <span className="eyebrow">MAKE IT YOURS</span>
+                <h2 id="draft-title">
+                  {editing === "new" ? "A fresh draft." : "Review your draft."}
+                </h2>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Close editor"
+                onClick={() => setEditing(null)}
+                disabled={busy}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+            <form onSubmit={save}>
+              <label>
+                Post title
+                <input
+                  autoFocus
+                  required
+                  maxLength={120}
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  placeholder="Give this idea a name"
+                />
+              </label>
+              <label>
+                Caption
+                <textarea
+                  required
+                  maxLength={2200}
+                  rows={6}
+                  value={form.caption}
+                  onChange={(e) =>
+                    setForm({ ...form, caption: e.target.value })
+                  }
+                  placeholder="What would you like to share?"
+                />
+                <span className="character-count">
+                  {form.caption.length} / 2,200
+                </span>
+              </label>
+              <label>
+                Image URL{" "}
+                <span className="optional">optional for Facebook</span>
+                <input
+                  type="url"
+                  value={form.imageUrl}
+                  onChange={(e) =>
+                    setForm({ ...form, imageUrl: e.target.value })
+                  }
+                  placeholder="https://…/image.jpg"
+                />
+                <small>Public HTTPS JPEG. Required for Instagram.</small>
+              </label>
+              <div className="form-channels">
+                <span>Publish to</span>
+                {(["facebook", "instagram"] as Platform[]).map((p) => (
+                  <label key={p}>
+                    <input
+                      type="checkbox"
+                      checked={form.platforms.includes(p)}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          platforms: e.target.checked
+                            ? [...form.platforms, p]
+                            : form.platforms.filter((v) => v !== p),
+                        })
+                      }
+                    />
+                    <PlatformBadge platform={p} />
+                  </label>
+                ))}
+              </div>
+              {notice && (
+                <p className="form-message" role="status">
+                  {notice}
+                </p>
+              )}
+              <div className="modal-actions">
+                {editing !== "new" ? (
+                  <button
+                    type="button"
+                    className="delete-button"
+                    disabled={busy}
+                    onClick={() => void remove(editing)}
+                  >
+                    Delete draft
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <div>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={busy}
+                    onClick={() => setEditing(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="button primary"
+                    disabled={busy || !form.platforms.length}
+                  >
+                    {busy ? "Saving…" : "Save draft"}
+                    <Icon name="check" size={16} />
+                  </button>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+      {confirm && (
+        <div className="modal-backdrop">
+          <section
+            className="modal confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="publish-title"
+          >
+            <span className="stat-icon mint">
+              <Icon name="send" size={25} />
+            </span>
+            <h2 id="publish-title">Ready to send it out?</h2>
+            <p>
+              “{confirm.title}” will be published now to{" "}
+              {confirm.platforms.join(" and ")}.
+            </p>
+            <p className="small">
+              This creates a real post on your connected accounts.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="button secondary"
+                onClick={() => setConfirm(null)}
+              >
+                Keep reviewing
+              </button>
+              <button className="button primary" onClick={() => void publish()}>
+                Publish now <Icon name="arrow" size={16} />
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
