@@ -147,6 +147,8 @@ export const posts = pgTable(
     title: varchar("title", { length: 120 }).notNull(),
     caption: text("caption").notNull(),
     imageUrl: text("image_url").notNull().default(""),
+    imageKey: text("image_key"),
+    imageBucket: text("image_bucket"),
     platforms: platformEnum("platforms").array().notNull(),
     source: varchar("source", { length: 60 }).notNull().default("Manual"),
     status: statusEnum("status").notNull().default("draft"),
@@ -184,7 +186,11 @@ export const posts = pgTable(
     ),
     check(
       "posts_instagram_image_required",
-      sql`NOT ('instagram'::post_platform = ANY(${table.platforms})) OR ${table.imageUrl} LIKE 'https://%'`,
+      sql`NOT ('instagram'::post_platform = ANY(${table.platforms})) OR ${table.imageKey} IS NOT NULL OR ${table.imageUrl} LIKE 'https://%'`,
+    ),
+    check(
+      "posts_image_storage_pair",
+      sql`(${table.imageKey} IS NULL) = (${table.imageBucket} IS NULL)`,
     ),
     check(
       "posts_results_object",

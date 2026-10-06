@@ -1,5 +1,7 @@
 import { claimPost, saveDelivery, finishPublication } from "./store";
 import { getProject, publicProject } from "./projects";
+import { getPostImage } from "./store";
+import { publicationImageUrl } from "./storage";
 export async function connections(projectId: string) {
   const project = publicProject(await getProject(projectId));
   return {
@@ -37,16 +39,24 @@ export async function publishPost(projectId: string, id: string) {
     instagram: !!(project.instagramAccountId && project.instagramAccessToken),
   });
   try {
+    const media = await getPostImage(projectId, id);
+    const imageUrl =
+      media.imageKey && media.imageBucket
+        ? await publicationImageUrl({
+            imageKey: media.imageKey,
+            imageBucket: media.imageBucket,
+          })
+        : media.imageUrl;
     for (const target of post.platforms) {
       let publishedId: string;
       if (target === "facebook")
         publishedId = await graph(
           "graph.facebook.com",
           project.facebookPageId,
-          post.imageUrl ? "photos" : "feed",
+          imageUrl ? "photos" : "feed",
           project.facebookPageToken,
-          post.imageUrl
-            ? { url: post.imageUrl, caption: post.caption }
+          imageUrl
+            ? { url: imageUrl, caption: post.caption }
             : { message: post.caption },
         );
       else {
@@ -57,7 +67,7 @@ export async function publishPost(projectId: string, id: string) {
             ? "graph.instagram.com"
             : "graph.facebook.com";
         const container = await graph(host, account, "media", token, {
-          image_url: post.imageUrl,
+          image_url: imageUrl,
           caption: post.caption,
         });
         publishedId = await graph(host, account, "media_publish", token, {

@@ -1,3 +1,4 @@
+import { imageDraftBody } from "@/lib/request-body";
 import { createPost, listPosts } from "@/lib/store";
 import { authenticated, ownedProject } from "@/lib/api-auth";
 export const runtime = "nodejs";
@@ -10,7 +11,7 @@ export async function POST(req: Request) {
   return authenticated(req, async (userId) => {
     const id = await ownedProject(req, userId);
     try {
-      return Response.json(await createPost(id, await req.json()), {
+      return Response.json(await createPost(id, await imageDraftBody(req)), {
         status: 201,
       });
     } catch (e) {

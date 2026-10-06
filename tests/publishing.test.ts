@@ -1,3 +1,5 @@
+import sharp from "sharp";
+import { removeImage } from "../src/lib/storage";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadEnvConfig } from "@next/env";
@@ -43,18 +45,30 @@ const draft: {
   title: string;
   caption: string;
   platforms: Platform[];
-  imageUrl: string;
+  imageFile: { dataBase64: string };
 } = {
   title: "Test post",
   caption: "Test caption",
   platforms: ["facebook", "instagram"],
-  imageUrl: "https://example.com/test.jpg",
+  imageFile: { dataBase64: "" },
 };
 test(
   "Postgres storage and publishing",
   { skip: !process.env.DATABASE_URL },
   async (t) => {
     try {
+      draft.imageFile.dataBase64 = (
+        await sharp({
+          create: {
+            width: 320,
+            height: 320,
+            channels: 3,
+            background: "#66aa88",
+          },
+        })
+          .jpeg()
+          .toBuffer()
+      ).toString("base64");
       await getDb()
         .insert(users)
         .values({
@@ -111,7 +125,7 @@ test(
         "validates, saves, edits, and reloads posts from a new pool",
         async () => {
           await assert.rejects(
-            () => createPost({ ...draft, imageUrl: "" }),
+            () => createPost({ ...draft, imageFile: undefined, imageUrl: "" }),
             /Instagram requires/,
           );
           const p = await createPost({ ...draft, platforms: ["facebook"] });
@@ -150,7 +164,10 @@ test(
       await t.test("database enforces required Instagram media", async () => {
         const p = await createPost(draft);
         await assert.rejects(() =>
-          getDb().update(posts).set({ imageUrl: "" }).where(eq(posts.id, p.id)),
+          getDb()
+            .update(posts)
+            .set({ imageUrl: "", imageKey: null, imageBucket: null })
+            .where(eq(posts.id, p.id)),
         );
       });
       await t.test("parallel inserts keep every post", async () => {
@@ -203,7 +220,8 @@ test(
             instagram: "id-3",
           });
           assert.equal(calls[0].body.caption, "Test caption");
-          assert.equal(calls[1].body.image_url, draft.imageUrl);
+          assert.match(calls[1].body.image_url, /X-Amz-Signature=/);
+          assert.equal(calls[0].body.url, calls[1].body.image_url);
           assert.equal(calls[2].body.creation_id, "id-2");
           await assert.rejects(
             () => publishPost(projectId, p.id),
@@ -280,8 +298,14 @@ test(
     } finally {
       globalThis.fetch = realFetch;
       try {
-        if (createdIds.length)
+        if (createdIds.length) {
+          for (const row of await getDb()
+            .select()
+            .from(posts)
+            .where(inArray(posts.id, createdIds)))
+            await removeImage(row);
           await getDb().delete(posts).where(inArray(posts.id, createdIds));
+        }
       } finally {
         try {
           if (createdProjectIds.length)

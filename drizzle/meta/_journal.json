@@ -22,6 +22,13 @@
       "when": 1791278127773,
       "tag": "0002_authentication",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791280121926,
+      "tag": "0003_private_images",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,7 @@
+import sharp from "sharp";
+import { GET as previewImage } from "../src/app/api/posts/[id]/image/route";
+import { removeImage, publicationImageUrl } from "../src/lib/storage";
+import { getPostImage } from "../src/lib/store";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -281,6 +285,152 @@ test(
         },
       );
       await t.test(
+        "MCP files and URLs are stored privately, with owner-only previews",
+        async () => {
+          const jpeg = await sharp({
+            create: {
+              width: 320,
+              height: 320,
+              channels: 3,
+              background: "#88bb99",
+            },
+          })
+            .jpeg()
+            .toBuffer();
+          async function mcpImage(args: Record<string, unknown>) {
+            const r = await handleProjectMcp(
+              new Request(origin + `/api/mcp/${extra.project.id}`, {
+                method: "POST",
+                headers: {
+                  authorization: `Bearer ${extra.mcpToken}`,
+                  "Content-Type": "application/json",
+                  accept: "application/json, text/event-stream",
+                },
+                body: JSON.stringify({
+                  jsonrpc: "2.0",
+                  id: 2,
+                  method: "tools/call",
+                  params: {
+                    name: "create_draft",
+                    arguments: {
+                      title: "Image test",
+                      caption: "Image test",
+                      platforms: ["instagram"],
+                      ...args,
+                    },
+                  },
+                }),
+              }),
+              extra.project.id,
+            );
+            const data = await r.json();
+            assert.ok(
+              !data.error && !data.result.isError,
+              JSON.stringify(data),
+            );
+            return JSON.parse(data.result.content[0].text);
+          }
+          const post = await mcpImage({
+            imageFile: {
+              dataBase64: jpeg.toString("base64"),
+              filename: "test.jpg",
+            },
+          });
+          assert.match(post.imageUrl, /^\/api\/posts\//);
+          assert.ok(!("imageKey" in post));
+          const ctx = { params: Promise.resolve({ id: post.id }) };
+          const own = await previewImage(
+            request(post.imageUrl, "GET", a.cookie),
+            ctx,
+          );
+          assert.equal(own.status, 200);
+          assert.equal(own.headers.get("Content-Type"), "image/jpeg");
+          assert.equal(own.headers.get("Cache-Control"), "private, no-store");
+          assert.ok((await own.arrayBuffer()).byteLength > 0);
+          assert.equal(
+            (await previewImage(request(post.imageUrl), ctx)).status,
+            401,
+          );
+          assert.equal(
+            (await previewImage(request(post.imageUrl, "GET", b.cookie), ctx))
+              .status,
+            404,
+          );
+          assert.equal(
+            (
+              await previewImage(
+                request(
+                  `/api/posts/${post.id}/image?projectId=${aId}`,
+                  "GET",
+                  a.cookie,
+                ),
+                ctx,
+              )
+            ).status,
+            404,
+          );
+          const row = await getPostImage(extra.project.id, post.id);
+          assert.ok(row.imageKey && row.imageBucket);
+          const signed = await publicationImageUrl({
+            imageKey: row.imageKey!,
+            imageBucket: row.imageBucket!,
+          });
+          assert.equal((await fetch(signed)).status, 200);
+          const unsigned = new URL(signed);
+          unsigned.search = "";
+          assert.ok(
+            [401, 403].includes((await fetch(unsigned)).status),
+            "Bucket must remain private",
+          );
+          const imported = await mcpImage({ imageUrl: signed });
+          assert.notEqual(
+            (await getPostImage(extra.project.id, imported.id)).imageKey,
+            row.imageKey,
+          );
+          assert.equal(
+            (
+              await previewImage(request(imported.imageUrl, "GET", a.cookie), {
+                params: Promise.resolve({ id: imported.id }),
+              })
+            ).status,
+            200,
+          );
+          const kept = await editPost(
+            request(
+              `/api/posts/${post.id}?projectId=${extra.project.id}`,
+              "PATCH",
+              a.cookie,
+              {
+                title: "Edited",
+                caption: "Edited",
+                platforms: ["instagram"],
+                keepImage: true,
+              },
+            ),
+            ctx,
+          );
+          assert.equal(kept.status, 200);
+          assert.equal(
+            (await getPostImage(extra.project.id, post.id)).imageKey,
+            row.imageKey,
+          );
+          assert.equal(
+            (
+              await deletePost(
+                request(
+                  `/api/posts/${post.id}?projectId=${extra.project.id}`,
+                  "DELETE",
+                  a.cookie,
+                ),
+                ctx,
+              )
+            ).status,
+            200,
+          );
+          assert.equal((await fetch(signed)).status, 404);
+        },
+      );
+      await t.test(
         "signin rejects incorrect passwords and signout invalidates sessions",
         async () => {
           let response = await getAuth().handler(
@@ -339,6 +489,18 @@ test(
             .select({ id: projects.id })
             .from(projects)
             .where(inArray(projects.userId, createdUsers));
+          if (owned.length) {
+            for (const row of await getDb()
+              .select()
+              .from(posts)
+              .where(
+                inArray(
+                  posts.projectId,
+                  owned.map((p) => p.id),
+                ),
+              ))
+              await removeImage(row);
+          }
           if (owned.length)
             await getDb()
               .delete(posts)

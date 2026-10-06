@@ -34,7 +34,7 @@ Endpoint: `POST /api/mcp/<projectId>` (Streamable HTTP, stateless JSON responses
 Send `Authorization: Bearer <project token>` from that project’s MCP integration screen. Each token only authenticates to its own project endpoint. The assistant receives the project name/ID during initialization and can call `get_project`. Supported tools:
 
 - `get_project`: identify the connected project and its configured channels (no secrets).
-- `create_draft`: title, caption, platforms (`facebook`, `instagram`), optional imageUrl, optional source. Creates a draft only.
+- `create_draft`: title, caption, platforms (`facebook`, `instagram`), optional imageUrl or imageFile ({dataBase64, filename?, mimeType?}), optional source. Creates a draft only.
 - `list_posts`: read this project’s saved posts and delivery state.
 
 There is deliberately no publishing tool. Publishing is initiated through the dashboard.
@@ -64,9 +64,25 @@ All four account/token values are stored in the `projects` database table. Token
 
 Existing posts are assigned to the default Personal workspace project by migration 0001. Existing environment credentials were copied into that project during this upgrade. The global Meta credential variables and MCP_TOKEN are no longer used by the runtime. Legacy `/api/mcp` connections must use the default project's new endpoint; its migrated MCP token remains valid until replaced.
 
-MVP formats: Facebook text or single image, Instagram single image. Instagram requires a publicly accessible HTTPS JPEG URL. No videos, carousels, Stories, uploading, or account OAuth onboarding yet. Credentials shown as configured have not been verified until the first publish. Public users outside app roles require appropriate Meta review/access.
+MVP formats: Facebook text or single image, Instagram single image. Instagram requires an image. URL imports and file uploads accept JPEG, PNG, or WebP up to 8 MB / 20 megapixels, converted to JPEG. No videos, carousels, Stories, or account OAuth onboarding yet. Credentials shown as configured have not been verified until the first publish. Public users outside app roles require appropriate Meta review/access.
 
 Publishing claims the draft before sending and saves each platform's resulting ID. Partial failures and uncertain deliveries enter `needs_review` and cannot be automatically resent. Inspect Meta before making a new draft. If the server stops mid-publication, the post stays `publishing`; reconcile the platform outcome manually before changing data. No live publishing is tested without credentials.
+
+## Private images
+
+Set AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION in `.env`. AWS_S3_BUCKET is optional if the endpoint has exactly one bucket (this installation uses `uploads`). The SDK uses path-style S3 addressing for Neon.
+
+`create_draft` accepts either `imageUrl` or `imageFile`. URLs are downloaded with public-address checks, pinned DNS, redirect checks, and download limits before upload. File submissions use raw base64 bytes in `imageFile.dataBase64`, with optional filename and mimeType. Local filesystem paths are not uploadable through MCP. For example:
+
+```json
+{"title":"Update","caption":"A new photo","platforms":["instagram"],"imageFile":{"dataBase64":"<base64 file bytes>","filename":"photo.png"}}
+```
+
+Run `pnpm images:migrate` to copy legacy image URLs into private storage. Failed imports retain their original URL and can be replaced in the editor.
+
+Objects are private, with unique project-prefixed keys. Postgres stores the object key and bucket; post responses return an authenticated preview URL. Preview requests require a valid browser session and project ownership. MCP can submit and list images but cannot use browser preview links without that session. Publishing creates a one-hour signed URL for Meta; signed links are not stored in posts or returned by list tools. Treat those links as temporary bearer credentials. Draft image replacements/deletion remove obsolete objects after the database change. Text edits in the UI preserve the image; API PATCH uses `keepImage: true` to preserve it, or an empty image with `keepImage: false` to remove it.
+
+Tests upload small disposable objects and mock Meta calls. Storage lifecycle cleanup is best-effort; production deployments may add a periodic orphan cleanup job for interrupted uploads.
 
 ## Hosting and storage
 

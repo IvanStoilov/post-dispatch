@@ -118,6 +118,9 @@ export default function Dashboard({
   });
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<Draft>(blank);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const imageFileInput = useRef<HTMLInputElement>(null);
+  const [keepImage, setKeepImage] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -210,7 +213,26 @@ export default function Dashboard({
       await request(
         editing === "new" ? "/api/posts" : `/api/posts/${editing}`,
         editing === "new" ? "POST" : "PATCH",
-        form,
+        {
+          ...form,
+          keepImage,
+          ...(imageFile
+            ? {
+                imageFile: {
+                  dataBase64: await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () =>
+                      resolve(String(reader.result).split(",")[1]);
+                    reader.onerror = () =>
+                      reject(new Error("Could not read image file"));
+                    reader.readAsDataURL(imageFile);
+                  }),
+                  filename: imageFile.name,
+                  mimeType: imageFile.type,
+                },
+              }
+            : {}),
+        },
       );
       setEditing(null);
       setNotice("Draft saved. Ready when you are.");
@@ -259,14 +281,18 @@ export default function Dashboard({
         .includes(search.toLowerCase()),
   );
   function newDraft() {
+    setImageFile(null);
+    setKeepImage(false);
     setForm({ ...blank, platforms: ["facebook"] });
     setEditing("new");
   }
   function edit(p: Post) {
+    setImageFile(null);
+    setKeepImage(!!p.imageUrl);
     setForm({
       title: p.title,
       caption: p.caption,
-      imageUrl: p.imageUrl,
+      imageUrl: "",
       platforms: p.platforms,
       source: p.source,
     });
@@ -799,7 +825,9 @@ export default function Dashboard({
                 </div>
                 <div>
                   <code>create_draft</code>
-                  <span>Submit a post for your review</span>
+                  <span>
+                    Submit a post with an image URL or file for your review
+                  </span>
                 </div>
                 <div>
                   <code>list_posts</code>
@@ -879,17 +907,53 @@ export default function Dashboard({
                 </span>
               </label>
               <label>
+                Image file
+                <input
+                  type="file"
+                  ref={imageFileInput}
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    if (file && file.size > 8 * 1024 * 1024) {
+                      setNotice("Images must be 8 MB or smaller");
+                      e.target.value = "";
+                      return;
+                    }
+                    setImageFile(file);
+                    if (file) setForm({ ...form, imageUrl: "" });
+                  }}
+                />
+                <small>JPEG, PNG, or WebP up to 8 MB. Stored privately.</small>
+              </label>
+              {editing !== "new" &&
+                !!posts.find((p) => p.id === editing)?.imageUrl && (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={keepImage}
+                      onChange={(e) => setKeepImage(e.target.checked)}
+                    />{" "}
+                    Keep the current image unless replaced
+                  </label>
+                )}
+              <label>
                 Image URL{" "}
                 <span className="optional">optional for Facebook</span>
                 <input
                   type="url"
                   value={form.imageUrl}
-                  onChange={(e) =>
-                    setForm({ ...form, imageUrl: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setForm({ ...form, imageUrl: e.target.value });
+                    setImageFile(null);
+                    if (imageFileInput.current)
+                      imageFileInput.current.value = "";
+                  }}
                   placeholder="https://…/image.jpg"
                 />
-                <small>Public HTTPS JPEG. Required for Instagram.</small>
+                <small>
+                  Or paste a public HTTPS image URL. We download and store it
+                  privately. Instagram requires an image.
+                </small>
               </label>
               <div className="form-channels">
                 <span>Publish to</span>

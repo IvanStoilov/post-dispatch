@@ -1,3 +1,4 @@
+import { imageDraftBody } from "@/lib/request-body";
 import { editPost, deletePost } from "@/lib/store";
 import { authenticated, ownedProject } from "@/lib/api-auth";
 type Context = { params: Promise<{ id: string }> };
@@ -6,7 +7,11 @@ export async function PATCH(req: Request, ctx: Context) {
     const projectId = await ownedProject(req, userId);
     try {
       return Response.json(
-        await editPost(projectId, (await ctx.params).id, await req.json()),
+        await editPost(
+          projectId,
+          (await ctx.params).id,
+          await imageDraftBody(req),
+        ),
       );
     } catch (e) {
       return Response.json(

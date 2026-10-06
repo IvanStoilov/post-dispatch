@@ -3,6 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { z } from "zod";
 import { getProject, verifyProjectToken } from "./projects";
 import { createPost, listPosts } from "./store";
+import { imageFileSchema } from "./storage";
 export async function handleProjectMcp(req: Request, projectId: string) {
   let project;
   try {
@@ -48,11 +49,12 @@ export async function handleProjectMcp(req: Request, projectId: string) {
     "create_draft",
     {
       description:
-        "Submit a draft to PostDispatch for human review. Never publishes automatically.",
+        "Submit a draft to PostDispatch for human review. Provide imageUrl (downloaded into private storage) or imageFile with dataBase64 file bytes and optional filename/mimeType. JPEG, PNG, WebP; maximum 8 MB. Never publishes automatically.",
       inputSchema: {
         title: z.string(),
         caption: z.string(),
         imageUrl: z.string().optional(),
+        imageFile: imageFileSchema.optional(),
         platforms: z.array(z.enum(["instagram", "facebook"])),
         source: z.string().optional(),
       },
@@ -101,6 +103,7 @@ export async function handleProjectMcp(req: Request, projectId: string) {
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
+    maxRequestBodySize: 12 * 1024 * 1024,
   });
   await server.connect(transport);
   try {
