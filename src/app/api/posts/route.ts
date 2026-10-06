@@ -2,6 +2,7 @@ import { imageDraftBody } from "@/lib/request-body";
 import { createPost, listPosts } from "@/lib/store";
 import { authenticated, ownedProject } from "@/lib/api-auth";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 export async function GET(req: Request) {
   return authenticated(req, async (userId) =>
     Response.json(await listPosts(await ownedProject(req, userId))),

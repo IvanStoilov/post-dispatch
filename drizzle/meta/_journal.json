@@ -43,6 +43,27 @@
       "when": 1791289764896,
       "tag": "0005_image_uploads",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791295399080,
+      "tag": "0006_chilly_the_renegades",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791295697917,
+      "tag": "0007_white_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791296374402,
+      "tag": "0008_nervous_gladiator",
+      "breakpoints": true
     }
   ]
 }

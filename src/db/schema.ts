@@ -12,6 +12,7 @@ import {
   check,
   boolean,
   uniqueIndex,
+  unique,
 } from "drizzle-orm/pg-core";
 import type { Platform } from "../lib/types";
 export const platformEnum = pgEnum("post_platform", ["instagram", "facebook"]);
@@ -148,8 +149,6 @@ export const posts = pgTable(
     title: varchar("title", { length: 120 }).notNull(),
     caption: text("caption").notNull(),
     imageUrl: text("image_url").notNull().default(""),
-    imageKey: text("image_key"),
-    imageBucket: text("image_bucket"),
     platforms: platformEnum("platforms").array().notNull(),
     source: varchar("source", { length: 60 }).notNull().default("Manual"),
     status: statusEnum("status").notNull().default("draft"),
@@ -186,20 +185,47 @@ export const posts = pgTable(
       sql`cardinality(${table.platforms}) BETWEEN 1 AND 2 AND array_position(${table.platforms}, NULL) IS NULL AND (cardinality(${table.platforms}) = 1 OR ${table.platforms}[1] <> ${table.platforms}[2])`,
     ),
     check(
-      "posts_instagram_image_required",
-      sql`${table.status} = 'draft' OR NOT ('instagram'::post_platform = ANY(${table.platforms})) OR ${table.imageKey} IS NOT NULL OR ${table.imageUrl} LIKE 'https://%'`,
-    ),
-    check(
-      "posts_image_storage_pair",
-      sql`(${table.imageKey} IS NULL) = (${table.imageBucket} IS NULL)`,
-    ),
-    check(
       "posts_results_object",
       sql`jsonb_typeof(${table.results}) = 'object'`,
     ),
   ],
 );
 export type PostRow = typeof posts.$inferSelect;
+export const postAssets = pgTable(
+  "post_assets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    kind: varchar("kind", { length: 5 }).$type<"IMAGE" | "VIDEO">().notNull(),
+    imageKey: text("object_key").notNull(),
+    imageBucket: text("bucket").notNull(),
+    mimeType: varchar("mime_type", { length: 32 })
+      .$type<"image/jpeg" | "video/mp4">()
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Migration makes this constraint deferred so swapping positions is atomic.
+    unique("post_assets_post_position_unique").on(table.postId, table.position),
+    unique("post_assets_object_unique").on(table.imageBucket, table.imageKey),
+    check("post_assets_position_valid", sql`${table.position} BETWEEN 0 AND 9`),
+    check(
+      "post_assets_kind_mime_valid",
+      sql`(${table.kind} = 'IMAGE' AND ${table.mimeType} = 'image/jpeg') OR (${table.kind} = 'VIDEO' AND ${table.mimeType} = 'video/mp4')`,
+    ),
+    check(
+      "post_assets_storage_not_empty",
+      sql`length(trim(${table.imageKey})) > 0 AND length(trim(${table.imageBucket})) > 0`,
+    ),
+  ],
+);
+export type PostAssetRow = typeof postAssets.$inferSelect;
+
 // Short-lived bearer tokens minted over MCP so agents can upload image files
 // with plain HTTP; the host's OAuth token is never visible to the model.
 export const uploadTokens = pgTable(
@@ -238,6 +264,13 @@ export const imageUploads = pgTable(
     projectId: uuid("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "restrict" }),
+    kind: varchar("kind", { length: 5 })
+      .$type<"IMAGE" | "VIDEO">()
+      .notNull()
+      .default("IMAGE"),
+    mimeType: varchar("mime_type", { length: 32 })
+      .notNull()
+      .default("image/jpeg"),
     imageKey: text("image_key").notNull(),
     imageBucket: text("image_bucket").notNull(),
     expiresAt: timestamp("expires_at", {
@@ -252,6 +285,39 @@ export const imageUploads = pgTable(
     index("image_uploads_project_expires_at_idx").on(
       table.projectId,
       table.expiresAt,
+    ),
+  ],
+);
+
+// Temporary S3 PUT targets. Finalization copies to a fresh immutable object key.
+export const directUploads = pgTable(
+  "direct_uploads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "restrict" }),
+    imageKey: text("image_key").notNull(),
+    imageBucket: text("image_bucket").notNull(),
+    mimeType: varchar("mime_type", { length: 32 }).notNull(),
+    fileSize: integer("file_size").notNull(),
+    completed: boolean("completed").notNull().default(false),
+    completionTokenHash: varchar("completion_token_hash", {
+      length: 64,
+    }).notNull(),
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+  },
+  (table) => [
+    index("direct_uploads_project_expiry_idx").on(
+      table.projectId,
+      table.expiresAt,
+    ),
+    check(
+      "direct_uploads_size_valid",
+      sql`${table.fileSize} BETWEEN 1 AND 100000000`,
     ),
   ],
 );

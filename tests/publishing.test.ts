@@ -8,6 +8,7 @@ import { eq, inArray } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
 import {
   imageUploads,
+  postAssets,
   posts,
   projects,
   uploadTokens,
@@ -20,6 +21,8 @@ import {
   editPost,
   deletePost,
   claimPost,
+  getPostImage,
+  storedAssets,
 } from "../src/lib/store";
 import {
   createProject,
@@ -183,15 +186,13 @@ test(
       await t.test("database enforces required Instagram media", async () => {
         const p = await createPost(draft);
         await assert.rejects(() =>
-          getDb()
-            .update(posts)
-            .set({
-              status: "publishing",
-              imageUrl: "",
-              imageKey: null,
-              imageBucket: null,
-            })
-            .where(eq(posts.id, p.id)),
+          getDb().transaction(async (tx) => {
+            await tx.delete(postAssets).where(eq(postAssets.postId, p.id));
+            await tx
+              .update(posts)
+              .set({ status: "publishing", imageUrl: "" })
+              .where(eq(posts.id, p.id));
+          }),
         );
       });
       await t.test("uploaded images attach to exactly one draft", async () => {
@@ -403,7 +404,10 @@ test(
             .select()
             .from(posts)
             .where(inArray(posts.id, createdIds)))
-            await removeImage(row);
+            for (const asset of storedAssets(
+              await getPostImage(row.projectId, row.id),
+            ))
+              await removeImage(asset);
           await getDb().delete(posts).where(inArray(posts.id, createdIds));
         }
       } finally {

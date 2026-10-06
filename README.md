@@ -2,7 +2,7 @@
 
 AI drafts. You approve. PostDispatch publishes.
 
-A Next.js local MVP for a personal publishing desk: persistent draft inbox, editing, channel filters, search, human approval, Meta publishing, and an authenticated Streamable HTTP MCP endpoint.
+A Next.js local MVP for a personal publishing desk: persistent draft inbox, ordered image galleries or single-video posts, editing, channel filters, search, human approval, Meta publishing, and an authenticated Streamable HTTP MCP endpoint.
 
 ## Run
 
@@ -35,7 +35,10 @@ Send `Authorization: Bearer <project token>` from that project’s MCP integrati
 
 - `get_project`: identify the connected project and its configured channels (no secrets).
 - `create_upload_token`: returns a short-lived bearer token and the upload endpoint for sending image files over plain HTTP (see Private images).
-- `create_draft`: title, caption, platforms (`facebook`, `instagram`), optional typed image (EXTERNAL_URL, INLINE_BASE64, UPLOAD_ID, or OPENAPI_FILE), optional source. Creates a draft only. Assistants may omit the image even for Instagram; the result then has `needsImage: true` and a `reviewUrl`, and the image must be added in the dashboard before publishing.
+- `create_draft`: title, caption, platforms (`facebook`, `instagram`), optional ordered `assets` array, optional source. Supports up to 10 images OR one MP4 video. Each source uses EXTERNAL_URL, INLINE_BASE64 (images only), UPLOAD_ID, or OPENAPI_FILE; optional `kind` IMAGE/VIDEO is checked against the bytes. The previous `image` field remains supported for a single image. Missing Instagram media returns `needsMedia` / `needsImage` and a `reviewUrl`.
+- `create_asset_upload`: prepares a private S3 PUT URL for an image or video. Requires `mimeType` and exact `fileSize` in bytes. PUT the bytes, then finalize.
+- `complete_asset_upload`: verifies an uploaded file, copies it to an immutable key, and returns `assetUploadId` for `assets: [{"type":"UPLOAD_ID","uploadId":"..."}]`.
+- `create_draft_from_files`: ChatGPT attachment tool with `openai/fileParams: ["assets"]`; `assets` is an ordered array of plain `{download_url,file_id,mime_type?,file_name?}` file objects. Supports multiple images or one video.
 - `list_posts`: read this project’s saved posts and delivery state.
 - `create_draft_from_file`: file-specific companion for ChatGPT attachments using `openai/fileParams`. Its top-level `image` is `{download_url, file_id, mime_type?, file_name?}`. This tool shares the same draft creation logic and OAuth/bearer permissions.
 
@@ -83,46 +86,63 @@ MVP formats: Facebook text or single image, Instagram single image. Instagram re
 
 Publishing claims the draft before sending and saves each platform's resulting ID. Partial failures and uncertain deliveries enter `needs_review` and cannot be automatically resent. Inspect Meta before making a new draft. If the server stops mid-publication, the post stays `publishing`; reconcile the platform outcome manually before changing data. No live publishing is tested without credentials.
 
-## Private images
+## Private media
 
-Set AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION in `.env`. AWS_S3_BUCKET is optional if the endpoint has exactly one bucket (this installation uses `uploads`). The SDK uses path-style S3 addressing for Neon.
+Set AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION in `.env`. AWS_S3_BUCKET is optional if the endpoint has exactly one bucket. The SDK uses path-style S3 addressing for Neon. Images are normalized to JPEG; MP4 video is stored as supplied. Images are limited to 4.5 MB / 20 megapixels each, videos to 100 MB. Videos must meet Meta's codec, duration and aspect-ratio requirements (H.264 video, AAC audio when present); this app does not transcode video.
 
-Over MCP, `create_draft` has one optional `image` discriminated union. The old top-level imageUrl/imageFile/imageUploadId inputs are removed from MCP; the dashboard API remains compatible. Choose one of four image sources:
+A post contains an ordered asset list: **up to 10 images, or one video**. Mixed image/video posts and multiple videos are rejected. The dashboard lets you select multiple files, remove/reorder retained or new media, and import public HTTPS URLs one per line. Previews use project-owner authorization and short-lived signed GET URLs; video range requests go directly to S3. Buckets stay private.
 
-- `image: {"type":"UPLOAD_ID","uploadId":"<imageUploadId>"}`, preferred for local or generated files. Call `create_upload_token` once, POST each file to `/api/mcp/<projectId>/uploads` with that token, and pass the returned `imageUploadId` in `image.uploadId` with type `UPLOAD_ID` to `create_draft`. This keeps file bytes out of the model's tool call, so it needs a client that can make HTTP requests (Claude Code, code execution, scripts):
-
-  ```bash
-  curl -sS -X POST --data-binary @photo.jpg -H "Content-Type: image/jpeg" -H "Authorization: Bearer $UPLOAD_TOKEN" "$APP_URL/api/mcp/$PROJECT_ID/uploads"
-  ```
-
-  Multipart with a field named `file` (`curl -F file=@photo.jpg`) also works, and clients holding the project's static MCP token can use it directly instead of an upload token. Upload tokens are stored hashed and allow 20 uploads within 60 minutes; rejected images don't count. Each upload ID can back one draft and expires 60 minutes after upload. A project can hold at most 50 unclaimed uploads; expired ones are deleted, along with their objects, on the next upload.
-
-- `image: {"type":"EXTERNAL_URL","url":"https://…/image.png"}`: downloaded with public-address checks, pinned DNS, redirect checks, and download limits before upload. Temporary signed download links work.
-- `image: {"type":"INLINE_BASE64","dataBase64":"…","filename":"image.png","mimeType":"image/png"}`: raw base64 bytes with optional filename and mimeType, limited to 256 KB over MCP because the model must type out every byte. The dashboard API accepts up to 4.5 MB.
-- `image: {"type":"OPENAPI_FILE","download_url":"https://…","file_id":"file_…","mime_type":"image/png","file_name":"image.png"}`: imports a host-provided temporary file download immediately into private storage. File IDs and download URLs are not persisted or returned.
-
-For ChatGPT attachments, use `create_draft_from_file`. OpenAI's `openai/fileParams` metadata requires a plain top-level file object with `download_url` and `file_id` required, and optional `mime_type` / `file_name` declared. A typed union with an additional required `type` does not meet that contract, so the file-specific tool accepts the host object and converts it to `OPENAPI_FILE` internally. `create_draft` also accepts that type when a client already has the resolved download fields. Refresh the ChatGPT connection's tools after deploying this schema change.
+`create_draft` accepts these asset sources:
 
 ```json
 {
-  "title": "An update",
-  "caption": "Our latest photo",
-  "platforms": ["instagram"],
-  "image": { "type": "EXTERNAL_URL", "url": "https://example.com/image.png" }
+  "title": "A small update",
+  "caption": "Two views of our latest project.",
+  "platforms": ["facebook", "instagram"],
+  "assets": [
+    {
+      "type": "EXTERNAL_URL",
+      "kind": "IMAGE",
+      "url": "https://example.com/first.jpg"
+    },
+    { "type": "UPLOAD_ID", "uploadId": "<assetUploadId>" }
+  ]
 }
 ```
 
-Run `pnpm images:migrate` to copy legacy image URLs into private storage. Failed imports retain their original URL and can be replaced in the editor.
+Other sources are `{type:"INLINE_BASE64",dataBase64,filename?,mimeType?}` for small images (256 KB maximum), and `{type:"OPENAPI_FILE",download_url,file_id,mime_type?,file_name?,kind?}` for host-resolved temporary downloads. Kind can be omitted: the actual bytes determine IMAGE vs VIDEO. URL imports enforce HTTPS, public DNS/IPs, bounded sizes and redirects. Temporary source URLs and ChatGPT file IDs are not saved in posts or returned to clients.
 
-Objects are private, with unique project-prefixed keys. Postgres stores the object key and bucket; post responses return an authenticated preview URL. Preview requests require a valid browser session and project ownership. MCP can submit and list images but cannot use browser preview links without that session. Publishing creates a one-hour signed URL for Meta; signed links are not stored in posts or returned by list tools. Treat those links as temporary bearer credentials. Draft image replacements/deletion remove obsolete objects after the database change. Text edits in the UI preserve the image; API PATCH uses `keepImage: true` to preserve it, or an empty image with `keepImage: false` to remove it.
+For ChatGPT attachments use `create_draft_from_files` with a plain `assets` array of `{download_url,file_id,mime_type?,file_name?}`. OpenAI's `openai/fileParams` requires plain top-level file objects or arrays, so this companion converts host-resolved files internally. `create_draft_from_file` and the previous single-image `create_draft.image` remain compatible. Refresh the ChatGPT connection's tools after deployment.
 
-Tests upload small disposable objects and mock Meta calls. Storage lifecycle cleanup is best-effort; production deployments may add a periodic orphan cleanup job for interrupted uploads.
+Local files use a direct-to-S3 upload:
+
+1. Call `create_asset_upload` with `mimeType` and `fileSize`.
+2. PUT the exact bytes to `uploadUrl`, using the supplied Content-Type. PUT URLs expire after 10 minutes.
+3. Call `complete_asset_upload` with `uploadId` and `completionToken`. HTTP-capable clients may instead POST those fields to `completionUrl`.
+4. Pass the returned `assetUploadId` to `create_draft.assets` with type UPLOAD_ID. Each upload is project-scoped, expires after an hour, and can be claimed once. Finalization writes a new key so reusing the PUT URL cannot alter a post.
+
+The dashboard uses authenticated `/api/assets/uploads` POST/PATCH for this same flow. File bytes bypass Vercel's 4.5 MB request limit. The old `create_upload_token` + raw HTTP endpoint remains available for small image files.
+
+Before browser uploads, enable S3 CORS for the app's origin, preserving existing bucket rules:
+
+```sh
+# Use your actual deployment origin when configuring Vercel uploads.
+APP_URL=https://your-app.vercel.app pnpm storage:cors
+```
+
+The script preserves other applications' rules and adds PUT/GET/HEAD for APP_URL. Storage endpoints may also provide their own CORS defaults. No public bucket access is enabled. Unused and staging uploads are cleaned up after expiry when another upload is prepared. Post edits and deletion remove objects no longer referenced.
+
+Publishing sends Facebook multi-photo posts and Instagram carousels for galleries. A single video uses Facebook's video endpoint and Instagram REELS; Instagram's container readiness is checked before publishing. The publish route permits up to 300 seconds with a 240-second operation deadline. Slow/failed media processing enters `needs_review` to avoid duplicate submissions. Existing single-image and text-only Facebook behavior remains supported.
+
+Migration 0008 moves all existing media into `post_assets`, preserving IDs, order and private storage references, then removes the JSONB asset list and the old object-key/bucket columns from `posts`. The single-image API remains compatible by deriving its image from the first asset. `images:migrate` imports legacy external image URLs into the new table.
 
 ## Hosting and storage
 
 Projects and their channel config are stored in `projects`; every row in `posts` has a required project foreign key. Drafts are stored through Drizzle ORM. JSON files are no longer read or written. The connection uses `DATABASE_URL` from your `.env`, preserving its TLS options. A small shared connection pool is reused during development.
 
-The schema lives in `src/db/schema.ts`. It includes UUID IDs and a required project ID, title/caption, image URL, a typed platform array, source, publishing status, JSONB delivery results, an optional error, and timestamps. Postgres constraints enforce content limits and Instagram media requirements. Indexes support creation-time ordering and status queries.
+The schema lives in `src/db/schema.ts`. Posts belong to projects and contain title/caption, platform targets, source, publishing status, JSONB delivery results, and timestamps. Media lives in `post_assets`: UUID ID, `post_id` foreign key with cascade deletion, zero-based `position`, IMAGE/VIDEO kind, object key, bucket, MIME type and creation timestamp. Asset IDs and storage objects are unique; required fields and MIME types are checked in Postgres. A deferred unique constraint on `(post_id, position)` allows atomic position swaps while preserving individual asset rows.
+
+Deferred constraint triggers in migration 0008 enforce up to 10 images OR one video, and require media for submitted Instagram posts. They validate the final transaction state, so creating a post and its media, reordering, and deleting a post are atomic. Editing locks the post, updates retained positions, inserts new assets and removes dropped assets in one transaction. Asset reads are batched per post list rather than making a query for every post.
 
 ```sh
 pnpm db:generate   # Generate versioned SQL after editing the schema

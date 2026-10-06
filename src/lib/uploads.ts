@@ -8,7 +8,7 @@ import {
   IMAGE_TOO_LARGE,
   MAX_IMAGE_BYTES,
   removeImage,
-  storeImage,
+  storeAsset,
 } from "./storage";
 import { readBody } from "./request-body";
 
@@ -66,7 +66,7 @@ export async function createUploadToken(projectId: string) {
     maxBytes: MAX_IMAGE_BYTES,
     acceptedTypes: ["image/jpeg", "image/png", "image/webp"],
     example: `curl -sS -X POST --data-binary @image.jpg -H "Content-Type: image/jpeg" -H "Authorization: Bearer ${token}" "${uploadUrl}"`,
-    next: 'POST each image file to uploadUrl with this token. Each response returns an imageUploadId; pass it to create_draft as image: { type: "UPLOAD_ID", uploadId: imageUploadId }.',
+    next: 'POST each image file to uploadUrl with this token. Each response returns an imageUploadId; pass it to create_draft as assets: [{ type: "UPLOAD_ID", uploadId: imageUploadId }].',
   };
 }
 // Accepts the project's static MCP token, or spends one use of an upload
@@ -108,7 +108,7 @@ async function authorizeUpload(
       .where(eq(uploadTokens.id, spent.id));
   };
 }
-async function removeExpiredUploads(projectId: string) {
+export async function removeExpiredUploads(projectId: string) {
   const expired = await getDb()
     .delete(imageUploads)
     .where(
@@ -170,7 +170,7 @@ export async function receiveImageUpload(projectId: string, req: Request) {
     }
     let image;
     try {
-      image = await storeImage(projectId, bytes);
+      image = await storeAsset(projectId, bytes);
     } catch (e) {
       throw new UploadError(
         e instanceof Error ? e.message : "Invalid image",
@@ -181,15 +181,20 @@ export async function receiveImageUpload(projectId: string, req: Request) {
       const [upload] = await getDb()
         .insert(imageUploads)
         .values({
-          ...image,
+          imageKey: image.imageKey,
+          imageBucket: image.imageBucket,
+          kind: image.kind,
+          mimeType: image.mimeType,
           projectId,
           expiresAt: minutesFromNow(UPLOAD_TTL_MINUTES),
         })
         .returning();
       return {
+        assetUploadId: upload.id,
         imageUploadId: upload.id,
+        kind: upload.kind,
         expiresAt: new Date(upload.expiresAt).toISOString(),
-        next: 'Pass image: { type: "UPLOAD_ID", uploadId: imageUploadId } to create_draft before it expires.',
+        next: 'Pass assets: [{ type: "UPLOAD_ID", uploadId: assetUploadId }] to create_draft before it expires.',
       };
     } catch (e) {
       await removeImage(image);
@@ -219,5 +224,14 @@ export async function claimImageUpload(
     .returning();
   if (!upload)
     throw new Error("Image upload not found, expired, or already used");
-  return { imageKey: upload.imageKey, imageBucket: upload.imageBucket };
+  return {
+    id: upload.id,
+    kind: upload.kind,
+    mimeType:
+      upload.kind === "VIDEO"
+        ? ("video/mp4" as const)
+        : ("image/jpeg" as const),
+    imageKey: upload.imageKey,
+    imageBucket: upload.imageBucket,
+  };
 }

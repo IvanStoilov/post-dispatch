@@ -1,0 +1,1 @@
+ALTER TABLE "direct_uploads" ADD COLUMN "completed" boolean DEFAULT false NOT NULL;

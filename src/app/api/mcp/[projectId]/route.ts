@@ -1,6 +1,7 @@
 import { oauthChallenge } from "@/lib/oauth";
 import { handleProjectMcp } from "@/lib/mcp";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ projectId: string }> },

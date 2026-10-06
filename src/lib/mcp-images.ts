@@ -1,21 +1,8 @@
 import { z } from "zod";
 import { inlineImageFileSchema } from "./storage";
-const downloadUrl = z
-  .url()
-  .refine(
-    (value) => new URL(value).protocol === "https:",
-    "Use an HTTPS download URL",
-  );
-// ChatGPT's fileParams contract requires exactly these two required fields;
-// both optional metadata properties must also appear in the JSON schema.
-export const openaiFileSchema = z
-  .object({
-    download_url: downloadUrl,
-    file_id: z.string().min(1).max(255),
-    mime_type: z.string().max(100).optional(),
-    file_name: z.string().max(255).optional(),
-  })
-  .strict();
+import { assetInputSchema, openaiFileSchema, httpsUrl } from "./asset-inputs";
+export { openaiFileSchema } from "./asset-inputs";
+const downloadUrl = httpsUrl;
 export const mcpImageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("EXTERNAL_URL"), url: downloadUrl }).strict(),
   inlineImageFileSchema.extend({ type: z.literal("INLINE_BASE64") }).strict(),
@@ -32,10 +19,22 @@ const draftFields = {
   source: z.string().trim().min(1).max(60).optional(),
 };
 export const mcpDraftSchema = z
-  .object({ ...draftFields, image: mcpImageSchema.optional() })
-  .strict();
+  .object({
+    ...draftFields,
+    image: mcpImageSchema.optional(),
+    assets: z.array(assetInputSchema).min(1).max(10).optional(),
+  })
+  .strict()
+  .refine((v) => !(v.image && v.assets), "Provide image or assets, not both")
+  .refine(
+    (v) => !v.assets?.some((a) => a.kind === "VIDEO") || v.assets.length === 1,
+    "Provide multiple images or one video",
+  );
 export const fileDraftSchema = z
   .object({ ...draftFields, image: openaiFileSchema })
+  .strict();
+export const filesDraftSchema = z
+  .object({ ...draftFields, assets: z.array(openaiFileSchema).min(1).max(10) })
   .strict();
 export function draftStorageInput(input: z.infer<typeof mcpDraftSchema>) {
   const { image, ...draft } = input;

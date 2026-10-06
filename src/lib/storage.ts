@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   ListBucketsCommand,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
@@ -12,6 +13,8 @@ import { request } from "node:https";
 import ipaddr from "ipaddr.js";
 import sharp from "sharp";
 import { z } from "zod";
+import type { StoredAsset, AssetKind } from "./types";
+export const MAX_VIDEO_BYTES = 100_000_000;
 
 // Vercel rejects function request bodies over 4.5 MB before our code runs.
 export const MAX_IMAGE_BYTES = 4_500_000;
@@ -36,7 +39,7 @@ export const inlineImageFileSchema = imageFileSchema.extend({
 });
 let client: S3Client | undefined;
 let discoveredBucket: Promise<string> | undefined;
-function storage() {
+export function storage() {
   if (
     !process.env.AWS_ENDPOINT_URL_S3 ||
     !process.env.AWS_ACCESS_KEY_ID ||
@@ -50,7 +53,7 @@ function storage() {
     forcePathStyle: true,
   }));
 }
-async function bucket() {
+export async function bucket() {
   if (process.env.AWS_S3_BUCKET) return process.env.AWS_S3_BUCKET;
   if (!discoveredBucket)
     discoveredBucket = storage()
@@ -75,6 +78,7 @@ export async function downloadImage(
   value: string,
   redirects = 0,
   deadline = Date.now() + 20000,
+  maxBytes = MAX_IMAGE_BYTES,
 ): Promise<Buffer> {
   const url = new URL(value);
   if (
@@ -96,7 +100,10 @@ export async function downloadImage(
       url,
       {
         signal: AbortSignal.timeout(remaining),
-        headers: { Accept: "image/*", "User-Agent": "PostDispatch/1.0" },
+        headers: {
+          Accept: "image/*,video/mp4",
+          "User-Agent": "PostDispatch/1.0",
+        },
         lookup: (_host, options, callback) => {
           if (options.all) callback(null, [chosen]);
           else callback(null, chosen.address, chosen.family);
@@ -113,6 +120,7 @@ export async function downloadImage(
               new URL(response.headers.location, url).href,
               redirects + 1,
               deadline,
+              maxBytes,
             ).then(resolve, reject);
           } catch (error) {
             reject(error);
@@ -124,17 +132,29 @@ export async function downloadImage(
           reject(new Error(`Image download failed (HTTP ${status})`));
           return;
         }
-        if (Number(response.headers["content-length"] || 0) > MAX_IMAGE_BYTES) {
+        if (Number(response.headers["content-length"] || 0) > maxBytes) {
           response.destroy();
-          reject(new Error(IMAGE_TOO_LARGE));
+          reject(
+            new Error(
+              maxBytes === MAX_IMAGE_BYTES
+                ? IMAGE_TOO_LARGE
+                : "Video must be 100 MB or smaller",
+            ),
+          );
           return;
         }
         const chunks: Buffer[] = [];
         let length = 0;
         response.on("data", (chunk: Buffer) => {
           length += chunk.length;
-          if (length > MAX_IMAGE_BYTES) {
-            response.destroy(new Error(IMAGE_TOO_LARGE));
+          if (length > maxBytes) {
+            response.destroy(
+              new Error(
+                maxBytes === MAX_IMAGE_BYTES
+                  ? IMAGE_TOO_LARGE
+                  : "Video must be 100 MB or smaller",
+              ),
+            );
             return;
           }
           chunks.push(chunk);
@@ -233,13 +253,153 @@ export async function readImage(image: {
   if (!r.Body) throw new Error("Image not found");
   return r.Body.transformToByteArray();
 }
-export async function publicationImageUrl(image: {
-  imageKey: string;
-  imageBucket: string;
-}) {
+export async function publicationImageUrl(
+  image: {
+    imageKey: string;
+    imageBucket: string;
+  },
+  expiresIn = 3600,
+) {
   return getSignedUrl(
     storage(),
     new GetObjectCommand({ Bucket: image.imageBucket, Key: image.imageKey }),
-    { expiresIn: 3600 },
+    { expiresIn },
   );
+}
+
+// Check the ISO-BMFF structure rather than trusting a MIME type or extension.
+// Meta performs final codec, duration and aspect-ratio validation on publication.
+export function isMp4(bytes: Buffer) {
+  let offset = 0;
+  const boxes = new Set<string>();
+  while (offset + 8 <= bytes.length) {
+    let length = bytes.readUInt32BE(offset);
+    const type = bytes.toString("ascii", offset + 4, offset + 8);
+    if (length === 1) {
+      if (offset + 16 > bytes.length) return false;
+      const large = bytes.readBigUInt64BE(offset + 8);
+      if (large > BigInt(bytes.length)) return false;
+      length = Number(large);
+      if (length < 16) return false;
+    } else if (length === 0) length = bytes.length - offset;
+    if (length < 8 || offset + length > bytes.length) return false;
+    if (type === "ftyp" && length < 16) return false;
+    if (type === "moov" && length < 16) return false;
+    boxes.add(type);
+    offset += length;
+  }
+  return (
+    offset === bytes.length &&
+    ["ftyp", "moov", "mdat"].every((box) => boxes.has(box))
+  );
+}
+export async function storeAsset(
+  projectId: string,
+  bytes: Buffer,
+  expectedKind?: AssetKind,
+): Promise<StoredAsset> {
+  const kind = isMp4(bytes) ? "VIDEO" : "IMAGE";
+  if (expectedKind && expectedKind !== kind)
+    throw new Error(`Expected a valid ${expectedKind.toLowerCase()} file`);
+  const id = randomUUID();
+  if (kind === "IMAGE")
+    return {
+      id,
+      kind,
+      mimeType: "image/jpeg",
+      ...(await storeImage(projectId, bytes)),
+    };
+  if (bytes.length > MAX_VIDEO_BYTES)
+    throw new Error("Video must be 100 MB or smaller");
+  const imageKey = `${projectId}/${id}.mp4`;
+  const imageBucket = await bucket();
+  await storage().send(
+    new PutObjectCommand({
+      Bucket: imageBucket,
+      Key: imageKey,
+      Body: bytes,
+      ContentType: "video/mp4",
+      CacheControl: "private, max-age=0",
+    }),
+  );
+  return { id, kind, imageKey, imageBucket, mimeType: "video/mp4" };
+}
+export async function downloadAsset(
+  projectId: string,
+  url: string,
+  kind?: AssetKind,
+  deadline = Date.now() + (kind === "IMAGE" ? 20000 : 120000),
+) {
+  return storeAsset(
+    projectId,
+    await downloadImage(
+      url,
+      0,
+      deadline,
+      kind === "IMAGE" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES,
+    ),
+    kind,
+  );
+}
+export async function stagedUploadUrl(
+  projectId: string,
+  mimeType: string,
+  fileSize: number,
+) {
+  const imageKey = `${projectId}/pending/${randomUUID()}`;
+  const imageBucket = await bucket();
+  const uploadUrl = await getSignedUrl(
+    storage(),
+    new PutObjectCommand({
+      Bucket: imageBucket,
+      Key: imageKey,
+      ContentType: mimeType,
+      ContentLength: fileSize,
+    }),
+    { expiresIn: 600 },
+  );
+  return { imageKey, imageBucket, uploadUrl };
+}
+export async function readStagedUpload(asset: {
+  imageKey: string;
+  imageBucket: string;
+  fileSize: number;
+}) {
+  const head = await storage().send(
+    new HeadObjectCommand({ Bucket: asset.imageBucket, Key: asset.imageKey }),
+  );
+  if (
+    head.ContentLength !== asset.fileSize ||
+    head.ContentLength > MAX_VIDEO_BYTES
+  )
+    throw new Error("Uploaded file size does not match the upload request");
+  const response = await storage().send(
+    new GetObjectCommand({ Bucket: asset.imageBucket, Key: asset.imageKey }),
+    { abortSignal: AbortSignal.timeout(120000) },
+  );
+  if (!response.Body) throw new Error("Uploaded file is unavailable");
+  const reader = response.Body.transformToWebStream().getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    if (response.ContentLength !== asset.fileSize) {
+      await reader.cancel();
+      throw new Error("Uploaded file changed during verification");
+    }
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      length += value.length;
+      if (length > asset.fileSize) {
+        await reader.cancel();
+        throw new Error("Uploaded file changed during verification");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (length !== asset.fileSize)
+    throw new Error("Uploaded file changed during verification");
+  return Buffer.concat(chunks);
 }

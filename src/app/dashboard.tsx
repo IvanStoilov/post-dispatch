@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import ProjectSettings from "./project-settings";
-import type { Post, Platform, Project } from "@/lib/types";
+import MediaGallery from "./media-gallery";
+import type { Post, Platform, Project, PostAsset } from "@/lib/types";
+type MediaItem = {
+  id: string;
+  file?: File;
+  asset?: PostAsset;
+  uploadId?: string;
+};
 type View = "Inbox" | "Published" | "Connections" | "MCP integration";
 type Draft = Pick<
   Post,
@@ -121,9 +128,9 @@ export default function Dashboard({
   });
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<Draft>(blank);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const imageFileInput = useRef<HTMLInputElement>(null);
-  const [keepImage, setKeepImage] = useState(false);
+
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -222,28 +229,65 @@ export default function Dashboard({
     e.preventDefault();
     setBusy(true);
     try {
+      const assets: Record<string, unknown>[] = [];
+      const urls = form.imageUrl.split(/\s+/).filter(Boolean);
+      if (mediaItems.length + urls.length > 10)
+        throw new Error("Choose up to 10 images or one video");
+      for (const item of mediaItems) {
+        if (item.asset) {
+          assets.push({ type: "EXISTING", assetId: item.asset.id });
+          continue;
+        }
+        if (item.uploadId) {
+          assets.push({ type: "UPLOAD_ID", uploadId: item.uploadId });
+          continue;
+        }
+        if (!item.file) continue;
+        setNotice(`Uploading ${item.file.name}…`);
+        const path = `/api/assets/uploads?projectId=${projectId}`;
+        const mimeType =
+          item.file.type ||
+          (item.file.name.toLowerCase().endsWith(".mp4") ? "video/mp4" : "");
+        const start = await request(path, "POST", {
+          mimeType,
+          fileSize: item.file.size,
+        });
+        let uploaded: Response;
+        try {
+          uploaded = await fetch(start.uploadUrl, {
+            method: "PUT",
+            headers: start.headers,
+            body: item.file,
+          });
+        } catch {
+          throw new Error(
+            "Could not upload to storage. Check the bucket's CORS configuration for this app's origin.",
+          );
+        }
+        if (!uploaded.ok) throw new Error("Storage rejected the file upload");
+        const ready = await request(path, "PATCH", {
+          uploadId: start.uploadId,
+        });
+        assets.push({ type: "UPLOAD_ID", uploadId: ready.assetUploadId });
+        // Preserve completed uploads across a failed draft save or a retry.
+        setMediaItems((items) =>
+          items.map((value) =>
+            value.id === item.id
+              ? { ...value, uploadId: ready.assetUploadId }
+              : value,
+          ),
+        );
+      }
+      for (const url of urls) assets.push({ type: "EXTERNAL_URL", url });
       await request(
         editing === "new" ? "/api/posts" : `/api/posts/${editing}`,
         editing === "new" ? "POST" : "PATCH",
         {
-          ...form,
-          keepImage,
-          ...(imageFile
-            ? {
-                imageFile: {
-                  dataBase64: await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () =>
-                      resolve(String(reader.result).split(",")[1]);
-                    reader.onerror = () =>
-                      reject(new Error("Could not read image file"));
-                    reader.readAsDataURL(imageFile);
-                  }),
-                  filename: imageFile.name,
-                  mimeType: imageFile.type,
-                },
-              }
-            : {}),
+          title: form.title,
+          caption: form.caption,
+          platforms: form.platforms,
+          source: form.source,
+          assets,
         },
       );
       setEditing(null);
@@ -261,6 +305,11 @@ export default function Dashboard({
     const p = confirm;
     setConfirm(null);
     try {
+      setNotice(
+        p.assets[0]?.kind === "VIDEO"
+          ? "Publishing video… Instagram processing may take a few minutes."
+          : "Publishing…",
+      );
       await request(`/api/posts/${p.id}/publish`, "POST");
       setNotice("Published successfully.");
     } catch (e) {
@@ -294,14 +343,12 @@ export default function Dashboard({
         .includes(search.toLowerCase()),
   );
   function newDraft() {
-    setImageFile(null);
-    setKeepImage(false);
+    setMediaItems([]);
     setForm({ ...blank, platforms: ["facebook"] });
     setEditing("new");
   }
   function edit(p: Post) {
-    setImageFile(null);
-    setKeepImage(!!p.imageUrl);
+    setMediaItems(p.assets.map((asset) => ({ id: asset.id, asset })));
     setForm({
       title: p.title,
       caption: p.caption,
@@ -565,7 +612,10 @@ export default function Dashboard({
                             : undefined
                         }
                       >
-                        {!p.imageUrl && (
+                        {!!p.assets.length && (
+                          <MediaGallery assets={p.assets} title={p.title} />
+                        )}
+                        {!p.assets.length && !p.imageUrl && (
                           <div className="cover-art">
                             <span className="cover-kicker">A LITTLE IDEA.</span>
                             <strong>{p.title}</strong>
@@ -903,7 +953,8 @@ export default function Dashboard({
                 <div>
                   <code>create_draft</code>
                   <span>
-                    Submit a post with an image URL or file for your review
+                    Submit a post with up to 10 images or one video for your
+                    review
                   </span>
                 </div>
                 <div>
@@ -984,54 +1035,150 @@ export default function Dashboard({
                 </span>
               </label>
               <label>
-                Image file
+                Images or video
                 <input
                   type="file"
+                  multiple
                   ref={imageFileInput}
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,video/mp4,.mp4"
+                  disabled={busy}
                   onChange={(e) => {
-                    const file = e.target.files?.[0] ?? null;
-                    if (file && file.size > 4_500_000) {
-                      setNotice("Images must be 4.5 MB or smaller");
-                      e.target.value = "";
+                    const files = Array.from(e.target.files || []);
+                    e.target.value = "";
+                    const videos = files.filter(
+                      (file) =>
+                        file.type === "video/mp4" ||
+                        file.name.toLowerCase().endsWith(".mp4"),
+                    );
+                    if (videos.length && files.length !== 1) {
+                      setNotice("Choose multiple images or a single video");
                       return;
                     }
-                    setImageFile(file);
-                    if (file) setForm({ ...form, imageUrl: "" });
+                    if (
+                      files.some(
+                        (file) =>
+                          file.size > (videos.length ? 100_000_000 : 4_500_000),
+                      )
+                    ) {
+                      setNotice(
+                        "Images must be 4.5 MB or smaller; videos must be 100 MB or smaller",
+                      );
+                      return;
+                    }
+                    const previous =
+                      videos.length ||
+                      mediaItems.some(
+                        (item) =>
+                          item.asset?.kind === "VIDEO" ||
+                          item.file?.type === "video/mp4" ||
+                          item.file?.name.toLowerCase().endsWith(".mp4"),
+                      )
+                        ? []
+                        : mediaItems;
+                    if (previous.length + files.length > 10) {
+                      setNotice("A post supports up to 10 images");
+                      return;
+                    }
+                    setMediaItems([
+                      ...previous,
+                      ...files.map((file) => ({
+                        id: crypto.randomUUID(),
+                        file,
+                      })),
+                    ]);
+                    setNotice("");
+                    if (videos.length) setForm({ ...form, imageUrl: "" });
                   }}
                 />
                 <small>
-                  JPEG, PNG, or WebP up to 4.5 MB. Stored privately.
+                  Up to 10 images (4.5 MB each), or one MP4 video (100 MB).
+                  Stored privately. Instagram videos publish as Reels.
                 </small>
               </label>
-              {editing !== "new" &&
-                !!posts.find((p) => p.id === editing)?.imageUrl && (
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={keepImage}
-                      onChange={(e) => setKeepImage(e.target.checked)}
-                    />{" "}
-                    Keep the current image unless replaced
-                  </label>
-                )}
+              {!!mediaItems.filter((item) => item.asset).length && (
+                <div className="editor-gallery">
+                  <MediaGallery
+                    assets={mediaItems.flatMap((item) =>
+                      item.asset ? [item.asset] : [],
+                    )}
+                    title={form.title}
+                  />
+                </div>
+              )}
+              {!!mediaItems.length && (
+                <ol className="asset-list" aria-label="Post media order">
+                  {mediaItems.map((item, index) => (
+                    <li key={item.id}>
+                      <span>
+                        {index + 1}.{" "}
+                        {item.file?.name ||
+                          `${item.asset?.kind === "VIDEO" ? "Video" : "Image"} ${index + 1}`}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={busy || index === 0}
+                        aria-label={`Move asset ${index + 1} up`}
+                        onClick={() =>
+                          setMediaItems((items) => {
+                            const next = [...items];
+                            [next[index - 1], next[index]] = [
+                              next[index],
+                              next[index - 1],
+                            ];
+                            return next;
+                          })
+                        }
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || index === mediaItems.length - 1}
+                        aria-label={`Move asset ${index + 1} down`}
+                        onClick={() =>
+                          setMediaItems((items) => {
+                            const next = [...items];
+                            [next[index], next[index + 1]] = [
+                              next[index + 1],
+                              next[index],
+                            ];
+                            return next;
+                          })
+                        }
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        aria-label={`Remove asset ${index + 1}`}
+                        onClick={() =>
+                          setMediaItems((items) =>
+                            items.filter((value) => value.id !== item.id),
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              )}
               <label>
-                Image URL{" "}
-                <span className="optional">optional for Facebook</span>
-                <input
-                  type="url"
+                Media URLs <span className="optional">optional</span>
+                <textarea
+                  rows={3}
                   value={form.imageUrl}
-                  onChange={(e) => {
-                    setForm({ ...form, imageUrl: e.target.value });
-                    setImageFile(null);
-                    if (imageFileInput.current)
-                      imageFileInput.current.value = "";
-                  }}
-                  placeholder="https://…/image.jpg"
+                  disabled={busy}
+                  onChange={(e) =>
+                    setForm({ ...form, imageUrl: e.target.value })
+                  }
+                  placeholder={"https://…/image-1.jpg\nhttps://…/image-2.jpg"}
                 />
                 <small>
-                  Or paste a public HTTPS image URL. We download and store it
-                  privately. Instagram requires an image.
+                  One public HTTPS URL per line. Imported after the selected
+                  files, in order. Use multiple image URLs or one MP4 URL.
+                  Instagram requires an image or video.
                 </small>
               </label>
               <div className="form-channels">
@@ -1110,7 +1257,7 @@ export default function Dashboard({
           >
             <h2 id="delete-title">Delete this post?</h2>
             <p>
-              “{deleteConfirm.title}” and its stored image will be permanently
+              “{deleteConfirm.title}” and its stored media will be permanently
               removed from PostDispatch.
             </p>
             <p className="small">

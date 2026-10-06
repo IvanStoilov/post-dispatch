@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { GET as previewImage } from "../src/app/api/posts/[id]/image/route";
 import { removeImage, publicationImageUrl } from "../src/lib/storage";
-import { getPostImage } from "../src/lib/store";
+import { getPostImage, storedAssets } from "../src/lib/store";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -595,7 +595,10 @@ test(
                   owned.map((p) => p.id),
                 ),
               ))
-              await removeImage(row);
+              for (const asset of storedAssets(
+                await getPostImage(row.projectId, row.id),
+              ))
+                await removeImage(asset);
           }
           if (owned.length)
             await getDb()

@@ -1,3 +1,17 @@
+export type AssetKind = "IMAGE" | "VIDEO";
+export type StoredAsset = {
+  id: string;
+  kind: AssetKind;
+  imageKey: string;
+  imageBucket: string;
+  mimeType: "image/jpeg" | "video/mp4";
+};
+export type PostAsset = {
+  id: string;
+  kind: AssetKind;
+  url: string;
+  mimeType: string;
+};
 export type Platform = "instagram" | "facebook";
 export type Post = {
   id: string;
@@ -5,6 +19,7 @@ export type Post = {
   title: string;
   caption: string;
   imageUrl: string;
+  assets: PostAsset[];
   platforms: Platform[];
   source: string;
   status: "draft" | "publishing" | "published" | "needs_review";
