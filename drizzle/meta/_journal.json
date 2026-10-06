@@ -8,6 +8,20 @@
       "when": 1791276934755,
       "tag": "0000_sour_la_nuit",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791277655498,
+      "tag": "0001_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791278127773,
+      "tag": "0002_authentication",
+      "breakpoints": true
     }
   ]
 }

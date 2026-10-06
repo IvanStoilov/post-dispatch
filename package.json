@@ -14,8 +14,10 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.7",
     "@modelcontextprotocol/sdk": "^1.32.0",
     "@next/env": "^16.3.8",
+    "better-auth": "^1.7.7",
     "drizzle-orm": "^0.45.3",
     "next": "16.3.8",
     "pg": "^8.23.1",

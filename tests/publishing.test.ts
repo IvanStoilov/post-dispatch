@@ -4,7 +4,7 @@ import { loadEnvConfig } from "@next/env";
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
-import { posts } from "../src/db/schema";
+import { posts, projects, users } from "../src/db/schema";
 import {
   createPost as insertPost,
   listPosts,
@@ -12,15 +12,29 @@ import {
   deletePost,
   claimPost,
 } from "../src/lib/store";
+import {
+  createProject,
+  updateProject,
+  getProject,
+  listProjects,
+  verifyProjectToken,
+  rotateProjectToken,
+} from "../src/lib/projects";
 import { publishPost } from "../src/lib/meta";
 import type { Platform } from "../src/lib/types";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 const createdIds: string[] = [];
+const createdProjectIds: string[] = [];
+let projectId = "";
 const source = "Test " + randomUUID();
+const userId = randomUUID();
 async function createPost(input: unknown) {
-  const p = await insertPost({ ...(input as Record<string, unknown>), source });
+  const p = await insertPost(projectId, {
+    ...(input as Record<string, unknown>),
+    source,
+  });
   createdIds.push(p.id);
   return p;
 }
@@ -40,15 +54,59 @@ test(
   "Postgres storage and publishing",
   { skip: !process.env.DATABASE_URL },
   async (t) => {
-    const savedEnvironment = Object.fromEntries(
-      [
-        "FACEBOOK_PAGE_ID",
-        "FACEBOOK_PAGE_TOKEN",
-        "INSTAGRAM_ACCOUNT_ID",
-        "INSTAGRAM_ACCESS_TOKEN",
-      ].map((key) => [key, process.env[key]]),
-    );
     try {
+      await getDb()
+        .insert(users)
+        .values({
+          id: userId,
+          name: "Publishing test",
+          email: `${userId}@example.test`,
+        });
+      const first = await createProject(userId, { name: source });
+      projectId = first.project.id;
+      createdProjectIds.push(projectId);
+      const second = await createProject(userId, { name: source + " B" });
+      createdProjectIds.push(second.project.id);
+      await t.test(
+        "project credentials and tokens stay private and isolated",
+        async () => {
+          const a = await getProject(projectId);
+          const b = await getProject(second.project.id);
+          assert.ok(verifyProjectToken(a, `Bearer ${first.mcpToken}`));
+          assert.ok(!verifyProjectToken(b, `Bearer ${first.mcpToken}`));
+          const rotated = await rotateProjectToken(userId, projectId);
+          assert.ok(
+            !verifyProjectToken(
+              await getProject(projectId),
+              `Bearer ${first.mcpToken}`,
+            ),
+          );
+          assert.ok(
+            verifyProjectToken(
+              await getProject(projectId),
+              `Bearer ${rotated.mcpToken}`,
+            ),
+          );
+          const p = await createPost({ ...draft, platforms: ["facebook"] });
+          assert.ok(
+            !(await listPosts(second.project.id)).some(
+              (row) => row.id === p.id,
+            ),
+          );
+          await assert.rejects(() => editPost(second.project.id, p.id, draft));
+          await assert.rejects(() => deletePost(second.project.id, p.id));
+          await assert.rejects(
+            () => publishPost(second.project.id, p.id),
+            /Post not found/,
+          );
+          const safe = (await listProjects(userId)).find(
+            (row) => row.id === projectId,
+          )!;
+          assert.ok(!("facebookPageToken" in safe));
+          assert.ok(!("instagramAccessToken" in safe));
+          assert.ok(!("mcpTokenHash" in safe));
+        },
+      );
       await t.test(
         "validates, saves, edits, and reloads posts from a new pool",
         async () => {
@@ -57,17 +115,21 @@ test(
             /Instagram requires/,
           );
           const p = await createPost({ ...draft, platforms: ["facebook"] });
-          await editPost(p.id, {
+          await editPost(projectId, p.id, {
             ...draft,
             title: "Updated database draft",
             platforms: ["facebook"],
           });
           await closeDb();
-          const reloaded = (await listPosts()).find((row) => row.id === p.id)!;
+          const reloaded = (await listPosts(projectId)).find(
+            (row) => row.id === p.id,
+          )!;
           assert.equal(reloaded.title, "Updated database draft");
           assert.equal(reloaded.createdAt, p.createdAt);
-          await deletePost(p.id);
-          assert.ok(!(await listPosts()).some((row) => row.id === p.id));
+          await deletePost(projectId, p.id);
+          assert.ok(
+            !(await listPosts(projectId)).some((row) => row.id === p.id),
+          );
         },
       );
       await t.test(
@@ -75,11 +137,12 @@ test(
         async () => {
           const p = await createPost({ ...draft, platforms: ["facebook"] });
           await assert.rejects(
-            () => claimPost(p.id, { facebook: false, instagram: false }),
+            () =>
+              claimPost(projectId, p.id, { facebook: false, instagram: false }),
             /Connect facebook/,
           );
           assert.equal(
-            (await listPosts()).find((row) => row.id === p.id)!.status,
+            (await listPosts(projectId)).find((row) => row.id === p.id)!.status,
             "draft",
           );
         },
@@ -96,13 +159,23 @@ test(
             createPost({ ...draft, platforms: ["facebook"] }),
           ),
         );
-        const persisted = new Set((await listPosts()).map((p) => p.id));
+        const persisted = new Set(
+          (await listPosts(projectId)).map((p) => p.id),
+        );
         assert.ok(inserted.every((p) => persisted.has(p.id)));
       });
-      process.env.FACEBOOK_PAGE_ID = "page";
-      process.env.FACEBOOK_PAGE_TOKEN = "fake-token";
-      process.env.INSTAGRAM_ACCOUNT_ID = "instagram";
-      process.env.INSTAGRAM_ACCESS_TOKEN = "fake-token";
+      await updateProject(userId, projectId, {
+        name: source,
+        facebookPageId: "page",
+        facebookPageToken: "fake-token",
+        instagramAccountId: "instagram",
+        instagramAccessToken: "fake-token",
+      });
+      await updateProject(userId, projectId, { name: source });
+      assert.equal(
+        (await getProject(projectId)).facebookPageToken,
+        "fake-token",
+      );
       const calls: { url: string; body: Record<string, string> }[] = [];
       globalThis.fetch = async (url, options) => {
         calls.push({
@@ -115,13 +188,16 @@ test(
         "publishes both channels and saves real response IDs",
         async () => {
           const p = await createPost(draft);
-          const result = await publishPost(p.id);
+          const result = await publishPost(projectId, p.id);
           assert.equal(result.status, "published");
           await assert.rejects(
-            () => editPost(p.id, draft),
+            () => editPost(projectId, p.id, draft),
             /no longer editable/,
           );
-          await assert.rejects(() => deletePost(p.id), /no longer deletable/);
+          await assert.rejects(
+            () => deletePost(projectId, p.id),
+            /no longer deletable/,
+          );
           assert.deepEqual(result.results, {
             facebook: "id-1",
             instagram: "id-3",
@@ -130,7 +206,7 @@ test(
           assert.equal(calls[1].body.image_url, draft.imageUrl);
           assert.equal(calls[2].body.creation_id, "id-2");
           await assert.rejects(
-            () => publishPost(p.id),
+            () => publishPost(projectId, p.id),
             /already been submitted/,
           );
           assert.equal(calls.length, 3);
@@ -150,12 +226,17 @@ test(
                 );
           };
           const p = await createPost(draft);
-          await assert.rejects(() => publishPost(p.id), /Permission denied/);
-          const saved = (await listPosts()).find((post) => post.id === p.id);
+          await assert.rejects(
+            () => publishPost(projectId, p.id),
+            /Permission denied/,
+          );
+          const saved = (await listPosts(projectId)).find(
+            (post) => post.id === p.id,
+          );
           assert.equal(saved!.status, "needs_review");
           assert.equal(saved!.results.facebook, "facebook-success");
           await assert.rejects(
-            () => publishPost(p.id),
+            () => publishPost(projectId, p.id),
             /already been submitted/,
           );
           assert.equal(n, 2);
@@ -171,8 +252,8 @@ test(
           };
           const p = await createPost({ ...draft, platforms: ["facebook"] });
           const results = await Promise.allSettled([
-            publishPost(p.id),
-            publishPost(p.id),
+            publishPost(projectId, p.id),
+            publishPost(projectId, p.id),
           ]);
           assert.equal(
             results.filter((r) => r.status === "fulfilled").length,
@@ -188,9 +269,10 @@ test(
             throw new Error("Timed out after remote submission");
           };
           const p = await createPost({ ...draft, platforms: ["facebook"] });
-          await assert.rejects(() => publishPost(p.id), /Timed out/);
+          await assert.rejects(() => publishPost(projectId, p.id), /Timed out/);
           assert.equal(
-            (await listPosts()).find((post) => post.id === p.id)!.status,
+            (await listPosts(projectId)).find((post) => post.id === p.id)!
+              .status,
             "needs_review",
           );
         },
@@ -201,10 +283,17 @@ test(
         if (createdIds.length)
           await getDb().delete(posts).where(inArray(posts.id, createdIds));
       } finally {
-        await closeDb();
-        for (const [key, value] of Object.entries(savedEnvironment)) {
-          if (value === undefined) delete process.env[key];
-          else process.env[key] = value;
+        try {
+          if (createdProjectIds.length)
+            await getDb()
+              .delete(projects)
+              .where(inArray(projects.id, createdProjectIds));
+        } finally {
+          try {
+            await getDb().delete(users).where(eq(users.id, userId));
+          } finally {
+            await closeDb();
+          }
         }
       }
     }

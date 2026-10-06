@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionCookie } from "better-auth/cookies";
 export function proxy(req: NextRequest) {
-  const origin = req.headers.get("origin");
   const expected = new URL(process.env.APP_URL || "http://localhost:8200");
+  const origin = req.headers.get("origin");
   if (req.headers.get("host") !== expected.host)
     return NextResponse.json(
       { error: "Invalid host. Configure APP_URL for this deployment." },
@@ -9,23 +10,22 @@ export function proxy(req: NextRequest) {
     );
   if (origin && origin !== expected.origin)
     return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
-  if (req.nextUrl.pathname === "/api/mcp") return NextResponse.next();
-  const password = process.env.APP_PASSWORD;
+  const path = req.nextUrl.pathname;
   if (
-    !password &&
-    !["localhost", "127.0.0.1", "[::1]"].includes(expected.hostname)
+    path.startsWith("/api/auth/") ||
+    path === "/signin" ||
+    path === "/signup" ||
+    path === "/api/mcp" ||
+    path.startsWith("/api/mcp/")
   )
-    return NextResponse.json(
-      { error: "Set APP_PASSWORD before remote access" },
-      { status: 503 },
-    );
-  if (password) {
-    const expectedAuth = `Basic ${btoa(`admin:${password}`)}`;
-    if (req.headers.get("authorization") !== expectedAuth)
-      return new NextResponse("Sign in to PostDispatch", {
-        status: 401,
-        headers: { "WWW-Authenticate": 'Basic realm="PostDispatch"' },
-      });
+    return NextResponse.next();
+  if (!getSessionCookie(req)) {
+    if (path.startsWith("/api/"))
+      return NextResponse.json(
+        { error: "Sign in to continue" },
+        { status: 401 },
+      );
+    return NextResponse.redirect(new URL("/signin", req.url));
   }
   return NextResponse.next();
 }

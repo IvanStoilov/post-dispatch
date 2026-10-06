@@ -10,20 +10,32 @@ A Next.js local MVP for a personal publishing desk: persistent draft inbox, edit
 pnpm install
 cp .env.example .env.local
 # Set DATABASE_URL in .env to your Neon/Postgres connection string.
+# Set BETTER_AUTH_SECRET in .env.local (a random secret of 32+ characters).
 pnpm db:migrate
 pnpm dev
 ```
 
-Open http://localhost:8200. DATABASE_URL is required for draft storage. No Meta tokens are needed to create, edit, and browse drafts. Add a random `MCP_TOKEN` to enable MCP. No demo content is preloaded.
+Open http://localhost:8200/signup to create an account, or /signin to sign in. DATABASE_URL is required for storage. After signing in, no Meta tokens are needed to create, edit, and browse drafts. Create/select a project and configure its channels in Connections. Generate or replace its MCP token in MCP integration. No demo content is preloaded.
+
+## Authentication and ownership
+
+Better Auth uses email/password authentication through its Drizzle adapter. Signup/signin are at `/signup` and `/signin`; auth endpoints are under `/api/auth`. Signup automatically signs the user in. Email verification is disabled for now. Social providers and password reset emails are not configured.
+
+The auth schema consists of `users`, `sessions`, `accounts`, and `verifications`. Better Auth hashes passwords in credential accounts, stores sessions in Postgres, and sets its session cookies. `BETTER_AUTH_SECRET` must remain private and stable across deployments.
+
+Every project has a required `user_id` foreign key. Signup creates a Personal workspace. The dashboard and all dashboard API routes validate sessions server-side; project list/create/update, channel settings, MCP token rotation, and all post operations enforce the signed-in user's ownership. Supplied user IDs are ignored. MCP endpoints keep their independent project bearer authentication so AI clients do not need a browser session.
+
+Migration 0002 preserves pre-authentication projects under a reserved user with no password or sessions. `LEGACY_OWNER_EMAIL` assigns these projects only to that email upon signup. For this installation it is configured for the owner's chosen email. This is a one-time migration setting; other accounts get separate workspaces. Existing project MCP tokens remain valid.
 
 ## MCP
 
-Endpoint: `POST /api/mcp` (Streamable HTTP, stateless JSON responses).
+Endpoint: `POST /api/mcp/<projectId>` (Streamable HTTP, stateless JSON responses).
 
-Send `Authorization: Bearer <MCP_TOKEN>`. Supported tools:
+Send `Authorization: Bearer <project token>` from that project’s MCP integration screen. Each token only authenticates to its own project endpoint. The assistant receives the project name/ID during initialization and can call `get_project`. Supported tools:
 
+- `get_project`: identify the connected project and its configured channels (no secrets).
 - `create_draft`: title, caption, platforms (`facebook`, `instagram`), optional imageUrl, optional source. Creates a draft only.
-- `list_posts`: read saved posts and their delivery state.
+- `list_posts`: read this project’s saved posts and delivery state.
 
 There is deliberately no publishing tool. Publishing is initiated through the dashboard.
 
@@ -42,11 +54,15 @@ Remote clients need a reachable HTTPS endpoint. This initial implementation supp
 
 ## Meta publishing setup
 
-Create a Meta developer app and obtain authorized publishing tokens for your accounts. Set the account IDs and tokens in `.env.local`, then restart:
+Create a Meta developer app and obtain authorized publishing tokens for your accounts. Select a project in the sidebar, then save its account IDs and tokens in Connections:
 
-- Facebook Page: `FACEBOOK_PAGE_ID`, `FACEBOOK_PAGE_TOKEN` with `pages_manage_posts` and applicable dependent permissions.
-- Instagram Business/Creator: `INSTAGRAM_ACCOUNT_ID`, `INSTAGRAM_ACCESS_TOKEN` with content publishing permissions. Set `INSTAGRAM_API_HOST` to `graph.facebook.com` for Facebook Login or `graph.instagram.com` for Instagram Login.
-- `META_API_VERSION` is configurable. Confirm the version enabled for your app.
+- Facebook Page ID and Page access token, with publishing permissions.
+- Instagram account ID and access token, with content publishing permissions.
+- Instagram login method (Facebook Login or Instagram Login).
+
+All four account/token values are stored in the `projects` database table. Tokens are write-only in settings responses: blank token fields keep existing values; Disconnect clears the channel ID/token. Meta access tokens are stored server-side as database secrets; restrict database access and backups accordingly. Project MCP tokens are stored as SHA-256 hashes, are returned only when created/replaced, and never grant publishing access. No credentials are exposed to MCP tools.
+
+Existing posts are assigned to the default Personal workspace project by migration 0001. Existing environment credentials were copied into that project during this upgrade. The global Meta credential variables and MCP_TOKEN are no longer used by the runtime. Legacy `/api/mcp` connections must use the default project's new endpoint; its migrated MCP token remains valid until replaced.
 
 MVP formats: Facebook text or single image, Instagram single image. Instagram requires a publicly accessible HTTPS JPEG URL. No videos, carousels, Stories, uploading, or account OAuth onboarding yet. Credentials shown as configured have not been verified until the first publish. Public users outside app roles require appropriate Meta review/access.
 
@@ -54,9 +70,9 @@ Publishing claims the draft before sending and saves each platform's resulting I
 
 ## Hosting and storage
 
-Drafts are stored in the Postgres `posts` table through Drizzle ORM. JSON files are no longer read or written. The connection uses `DATABASE_URL` from your `.env`, preserving its TLS options. A small shared connection pool is reused during development.
+Projects and their channel config are stored in `projects`; every row in `posts` has a required project foreign key. Drafts are stored through Drizzle ORM. JSON files are no longer read or written. The connection uses `DATABASE_URL` from your `.env`, preserving its TLS options. A small shared connection pool is reused during development.
 
-The schema lives in `src/db/schema.ts`. It includes UUID IDs, title/caption, image URL, a typed platform array, source, publishing status, JSONB delivery results, an optional error, and timestamps. Postgres constraints enforce content limits and Instagram media requirements. Indexes support creation-time ordering and status queries.
+The schema lives in `src/db/schema.ts`. It includes UUID IDs and a required project ID, title/caption, image URL, a typed platform array, source, publishing status, JSONB delivery results, an optional error, and timestamps. Postgres constraints enforce content limits and Instagram media requirements. Indexes support creation-time ordering and status queries.
 
 ```sh
 pnpm db:generate   # Generate versioned SQL after editing the schema
@@ -68,7 +84,7 @@ Drizzle Kit loads `.env*` using Next's environment loader, matching the applicat
 
 Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing/deleting also require draft status in the database query. Each channel's result is persisted separately; network calls happen outside the transaction. A durable delivery worker and reconciliation remain future improvements.
 
-Set `APP_URL` to the exact externally accessible origin. Set `APP_PASSWORD` before remote access (HTTP Basic username `admin`) and use HTTPS. MCP has a separate token and cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no multi-user accounts, OAuth, or scheduler.
+Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each project has a separate MCP token and cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login, email verification, password reset emails, OAuth for hosted MCP clients, or scheduler.
 
 ## Validation
 
@@ -78,6 +94,6 @@ pnpm lint
 pnpm build
 ```
 
-Database integration tests use TEST_DATABASE_URL if supplied, otherwise DATABASE_URL. They create uniquely identified temporary test posts, mock all Meta publishing calls, and remove only those test IDs afterward. No real social posts are sent. Tests are skipped if no database URL is configured.
+Tests cover Better Auth signup/signin/signout, hashed passwords, session expiry and revocation, user ownership across every API, project isolation, token rotation, secret redaction, and publishing. Database integration tests use TEST_DATABASE_URL if supplied, otherwise DATABASE_URL. They create uniquely identified temporary test posts, mock all Meta publishing calls, and remove only those test IDs afterward. No real social posts are sent. Tests are skipped if no database URL is configured.
 
 Reference: [Meta publishing](https://developers.facebook.com/docs/instagram-platform/content-publishing/), [Facebook Page posts](https://developers.facebook.com/docs/pages-api/posts/), [MCP TypeScript SDK](https://ts.sdk.modelcontextprotocol.io/server).

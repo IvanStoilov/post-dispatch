@@ -1,12 +1,11 @@
 import { claimPost, saveDelivery, finishPublication } from "./store";
-export function connections() {
+import { getProject, publicProject } from "./projects";
+export async function connections(projectId: string) {
+  const project = publicProject(await getProject(projectId));
   return {
-    facebook: !!(
-      process.env.FACEBOOK_PAGE_ID && process.env.FACEBOOK_PAGE_TOKEN
-    ),
-    instagram: !!(
-      process.env.INSTAGRAM_ACCOUNT_ID && process.env.INSTAGRAM_ACCESS_TOKEN
-    ),
+    facebook: project.facebookConfigured,
+    instagram: project.instagramConfigured,
+    mcp: project.mcpConfigured,
   };
 }
 async function graph(
@@ -31,26 +30,30 @@ async function graph(
   if (!data.id) throw new Error("Meta did not return a post ID");
   return data.id as string;
 }
-export async function publishPost(id: string) {
-  const post = await claimPost(id, connections());
+export async function publishPost(projectId: string, id: string) {
+  const project = await getProject(projectId);
+  const post = await claimPost(projectId, id, {
+    facebook: !!(project.facebookPageId && project.facebookPageToken),
+    instagram: !!(project.instagramAccountId && project.instagramAccessToken),
+  });
   try {
     for (const target of post.platforms) {
       let publishedId: string;
       if (target === "facebook")
         publishedId = await graph(
           "graph.facebook.com",
-          process.env.FACEBOOK_PAGE_ID!,
+          project.facebookPageId,
           post.imageUrl ? "photos" : "feed",
-          process.env.FACEBOOK_PAGE_TOKEN!,
+          project.facebookPageToken,
           post.imageUrl
             ? { url: post.imageUrl, caption: post.caption }
             : { message: post.caption },
         );
       else {
-        const account = process.env.INSTAGRAM_ACCOUNT_ID!;
-        const token = process.env.INSTAGRAM_ACCESS_TOKEN!;
+        const account = project.instagramAccountId;
+        const token = project.instagramAccessToken;
         const host =
-          process.env.INSTAGRAM_API_HOST === "graph.instagram.com"
+          project.instagramApiHost === "graph.instagram.com"
             ? "graph.instagram.com"
             : "graph.facebook.com";
         const container = await graph(host, account, "media", token, {

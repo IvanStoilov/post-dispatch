@@ -40,40 +40,64 @@ function toPost(row: PostRow): Post {
 function validId(id: string) {
   return z.uuid().parse(id);
 }
-export async function listPosts(): Promise<Post[]> {
+export async function listPosts(projectId: string): Promise<Post[]> {
   return (
     await getDb()
       .select()
       .from(posts)
+      .where(eq(posts.projectId, validId(projectId)))
       .orderBy(desc(posts.createdAt), desc(posts.id))
   ).map(toPost);
 }
-export async function createPost(input: unknown): Promise<Post> {
+export async function createPost(
+  projectId: string,
+  input: unknown,
+): Promise<Post> {
   const data = draftSchema.parse(input);
-  const [post] = await getDb().insert(posts).values(data).returning();
+  const [post] = await getDb()
+    .insert(posts)
+    .values({ ...data, projectId: validId(projectId) })
+    .returning();
   return toPost(post);
 }
-export async function editPost(id: string, input: unknown): Promise<Post> {
+export async function editPost(
+  projectId: string,
+  id: string,
+  input: unknown,
+): Promise<Post> {
   validId(id);
   const data = draftSchema.parse(input);
   const [post] = await getDb()
     .update(posts)
     .set({ ...data, updatedAt: sql`now()` })
-    .where(and(eq(posts.id, id), eq(posts.status, "draft")))
+    .where(
+      and(
+        eq(posts.projectId, validId(projectId)),
+        eq(posts.id, id),
+        eq(posts.status, "draft"),
+      ),
+    )
     .returning();
   if (!post) throw new Error("Draft not found or no longer editable");
   return toPost(post);
 }
-export async function deletePost(id: string) {
+export async function deletePost(projectId: string, id: string) {
   validId(id);
   const deleted = await getDb()
     .delete(posts)
-    .where(and(eq(posts.id, id), eq(posts.status, "draft")))
+    .where(
+      and(
+        eq(posts.projectId, validId(projectId)),
+        eq(posts.id, id),
+        eq(posts.status, "draft"),
+      ),
+    )
     .returning({ id: posts.id });
   if (!deleted.length)
     throw new Error("Draft not found or no longer deletable");
 }
 export async function claimPost(
+  projectId: string,
   id: string,
   connected: Record<Platform, boolean>,
 ): Promise<Post> {
@@ -82,7 +106,7 @@ export async function claimPost(
     const [post] = await tx
       .select()
       .from(posts)
-      .where(eq(posts.id, id))
+      .where(and(eq(posts.projectId, validId(projectId)), eq(posts.id, id)))
       .for("update");
     if (!post) throw new Error("Post not found");
     if (post.status !== "draft")
