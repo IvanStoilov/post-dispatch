@@ -43,12 +43,6 @@ export function FlowPanel() {
           </div>
         </div>
       ))}
-      <div className="mt-8">
-        <Badge variant="secondary">
-          <Check data-icon="inline-start" aria-hidden="true" />
-          You approve every post
-        </Badge>
-      </div>
     </div>
   );
 }

@@ -106,9 +106,6 @@ export default function AuthForm({
           </div>
           <FlowPanel />
         </div>
-        <p className="text-sm text-muted-foreground">
-          A little more intention in every post.
-        </p>
       </section>
       <section className="flex min-w-0 flex-col items-center justify-center gap-10 bg-card px-6 py-12 sm:px-10">
         <div className="lg:hidden">
