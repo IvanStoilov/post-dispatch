@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { publicPages, publicAssets } from "@/lib/public-routes";
 import { getSessionCookie } from "better-auth/cookies";
 export function proxy(req: NextRequest) {
   const expected = new URL(process.env.APP_URL || "http://localhost:8200");
@@ -18,6 +19,8 @@ export function proxy(req: NextRequest) {
     return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
   const path = req.nextUrl.pathname;
   if (
+    publicPages.some((p) => p === path) ||
+    publicAssets.some((p) => path === p) ||
     path.startsWith("/api/auth/") ||
     path.startsWith("/.well-known/") ||
     path === "/signin" ||

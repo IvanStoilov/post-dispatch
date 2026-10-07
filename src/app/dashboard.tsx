@@ -570,6 +570,23 @@ export default function Dashboard({
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter className="gap-5 px-5 pb-5">
+          <nav
+            aria-label="Help and legal"
+            className="flex flex-wrap gap-x-4 gap-y-2 text-xs"
+          >
+            <Link className="public-link" href="/guide">
+              Setup guide
+            </Link>
+            <Link className="public-link" href="/support">
+              Support
+            </Link>
+            <Link className="public-link" href="/privacy">
+              Privacy
+            </Link>
+            <Link className="public-link" href="/terms">
+              Terms
+            </Link>
+          </nav>
           <div className="flex items-center gap-2.5">
             <Avatar>
               <AvatarFallback>

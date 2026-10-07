@@ -211,3 +211,13 @@ The shared publisher in `src/lib/publishing.ts` claims the draft once, validates
 Personal connections request `openid profile w_member_social`. Company-enabled connections additionally request organization publishing/admin access; only approved accounts with publishing roles appear in the picker. The connector supports text, images, multiple images, and one MP4 video. Media is read from private storage and uploaded to LinkedIn; videos use multipart uploads, finalization, and readiness checks. Expired LinkedIn tokens require reconnecting; automatic token refresh is not implemented.
 
 Tests mock LinkedIn's network calls and cover OAuth state/session/project isolation, account selection, replay, private credentials, expiry, registry publishing, image upload, and multipart video receipts. A live authorization/publishing check requires your LinkedIn app credentials and product access.
+
+## Public pages and daily drafts
+
+Anonymous visitors see the landing page at `/`; signed-in users keep their publishing workspace. `/guide`, `/privacy`, `/terms`, `/support`, `/legal`, and `/data-deletion` are public, with links from the landing page, authentication screens, and dashboard. Dashboard APIs remain protected. `APP_URL` supplies canonical and sitemap URLs, so set it to the deployed origin before building.
+
+Public company details are centralized in `src/lib/public-site.ts`: Growth Optimize SL, Spain, hello@growthlens.io, registered address and tax ID. Optional `COMPANY_REGISTERED_ADDRESS` and `COMPANY_TAX_ID` override the supplied defaults. The Commercial Registry is Registro Mercantil de Barcelona; `COMPANY_REGISTRY_DETAILS` optionally overrides this supplied default.
+
+The policies describe the current service, including human approval, private media, manual account-deletion requests, and external providers. Before launch, have the operator review the policy text against its actual processor agreements, hosting regions, international transfer arrangements, and log/backup retention. Configure the published `/privacy`, `/terms`, and `/data-deletion` URLs in the social-network app dashboards where requested.
+
+Connecting ChatGPT or Claude enables on-demand drafts; it does not install a daily schedule. `/guide` includes a reusable brand prompt and an external n8n example: Schedule Trigger → AI Agent with an MCP Client Tool → draft in PostDispatch → human review. Use a client supporting Streamable HTTP and a project-specific bearer credential. Configure the timezone, test manually, and activate the workflow in the scheduling service. The guide does not deploy a scheduler, and the n8n example has not been tested in a live n8n instance.

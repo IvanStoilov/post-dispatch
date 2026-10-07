@@ -247,6 +247,20 @@ export default function AuthForm({
             </Button>
           </CardFooter>
         </Card>
+        <p className="max-w-sm text-center text-xs leading-6 text-muted-foreground">
+          {signup ? "By creating an account, you agree to our " : "Read our "}
+          <Link className="document-link" href="/terms">
+            Terms
+          </Link>
+          {signup ? ". See how we handle your information in our " : " and "}
+          <Link className="document-link" href="/privacy">
+            Privacy policy
+          </Link>
+          .{" "}
+          <Link className="document-link" href="/support">
+            Need help?
+          </Link>
+        </p>
       </section>
     </main>
   );

@@ -40,7 +40,10 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
-  --text-display: 3.5rem;
+  --text-hero: clamp(2.5rem, 6vw, 4.75rem);
+  --text-hero--line-height: 1.06;
+  --text-hero--letter-spacing: -0.055em;
+  --text-display: clamp(2rem, 4vw, 3.5rem);
   --text-display--line-height: 1.08;
   --text-display--letter-spacing: -0.055em;
   --text-page: 1.875rem;
@@ -108,5 +111,14 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@layer components {
+  .public-link {
+    @apply rounded-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring;
+  }
+  .document-link {
+    @apply rounded-sm font-medium text-primary underline underline-offset-4 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring;
   }
 }
