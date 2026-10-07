@@ -1,3 +1,5 @@
+import { DELETE as disconnectGrant } from "../src/app/api/mcp-settings/oauth/route";
+import { rotateAccountToken } from "../src/lib/mcp-account";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID, randomBytes } from "node:crypto";
@@ -9,21 +11,17 @@ import {
   projects,
   posts,
   oauthClients,
-  oauthResources,
   oauthAccessTokens,
 } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
 import { listProjects, createProject } from "../src/lib/projects";
-import { handleProjectMcp } from "../src/lib/mcp";
+import { handleAccountMcp } from "../src/lib/mcp";
 import {
   protectedResourceMetadata,
   oauthConsentContext,
 } from "../src/lib/oauth";
-import {
-  GET as listGrants,
-  DELETE as disconnectGrant,
-} from "../src/app/api/projects/[id]/oauth/route";
-import { projectResource } from "../src/lib/oauth-provider";
+import { GET as listGrants } from "../src/app/api/mcp-settings/route";
+import { accountResource } from "../src/lib/oauth-provider";
 import { POST as consentRoute } from "../src/app/api/oauth/consent/route";
 import { GET as serverMetadata } from "../src/app/.well-known/oauth-authorization-server/api/auth/route";
 loadEnvConfig(process.cwd());
@@ -63,8 +61,8 @@ async function mcp(
   name = "get_project",
   args = {},
 ) {
-  const r = await handleProjectMcp(
-    new Request(projectResource(projectId), {
+  const r = await handleAccountMcp(
+    new Request(accountResource(), {
       method: "POST",
       headers: {
         authorization: `Bearer ${token}`,
@@ -75,10 +73,9 @@ async function mcp(
         jsonrpc: "2.0",
         id: 1,
         method: "tools/call",
-        params: { name, arguments: args },
+        params: { name, arguments: { ...args, projectId } },
       }),
     }),
-    projectId,
   );
   return { response: r, data: await r.json() };
 }
@@ -92,7 +89,7 @@ async function token(body: Record<string, string>) {
   );
 }
 test(
-  "OAuth authorization-code flow with project isolation and legacy bearer support",
+  "Account OAuth authorization-code flow with ownership and account bearer support",
   { skip: !process.env.DATABASE_URL },
   async (t) => {
     try {
@@ -114,14 +111,14 @@ test(
         b = await signup();
       const project = (await listProjects(a.user.id))[0];
       const other = (await listProjects(b.user.id))[0];
-      const legacy = await createProject(a.user.id, {
+      const secondProject = await createProject(a.user.id, {
         name: "OAuth bearer test",
       });
-      resource = projectResource(project.id);
-      otherResource = projectResource(other.id);
-      const metadata = await protectedResourceMetadata(project.id);
+      const bearer = await rotateAccountToken(a.user.id);
+      resource = accountResource();
+      otherResource = resource + "/" + other.id;
+      const metadata = await protectedResourceMetadata();
       assert.equal(metadata.status, 200);
-      await protectedResourceMetadata(other.id);
       await t.test(
         "discovery advertises PKCE, token, registration and project resource",
         async () => {
@@ -133,10 +130,7 @@ test(
           assert.equal(d.issuer, origin + "/api/auth");
           assert.deepEqual(d.code_challenge_methods_supported, ["S256"]);
           assert.ok(d.registration_endpoint);
-          const challenge = await handleProjectMcp(
-            req(`/api/mcp/${project.id}`, "POST", {}),
-            project.id,
-          );
+          const challenge = await handleAccountMcp(req("/api/mcp", "POST", {}));
           assert.equal(challenge.status, 401);
           assert.match(
             challenge.headers.get("WWW-Authenticate")!,
@@ -194,7 +188,7 @@ test(
       const consentUrl = new URL(await authorize(authQuery), origin);
       const signed = consentUrl.searchParams.toString();
       await t.test(
-        "consent is signed and accessible only to the project owner",
+        "consent validates the signed account resource",
         async () => {
           assert.equal(consentUrl.pathname, "/oauth/consent");
           assert.equal(
@@ -204,15 +198,8 @@ test(
                 a.user.id,
                 new Headers({ cookie: a.cookie }),
               )
-            ).project.id,
-            project.id,
-          );
-          await assert.rejects(() =>
-            oauthConsentContext(
-              signed,
-              b.user.id,
-              new Headers({ cookie: b.cookie }),
-            ),
+            ).clientName,
+            "PostDispatch OAuth test",
           );
           const tampered = new URLSearchParams(signed);
           tampered.set("resource", otherResource);
@@ -225,15 +212,6 @@ test(
               ),
             /invalid|expired/,
           );
-          const cross = await consentRoute(
-            req(
-              "/api/oauth/consent",
-              "POST",
-              { accept: true, oauth_query: signed },
-              b.cookie,
-            ),
-          );
-          assert.equal(cross.status, 400);
         },
       );
       const consent = await checked(
@@ -260,7 +238,7 @@ test(
       const issued = await checked(await token(exchange));
       assert.ok(issued.refresh_token);
       await t.test(
-        "valid OAuth can create/read drafts only in the approved project",
+        "valid OAuth can create/read drafts in owned projects only",
         async () => {
           const own = await mcp(project.id, issued.access_token);
           assert.equal(own.response.status, 200);
@@ -279,12 +257,34 @@ test(
             },
           );
           assert.ok(!draft.data.result.isError, JSON.stringify(draft.data));
-          assert.equal(
-            (await mcp(other.id, issued.access_token)).response.status,
-            401,
+          const future = await createProject(a.user.id, {
+            name: "Future OAuth project",
+          });
+          const futureAccess = await mcp(
+            future.project.id,
+            issued.access_token,
           );
           assert.equal(
-            (await mcp(legacy.project.id, legacy.mcpToken)).response.status,
+            JSON.parse(futureAccess.data.result.content[0].text).id,
+            future.project.id,
+          );
+          const foreign = await mcp(other.id, issued.access_token);
+          assert.equal(foreign.data.result.isError, true);
+          assert.match(
+            foreign.data.result.content[0].text,
+            /Project not found/,
+          );
+          const second = await mcp(
+            secondProject.project.id,
+            issued.access_token,
+          );
+          assert.equal(
+            JSON.parse(second.data.result.content[0].text).id,
+            secondProject.project.id,
+          );
+          assert.equal(
+            (await mcp(secondProject.project.id, bearer.mcpToken)).response
+              .status,
             200,
           );
           assert.equal(
@@ -348,7 +348,7 @@ test(
         },
       );
       await t.test(
-        "read-only grants cannot create drafts, and project disconnect revokes tokens",
+        "read-only grants cannot create drafts, and account disconnect revokes tokens",
         async () => {
           const u = new URL(
             await authorize(query(resource, "posts:read offline_access")),
@@ -378,34 +378,29 @@ test(
             { title: "Denied", caption: "Denied", platforms: ["facebook"] },
           );
           assert.equal(denied.data.result.isError, true);
-          const ctx = { params: Promise.resolve({ id: project.id }) };
+
           const grants = await checked(
             await listGrants(
-              req(
-                `/api/projects/${project.id}/oauth`,
-                "GET",
-                undefined,
-                a.cookie,
-              ),
-              ctx,
+              req("/api/mcp-settings", "GET", undefined, a.cookie),
             ),
           );
           assert.ok(
-            grants.some((g: { clientId: string }) => g.clientId === clientId),
+            grants.grants.some(
+              (g: { clientId: string }) => g.clientId === clientId,
+            ),
           );
           assert.equal(
             (
               await disconnectGrant(
                 req(
-                  `/api/projects/${project.id}/oauth?clientId=${clientId}`,
+                  `/api/mcp-settings/oauth?clientId=${clientId}`,
                   "DELETE",
                   undefined,
                   b.cookie,
                 ),
-                ctx,
               )
             ).status,
-            404,
+            200,
           );
           assert.equal(
             (await mcp(project.id, readOnly.access_token)).response.status,
@@ -415,12 +410,11 @@ test(
             (
               await disconnectGrant(
                 req(
-                  `/api/projects/${project.id}/oauth?clientId=${clientId}`,
+                  `/api/mcp-settings/oauth?clientId=${clientId}`,
                   "DELETE",
                   undefined,
                   a.cookie,
                 ),
-                ctx,
               )
             ).status,
             200,
@@ -441,7 +435,8 @@ test(
             400,
           );
           assert.equal(
-            (await mcp(legacy.project.id, legacy.mcpToken)).response.status,
+            (await mcp(secondProject.project.id, bearer.mcpToken)).response
+              .status,
             200,
           );
         },
@@ -533,12 +528,6 @@ test(
           await getDb()
             .delete(oauthClients)
             .where(eq(oauthClients.clientId, clientId));
-        if (resource || otherResource)
-          await getDb()
-            .delete(oauthResources)
-            .where(
-              inArray(oauthResources.identifier, [resource, otherResource]),
-            );
         if (testUsers.length) {
           const owned = await getDb()
             .select({ id: projects.id })

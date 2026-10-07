@@ -37,7 +37,8 @@ import {
 } from "../src/lib/storage";
 import { mcpDraftSchema, filesDraftSchema } from "../src/lib/mcp-images";
 import { validateAssetKinds } from "../src/lib/asset-inputs";
-import { handleProjectMcp } from "../src/lib/mcp";
+import { rotateAccountToken } from "../src/lib/mcp-account";
+import { handleAccountMcp } from "../src/lib/mcp";
 import { publishPost } from "../src/lib/meta";
 import { GET as previewAsset } from "../src/app/api/posts/[id]/assets/[assetId]/route";
 import {
@@ -176,23 +177,23 @@ test(
         body: body ? JSON.stringify(body) : undefined,
       });
     }
+    const bearer = await rotateAccountToken(userId);
     async function mcp(name: string, args: unknown) {
-      const response = await handleProjectMcp(
-        new Request(origin + `/api/mcp/${projectId}`, {
+      const response = await handleAccountMcp(
+        new Request(origin + "/api/mcp", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             accept: "application/json, text/event-stream",
-            authorization: `Bearer ${first.mcpToken}`,
+            authorization: `Bearer ${bearer.mcpToken}`,
           },
           body: JSON.stringify({
             jsonrpc: "2.0",
             id: 1,
             method: "tools/call",
-            params: { name, arguments: args },
+            params: { name, arguments: { ...(args as object), projectId } },
           }),
         }),
-        projectId,
       );
       const result = await response.json();
       assert.ok(
@@ -530,13 +531,13 @@ test(
       await t.test(
         "ChatGPT file arrays import multiple images or one video privately",
         async () => {
-          const tools = await handleProjectMcp(
-            new Request(origin + `/api/mcp/${projectId}`, {
+          const tools = await handleAccountMcp(
+            new Request(origin + "/api/mcp", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
                 accept: "application/json, text/event-stream",
-                authorization: `Bearer ${first.mcpToken}`,
+                authorization: `Bearer ${bearer.mcpToken}`,
               },
               body: JSON.stringify({
                 jsonrpc: "2.0",
@@ -545,7 +546,6 @@ test(
                 params: {},
               }),
             }),
-            projectId,
           );
           const definition = (await tools.json()).result.tools.find(
             (tool: { name: string }) => tool.name === "create_draft_from_files",

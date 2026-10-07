@@ -56,7 +56,7 @@ export default function ProjectSettings({
 }: {
   project: Project;
   creating: boolean;
-  onCreated: (id: string, token: string) => Promise<void>;
+  onCreated: (id: string) => Promise<void>;
   onSaved: () => Promise<void>;
 }) {
   const [name, setName] = useState(project.name);
@@ -173,7 +173,7 @@ export default function ProjectSettings({
     setBusy(true);
     try {
       const result = await call("/api/projects", { name: newName });
-      await onCreated(result.project.id, result.mcpToken);
+      await onCreated(result.project.id);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Could not create project");
     } finally {

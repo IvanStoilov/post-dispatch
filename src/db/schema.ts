@@ -39,6 +39,15 @@ export const users = pgTable("users", {
     .notNull()
     .defaultNow(),
 });
+export const accountMcpTokens = pgTable("account_mcp_tokens", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 export const sessions = pgTable(
   "sessions",
   {
@@ -118,7 +127,6 @@ export const projects = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     name: varchar("name", { length: 120 }).notNull(),
-    mcpTokenHash: varchar("mcp_token_hash", { length: 64 }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .notNull()
       .defaultNow(),

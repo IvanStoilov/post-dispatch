@@ -211,8 +211,8 @@ export function Landing() {
                   One project for each brand
                 </h3>
                 <p className="leading-7 text-muted-foreground">
-                  Keep accounts, drafts, and assistant access scoped to the
-                  right project.
+                  Keep accounts and drafts organized by project. Your assistant
+                  uses the project ID to choose its destination.
                 </p>
               </div>
               <div className="flex flex-col gap-2">

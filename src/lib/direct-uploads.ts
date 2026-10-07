@@ -78,7 +78,7 @@ export async function createDirectUpload(projectId: string, input: unknown) {
     headers: { "Content-Type": data.mimeType },
     uploadExpiresAt: new Date(Date.now() + 600000).toISOString(),
     completionToken,
-    completionUrl: `${appOrigin()}/api/mcp/${projectId}/uploads/complete`,
+    completionUrl: `${appOrigin()}/api/mcp/uploads/complete?projectId=${projectId}`,
     next: "PUT the exact file bytes to uploadUrl with the provided Content-Type header. Then call complete_asset_upload with uploadId and completionToken, or POST those fields to completionUrl. Use the returned assetUploadId in create_draft.assets with type UPLOAD_ID. Upload each image separately; a post allows up to 10 images or one video.",
   };
 }

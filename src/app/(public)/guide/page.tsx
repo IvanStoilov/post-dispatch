@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     "Connect ChatGPT or Claude, submit your first draft, and configure an external workflow for daily AI generation.",
   alternates: { canonical: "/guide" },
 };
-const prompt = `Create one social post for this project. First call get_project to confirm the project name and available channels, then use list_posts to avoid repeating recent topics.
+const prompt = `Create one social post for this project. First call list_projects. If there are multiple projects, ask me which project to use when unclear and pass its projectId to every project tool. With one project, selection is automatic. Call get_project to confirm the destination and available channels, then use list_posts to avoid repeating recent topics.
 
 Brand: [your brand]
 Audience: [your audience]
@@ -77,8 +77,10 @@ export default function GuidePage() {
       </DocumentSection>
       <DocumentSection id="assistant" title="2. Connect ChatGPT or Claude">
         <p>
-          In the project’s MCP integration screen, copy its endpoint. Each
-          project has its own URL; the assistant is authorized for that project.
+          In MCP integration, copy the account endpoint. Connect once to access
+          all your current and future projects. With one project, tools select
+          it automatically. With multiple projects, call list_projects and pass
+          the intended projectId to each project tool.
         </p>
         <div className="grid gap-6 md:grid-cols-2">
           <section className="flex flex-col gap-3">
@@ -89,13 +91,13 @@ export default function GuidePage() {
                 Access and menu names depend on your plan and workspace.
               </li>
               <li>
-                Add PostDispatch using the project endpoint and choose OAuth.
+                Add PostDispatch using the account endpoint and choose OAuth.
                 Use automatic/dynamic client registration; no PostDispatch
                 client ID or secret is needed.
               </li>
               <li>
-                Sign in to PostDispatch, approve access to the named project,
-                and enable the connection in your conversation.
+                Sign in to PostDispatch, approve access to your account’s
+                projects, and enable the connection in your conversation.
               </li>
             </ol>
           </section>
@@ -107,7 +109,7 @@ export default function GuidePage() {
                 workspace administrator may need to enable it.
               </li>
               <li>
-                Enter the project endpoint. For this implementation, choose
+                Enter the account endpoint. For this implementation, choose
                 automatic client registration if Claude offers a registration
                 choice.
               </li>
@@ -120,7 +122,7 @@ export default function GuidePage() {
         </div>
         <p>
           If your client supports bearer authentication instead, generate a
-          project token in MCP integration and save it in the client’s secure
+          account token in MCP integration and save it in the client’s secure
           credentials. Do not paste tokens into chat prompts. PostDispatch does
           not yet have a public directory listing, so setup currently uses the
           endpoint.
@@ -186,23 +188,24 @@ export default function GuidePage() {
           </li>
           <li>
             Attach an MCP Client Tool to the agent. Use a version that supports
-            Streamable HTTP, enter your PostDispatch project endpoint, and store
-            its project token as a Bearer Auth credential. The token value goes
+            Streamable HTTP, enter your PostDispatch account endpoint, and store
+            its account token as a Bearer Auth credential. The token value goes
             in the credential, not the prompt. If a transport selector is
             available, choose Streamable HTTP.
           </li>
           <li>
-            Allow get_project, list_posts, and create_draft. Add media upload
-            tools only if your workflow supplies actual media. A text-only
-            workflow can target Facebook or LinkedIn; Instagram needs an image
-            or video before publishing.
+            Allow list_projects, get_project, list_posts, and create_draft. Add
+            media upload tools only if your workflow supplies actual media. A
+            text-only workflow can target Facebook or LinkedIn; Instagram needs
+            an image or video before publishing.
           </li>
           <li>
-            Use the first-draft prompt above with your brand details and a topic
-            source. Add the current date and timezone to each run, set source to
-            “Daily workflow”, and instruct the agent to skip creation if a
-            matching draft already exists for that date. Checking existing
-            drafts helps, but is not an atomic duplicate guarantee.
+            Use the first-draft prompt above with your brand details, an
+            explicit destination projectId, and a topic source. Add the current
+            date and timezone to each run, set source to “Daily workflow”, and
+            instruct the agent to skip creation if a matching draft already
+            exists for that date. Checking existing drafts helps, but is not an
+            atomic duplicate guarantee.
           </li>
           <li>
             Run the workflow manually. Confirm the correct project receives
@@ -245,7 +248,7 @@ export default function GuidePage() {
             ],
             [
               "The wrong project receives drafts",
-              "Each endpoint belongs to one project. Compare the endpoint in the client with MCP integration, and verify the name returned by get_project.",
+              "The endpoint covers your account. Call list_projects, pass the intended projectId, and verify the name returned by get_project. With multiple projects, tools reject requests that omit projectId.",
             ],
             [
               "Daily drafts are not arriving",

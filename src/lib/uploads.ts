@@ -3,7 +3,7 @@ import { and, count, eq, gt, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import { imageUploads, uploadTokens } from "../db/schema";
-import { getProject, verifyProjectToken } from "./projects";
+
 import {
   IMAGE_TOO_LARGE,
   MAX_IMAGE_BYTES,
@@ -35,7 +35,7 @@ export function appOrigin() {
   return new URL(process.env.APP_URL || "http://localhost:8200").origin;
 }
 export function uploadEndpoint(projectId: string) {
-  return `${appOrigin()}/api/mcp/${projectId}/uploads`;
+  return `${appOrigin()}/api/mcp/uploads?projectId=${projectId}`;
 }
 export async function createUploadToken(projectId: string) {
   z.uuid().parse(projectId);
@@ -69,19 +69,11 @@ export async function createUploadToken(projectId: string) {
     next: 'POST each image file to uploadUrl with this token. Each response returns an imageUploadId; pass it to create_draft as assets: [{ type: "UPLOAD_ID", uploadId: imageUploadId }].',
   };
 }
-// Accepts the project's static MCP token, or spends one use of an upload
-// token. Returns a refund callback so rejected images don't burn a use.
+// Spends one use of a project-bound upload token. Rejected images refund it.
 async function authorizeUpload(
   projectId: string,
   authorization: string | null,
 ) {
-  let project;
-  try {
-    project = await getProject(projectId);
-  } catch {
-    throw new UploadError("Invalid project or token", 401);
-  }
-  if (verifyProjectToken(project, authorization)) return async () => {};
   const token = authorization?.match(/^Bearer (.+)$/i)?.[1];
   if (!token) throw new UploadError("Missing upload token", 401);
   const [spent] = await getDb()
@@ -141,6 +133,8 @@ async function uploadBytes(req: Request) {
   return Buffer.from(await file.arrayBuffer());
 }
 export async function receiveImageUpload(projectId: string, req: Request) {
+  if (!z.uuid().safeParse(projectId).success)
+    throw new UploadError("A valid projectId is required for uploads", 400);
   const refund = await authorizeUpload(
     projectId,
     req.headers.get("authorization"),

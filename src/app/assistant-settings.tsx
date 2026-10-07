@@ -1,5 +1,5 @@
 "use client";
-import { Copy, KeyRound, Plug, ShieldCheck } from "lucide-react";
+import { Copy, KeyRound, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,7 +15,6 @@ import {
   InputGroupAddon,
   InputGroupButton,
 } from "@/components/ui/input-group";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -72,14 +71,14 @@ export default function AssistantSettings({
             </h2>
           </CardTitle>
           <CardDescription>
-            Use this project’s MCP endpoint in ChatGPT or another compatible
-            client.
+            Connect once to manage all your projects in ChatGPT, Claude, or
+            another MCP client.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="mcp-endpoint">Project endpoint</FieldLabel>
+              <FieldLabel htmlFor="mcp-endpoint">Account endpoint</FieldLabel>
               <InputGroup>
                 <InputGroupInput
                   id="mcp-endpoint"
@@ -112,19 +111,23 @@ export default function AssistantSettings({
                   Secret blank.
                 </li>
                 <li>
-                  Sign in and approve access to{" "}
-                  {project?.name || "your project"}.
+                  Sign in and approve access to your account’s current and
+                  future projects.
                 </li>
               </ol>
             </div>
             <div className="flex flex-col gap-3">
               <h3 className="text-sm font-semibold">Try a first draft</h3>
               <blockquote className="rounded-lg bg-muted p-4 text-sm leading-relaxed">
-                Create a Facebook draft about our latest update and send it to
-                PostDispatch MCP.
+                Create a Facebook draft for {project?.name || "my project"}{" "}
+                about our latest update. Use projectId{" "}
+                {project?.id || "from list_projects"}.
               </blockquote>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Remote assistants need a public HTTPS endpoint.
+                Remote assistants need a public HTTPS endpoint. Call
+                list_projects to find project IDs. With one project, selection
+                is automatic; with multiple projects, every project tool
+                requires projectId.
               </p>
             </div>
           </div>
@@ -139,7 +142,7 @@ export default function AssistantSettings({
             <CardTitle>
               <h2 className="flex items-center gap-2">
                 <KeyRound className="size-5" aria-hidden="true" />
-                Project bearer token
+                Account bearer token
               </h2>
             </CardTitle>
             <CardDescription>
@@ -181,7 +184,7 @@ export default function AssistantSettings({
               className="overflow-x-auto rounded-lg bg-muted p-3 text-xs"
               translate="no"
             >
-              Authorization: Bearer YOUR_PROJECT_TOKEN
+              Authorization: Bearer YOUR_ACCOUNT_TOKEN
             </code>
             <p className="text-sm text-muted-foreground">
               Replacing a token disconnects clients using the previous one.
@@ -198,7 +201,7 @@ export default function AssistantSettings({
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>
-                      Replace this project’s token?
+                      Replace your account’s token?
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                       Clients using the current bearer token will need the new
@@ -249,8 +252,8 @@ export default function AssistantSettings({
                           Disconnect {grant.name}?
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          This assistant will lose access to this project. It
-                          can request access again later.
+                          This assistant will lose access to all your projects.
+                          It can request access again later.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

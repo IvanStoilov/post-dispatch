@@ -1,3 +1,4 @@
+import { rotateAccountToken, verifyAccountToken } from "../src/lib/mcp-account";
 import sharp from "sharp";
 import { removeImage } from "../src/lib/storage";
 import test from "node:test";
@@ -29,8 +30,6 @@ import {
   updateProject,
   getProject,
   listProjects,
-  verifyProjectToken,
-  rotateProjectToken,
 } from "../src/lib/projects";
 import { publishPost } from "../src/lib/meta";
 import type { Platform } from "../src/lib/types";
@@ -94,22 +93,19 @@ test(
       await t.test(
         "project credentials and tokens stay private and isolated",
         async () => {
-          const a = await getProject(projectId);
-          const b = await getProject(second.project.id);
-          assert.ok(verifyProjectToken(a, `Bearer ${first.mcpToken}`));
-          assert.ok(!verifyProjectToken(b, `Bearer ${first.mcpToken}`));
-          const rotated = await rotateProjectToken(userId, projectId);
-          assert.ok(
-            !verifyProjectToken(
-              await getProject(projectId),
-              `Bearer ${first.mcpToken}`,
-            ),
+          const firstToken = await rotateAccountToken(userId);
+          assert.equal(
+            await verifyAccountToken(`Bearer ${firstToken.mcpToken}`),
+            userId,
           );
-          assert.ok(
-            verifyProjectToken(
-              await getProject(projectId),
-              `Bearer ${rotated.mcpToken}`,
-            ),
+          const rotated = await rotateAccountToken(userId);
+          assert.equal(
+            await verifyAccountToken(`Bearer ${firstToken.mcpToken}`),
+            null,
+          );
+          assert.equal(
+            await verifyAccountToken(`Bearer ${rotated.mcpToken}`),
+            userId,
           );
           const p = await createPost({ ...draft, platforms: ["facebook"] });
           assert.ok(

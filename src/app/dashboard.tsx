@@ -211,7 +211,7 @@ export default function Dashboard({
         const [p, c, o] = await Promise.all([
           fetch(`/api/posts?projectId=${selected.id}`, { cache: "no-store" }),
           fetch(`/api/connections?projectId=${selected.id}`),
-          fetch(`/api/projects/${selected.id}/oauth`, { cache: "no-store" }),
+          fetch("/api/mcp-settings", { cache: "no-store" }),
         ]);
         if (!p.ok || !c.ok || !o.ok)
           throw new Error("Could not load project workspace");
@@ -227,7 +227,8 @@ export default function Dashboard({
         setOrigin(window.location.origin);
         setPosts(data);
         setConnections(config);
-        setOAuthConnections(grants);
+        setOAuthConnections(grants.grants);
+        setConnections({ ...config, mcp: grants.configured });
       } catch (e) {
         if (sequence === requestSequence.current)
           setNotice(e instanceof Error ? e.message : "Could not load project");
@@ -250,15 +251,13 @@ export default function Dashboard({
     setProjectId(id);
     setPosts([]);
     setNotice("");
-    setMcpToken("");
-    setOAuthConnections([]);
     setCreatingProject(false);
     setLoading(true);
   }, []);
   async function rotateMcpToken() {
     setBusy(true);
     try {
-      const result = await request(`/api/projects/${projectId}/token`, "POST");
+      const result = await request("/api/mcp-settings/token", "POST");
       setMcpToken(result.mcpToken);
       await refresh();
     } catch (e) {
@@ -465,11 +464,13 @@ export default function Dashboard({
     setBusy(true);
     try {
       await request(
-        `/api/projects/${projectId}/oauth?clientId=${encodeURIComponent(clientId)}`,
+        `/api/mcp-settings/oauth?clientId=${encodeURIComponent(clientId)}`,
         "DELETE",
       );
       await refresh();
-      setNotice("Assistant disconnected. Project bearer tokens remain active.");
+      setNotice(
+        "Assistant disconnected. Your account bearer token remains active.",
+      );
     } catch (error) {
       setNotice(
         error instanceof Error ? error.message : "Unable to disconnect",
@@ -488,7 +489,7 @@ export default function Dashboard({
     ],
     "MCP integration": [
       "Connect your assistant",
-      "Bring drafts from your conversations into this project.",
+      "Connect once and send drafts to any of your projects.",
     ],
   };
   return (
@@ -829,14 +830,12 @@ export default function Dashboard({
               project={project}
               creating={creatingProject}
               onSaved={() => refresh()}
-              onCreated={async (id, token) => {
+              onCreated={async (id) => {
                 setCreatingProject(false);
-                setOAuthConnections([]);
                 await refresh(id);
-                setMcpToken(token);
                 navigate("MCP integration", id);
                 setNotice(
-                  "Project created. Copy its bearer token below, or connect your assistant with OAuth.",
+                  "Project created. Your account MCP connection can now access it.",
                 );
               }}
             />
@@ -844,7 +843,7 @@ export default function Dashboard({
           {view === "MCP integration" && (
             <AssistantSettings
               project={project}
-              endpoint={`${origin}/api/mcp/${projectId}`}
+              endpoint={`${origin}/api/mcp`}
               token={mcpToken}
               busy={busy || loading}
               configured={connections.mcp}

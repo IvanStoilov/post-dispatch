@@ -1,14 +1,14 @@
 import { receiveImageUpload, UploadError } from "@/lib/uploads";
 export const runtime = "nodejs";
 // Agents POST image bytes here with an upload token from the
-// create_upload_token MCP tool (or the project's static MCP token).
-export async function POST(
-  req: Request,
-  ctx: { params: Promise<{ projectId: string }> },
-) {
+// create_upload_token MCP tool.
+export async function POST(req: Request) {
   try {
     return Response.json(
-      await receiveImageUpload((await ctx.params).projectId, req),
+      await receiveImageUpload(
+        new URL(req.url).searchParams.get("projectId") || "",
+        req,
+      ),
       { status: 201 },
     );
   } catch (e) {

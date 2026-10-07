@@ -83,9 +83,9 @@ const state = globalThis as typeof globalThis & {
   dispatchAuthVersion?: string;
 };
 export function getAuth() {
-  if (state.dispatchAuthVersion !== "oauth-v1") {
+  if (state.dispatchAuthVersion !== "oauth-account-v2") {
     state.dispatchAuth = undefined;
-    state.dispatchAuthVersion = "oauth-v1";
+    state.dispatchAuthVersion = "oauth-account-v2";
   }
   return (state.dispatchAuth ??= makeAuth());
 }

@@ -110,12 +110,12 @@ export default function PrivacyPage() {
           privacy settings and policies.
         </p>
         <p>
-          An assistant or automation provider you connect can access the project
-          information exposed by the tools you authorize, including drafts and
-          their media references. ChatGPT, Claude, and any automation or AI
-          provider you choose have their own terms and privacy practices.
-          PostDispatch receives submitted drafts; it does not run an AI model to
-          generate them itself.
+          An assistant or automation provider you connect can access information
+          from all your current and future projects exposed by the tools you
+          authorize, including drafts and their media references. ChatGPT,
+          Claude, and any automation or AI provider you choose have their own
+          terms and privacy practices. PostDispatch receives submitted drafts;
+          it does not run an AI model to generate them itself.
         </p>
         <p>
           Providers may process information outside Spain or the European
@@ -130,7 +130,7 @@ export default function PrivacyPage() {
           Draft media is stored privately. Authenticated users and authorized
           tools can receive access to it; temporary media URLs are also provided
           when necessary for delivery to social networks. Keep those URLs and
-          your project tokens private.
+          your account tokens private.
         </p>
         <p>
           Account and project records are kept while you use the service, until
@@ -184,7 +184,7 @@ export default function PrivacyPage() {
       <DocumentSection id="deletion" title="Disconnecting and deleting data">
         <p>
           Disconnect social accounts in your project’s Connections screen.
-          Revoke assistant OAuth grants in MCP integration; rotate the project
+          Revoke assistant OAuth grants in MCP integration; rotate the account
           bearer token to invalidate clients using that token. These actions
           stop future access through those credentials but do not remove saved
           posts.

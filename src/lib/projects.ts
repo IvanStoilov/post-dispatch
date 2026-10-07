@@ -1,4 +1,3 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
@@ -64,7 +63,6 @@ export function publicProject(p: ConnectedProject): Project {
     instagramApiHost: p.instagramApiHost as Project["instagramApiHost"],
     facebookConfigured: !!(p.facebookPageId && p.facebookPageToken),
     instagramConfigured: !!(p.instagramAccountId && p.instagramAccessToken),
-    mcpConfigured: !!p.mcpTokenHash,
     connectors: Object.fromEntries(
       p.connections.map((c) => [
         c.provider,
@@ -106,19 +104,14 @@ export async function listProjects(userId: string) {
     ),
   );
 }
-function tokenPair() {
-  const token = randomBytes(32).toString("base64url");
-  return { token, hash: createHash("sha256").update(token).digest("hex") };
-}
 export async function createProject(userId: string, input: unknown) {
   const values = projectSchema.parse(input);
-  const { token, hash } = tokenPair();
   const [p] = await getDb()
     .insert(projects)
-    .values({ name: values.name, userId, mcpTokenHash: hash })
+    .values({ name: values.name, userId })
     .returning();
   const project = await updateProject(userId, p.id, values);
-  return { project, mcpToken: token };
+  return { project };
 }
 export async function updateProject(
   userId: string,
@@ -238,27 +231,6 @@ export async function disconnectConnector(
         eq(projectConnectors.provider, provider),
       ),
     );
-}
-
-export async function rotateProjectToken(userId: string, id: string) {
-  z.uuid().parse(id);
-  const { token, hash } = tokenPair();
-  const [p] = await getDb()
-    .update(projects)
-    .set({ mcpTokenHash: hash, updatedAt: sql`now()` })
-    .where(and(eq(projects.id, id), eq(projects.userId, userId)))
-    .returning();
-  if (!p) throw new Error("Project not found");
-  return { project: publicProject(await hydrateProject(p)), mcpToken: token };
-}
-export function verifyProjectToken(
-  project: ProjectRow,
-  authorization: string | null,
-) {
-  if (!project.mcpTokenHash || !authorization?.startsWith("Bearer "))
-    return false;
-  const actual = createHash("sha256").update(authorization.slice(7)).digest();
-  return timingSafeEqual(actual, Buffer.from(project.mcpTokenHash, "hex"));
 }
 
 export async function getOwnedProject(userId: string, id: string) {

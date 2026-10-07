@@ -8,58 +8,59 @@ import {
   oauthAccessTokens,
   oauthRefreshTokens,
 } from "../db/schema";
-import { getProject, getOwnedProject } from "./projects";
+
 import { getAuth } from "./auth";
 import { verifyOAuthQueryParams } from "@better-auth/oauth-provider";
 import {
   appOrigin,
-  projectResource,
-  resourceProject,
+  accountResource,
+  validateAccountResource,
   MCP_SCOPES,
 } from "./oauth-provider";
-export async function ensureProjectResource(projectId: string) {
-  const project = await getProject(projectId);
+export async function ensureAccountResource() {
   await getDb()
     .insert(oauthResources)
     .values({
       id: randomUUID(),
-      identifier: projectResource(projectId),
-      name: `PostDispatch: ${project.name}`,
+      identifier: accountResource(),
+      name: "PostDispatch account",
       allowedScopes: [...MCP_SCOPES, "offline_access"],
       createdAt: new Date(),
       updatedAt: new Date(),
     })
     .onConflictDoNothing({ target: oauthResources.identifier });
-  return project;
 }
-export async function protectedResourceMetadata(projectId: string) {
+export async function protectedResourceMetadata() {
   try {
-    await ensureProjectResource(projectId);
+    await ensureAccountResource();
     return Response.json(
       {
-        resource: projectResource(projectId),
+        resource: accountResource(),
         authorization_servers: [appOrigin() + "/api/auth"],
         scopes_supported: [...MCP_SCOPES, "offline_access"],
         bearer_methods_supported: ["header"],
-        resource_name: "PostDispatch project",
+        resource_name: "PostDispatch account",
       },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {
-    return Response.json({ error: "Project not found" }, { status: 404 });
+    return Response.json(
+      { error: "MCP metadata unavailable" },
+      { status: 404 },
+    );
   }
 }
-export async function oauthChallenge(projectId: string) {
-  await ensureProjectResource(projectId);
+export async function oauthChallenge() {
+  await ensureAccountResource();
   return Response.json(
     {
       error: "unauthorized",
-      message: "Use OAuth or this project's bearer token",
+      message: "Use OAuth or your account bearer token",
     },
     {
       status: 401,
       headers: {
-        "WWW-Authenticate": `Bearer resource_metadata="${appOrigin()}/.well-known/oauth-protected-resource/api/mcp/${projectId}", scope="${MCP_SCOPES.join(" ")}"`,
+        "WWW-Authenticate": `Bearer resource_metadata="${appOrigin()}/.well-known/oauth-protected-resource/api/mcp", scope="${MCP_SCOPES.join(" ")}"`,
         "Cache-Control": "no-store",
       },
     },
@@ -74,10 +75,14 @@ export async function oauthConsentContext(
     throw new Error(
       "This connection request is invalid or has expired. Start again from your MCP client.",
     );
+  const session = await getAuth().api.getSession({ headers });
+  if (!session || session.user.id !== userId)
+    throw new Error("Sign in to connect your account");
   const params = new URLSearchParams(query);
   const resources = params.getAll("resource");
-  if (resources.length !== 1) throw new Error("Connect one project at a time");
-  const project = await getOwnedProject(userId, resourceProject(resources[0]));
+  if (resources.length !== 1)
+    throw new Error("Connect the account MCP resource");
+  validateAccountResource(resources[0]);
   const requested = (params.get("scope") || "").split(" ").filter(Boolean);
   if (
     !requested.length ||
@@ -89,15 +94,14 @@ export async function oauthConsentContext(
     headers,
   });
   return {
-    project,
     clientName: client.client_name || "MCP client",
     redirectHost: new URL(params.get("redirect_uri")!).host,
     scopes: requested,
   };
 }
 
-export async function listOAuthConnections(userId: string, projectId: string) {
-  const resource = projectResource(projectId);
+export async function listOAuthConnections(userId: string) {
+  const resource = accountResource();
   const rows = await getDb()
     .select({
       clientId: oauthConsents.clientId,
@@ -121,12 +125,8 @@ export async function listOAuthConnections(userId: string, projectId: string) {
     ).values(),
   ];
 }
-export async function disconnectOAuth(
-  userId: string,
-  projectId: string,
-  clientId: string,
-) {
-  const resource = projectResource(projectId);
+export async function disconnectOAuth(userId: string, clientId: string) {
+  const resource = accountResource();
   await getDb().transaction(async (tx) => {
     for (const table of [oauthAccessTokens, oauthRefreshTokens])
       await tx

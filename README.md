@@ -21,7 +21,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Open http://localhost:8200/signup to create an account, or /signin to sign in. DATABASE_URL is required for storage. After signing in, no Meta tokens are needed to create, edit, and browse drafts. Create/select a project and configure its channels in Connections. Generate or replace its MCP token in MCP integration. No demo content is preloaded.
+Open http://localhost:8200/signup to create an account, or /signin to sign in. DATABASE_URL is required for storage. After signing in, no Meta tokens are needed to create, edit, and browse drafts. Create/select a project and configure its channels in Connections. Generate or replace your account MCP token in MCP integration. No demo content is preloaded.
 
 ## Authentication and ownership
 
@@ -29,17 +29,18 @@ Better Auth uses email/password authentication through its Drizzle adapter. Sign
 
 The auth schema consists of `users`, `sessions`, `accounts`, and `verifications`. Better Auth hashes passwords in credential accounts, stores sessions in Postgres, and sets its session cookies. `BETTER_AUTH_SECRET` must remain private and stable across deployments.
 
-Every project has a required `user_id` foreign key. Signup creates a Personal workspace. The dashboard and all dashboard API routes validate sessions server-side; project list/create/update, channel settings, MCP token rotation, and all post operations enforce the signed-in user's ownership. Supplied user IDs are ignored. MCP endpoints keep their independent project bearer authentication so AI clients do not need a browser session.
+Every project has a required `user_id` foreign key. Signup creates a Personal workspace. The dashboard and all dashboard API routes validate sessions server-side; project list/create/update, channel settings, MCP token rotation, and all post operations enforce the signed-in user's ownership. Supplied user IDs are ignored. MCP uses account OAuth or account bearer authentication so AI clients do not need a browser session.
 
-Migration 0002 preserves pre-authentication projects under a reserved user with no password or sessions. `LEGACY_OWNER_EMAIL` assigns these projects only to that email upon signup. For this installation it is configured for the owner's chosen email. This is a one-time migration setting; other accounts get separate workspaces. Existing project MCP tokens remain valid.
+Migration 0002 preserves pre-authentication projects under a reserved user with no password or sessions. `LEGACY_OWNER_EMAIL` assigns these projects only to that email upon signup. For this installation it is configured for the owner's chosen email. This is a one-time migration setting; other accounts get separate workspaces. Project MCP tokens were removed by migration 0010.
 
 ## MCP
 
-Endpoint: `POST /api/mcp/<projectId>` (Streamable HTTP, stateless JSON responses).
+Endpoint: `POST /api/mcp` (Streamable HTTP, stateless JSON responses).
 
-Send `Authorization: Bearer <project token>` from that project’s MCP integration screen. Each token only authenticates to its own project endpoint. The assistant receives the project name/ID during initialization and can call `get_project`. Supported tools:
+Send `Authorization: Bearer <account token>` from MCP integration, or use OAuth. One connection covers your account. Call `list_projects`, then pass `projectId` to project tools when you have more than one project. A sole project is selected automatically. Supported tools:
 
-- `get_project`: identify the connected project and its configured channels (no secrets).
+- `list_projects`: discover your project IDs, names, and channel availability.
+- `get_project`: identify the selected project and its configured channels (no secrets).
 - `create_upload_token`: returns a short-lived bearer token and the upload endpoint for sending image files over plain HTTP (see Private images).
 - `create_draft`: title, caption, platforms (`facebook`, `instagram`, `linkedin`), optional ordered `assets` array, optional source. Supports up to 10 images OR one MP4 video. Each source uses EXTERNAL_URL, INLINE_BASE64 (images only), UPLOAD_ID, or OPENAPI_FILE; optional `kind` IMAGE/VIDEO is checked against the bytes. Missing Instagram media returns `needsMedia` / `needsImage` and a `reviewUrl`.
 - `create_asset_upload`: prepares a private S3 PUT URL for an image or video. Requires `mimeType` and exact `fileSize` in bytes. PUT the bytes, then finalize.
@@ -49,10 +50,11 @@ Send `Authorization: Bearer <project token>` from that project’s MCP integrati
 
 There is deliberately no publishing tool. Publishing is initiated through the dashboard.
 
-Example draft arguments:
+Example draft arguments (`projectId` can be omitted only with a single project):
 
 ```json
 {
+  "projectId": "YOUR_PROJECT_UUID",
   "title": "A small update",
   "caption": "Here is what we have been working on.",
   "platforms": ["facebook"],
@@ -60,18 +62,18 @@ Example draft arguments:
 }
 ```
 
-Remote clients need a reachable HTTPS endpoint. Both project bearer tokens and OAuth are supported on the same endpoint. Bearer tokens and their hashes/rotation are unchanged.
+Remote clients need a reachable HTTPS endpoint. Both account bearer tokens and OAuth are supported on the same endpoint. Old project credentials are not supported.
 
 ### ChatGPT / OAuth
 
 1. Set `APP_URL` to your canonical production HTTPS origin in Vercel (no trailing path), with a stable `BETTER_AUTH_SECRET`. Redeploy after adding these changes and environment settings. Apply migrations with `pnpm db:migrate` against the deployment database.
-2. Copy a project's endpoint from MCP integration.
+2. Copy the account endpoint from MCP integration.
 3. In ChatGPT Plugins, add a custom MCP server, paste the endpoint, and select OAuth. Choose dynamic client registration (DCR), leaving Client ID and Client Secret blank. CIMD is not enabled by this implementation.
-4. Sign in to PostDispatch and approve the named project, then install/select the connection in your chat.
+4. Sign in to PostDispatch and approve access to your account’s current and future projects, then install/select the connection in your chat.
 
-OAuth uses Better Auth's provider, S256 PKCE, exact registered redirect URI matching, single-use codes, and signed consent queries. Tokens have one exact project resource as audience. Every MCP call checks token activity/expiry, scopes, and current project ownership. Password signup/signin preserves the OAuth continuation. Opaque access tokens are stored as hashes and expire after 15 minutes; rotating refresh tokens last up to 30 days and require `offline_access`. Public clients use `token_endpoint_auth_method: none`; confidential DCR clients are also supported by the provider. No custom OAuth client secrets are required for ChatGPT's DCR flow. Registration alone never grants project access.
+OAuth uses Better Auth's provider, S256 PKCE, exact registered redirect URI matching, single-use codes, and signed consent queries. Tokens have the exact account MCP resource as audience. Every MCP call checks token activity/expiry, scopes, and current project ownership. Password signup/signin preserves the OAuth continuation. Opaque access tokens are stored as hashes and expire after 15 minutes; rotating refresh tokens last up to 30 days and require `offline_access`. Public clients use `token_endpoint_auth_method: none`; confidential DCR clients are also supported by the provider. No custom OAuth client secrets are required for ChatGPT's DCR flow. Registration alone never grants account access.
 
-Public discovery is at `/.well-known/oauth-authorization-server/api/auth` and `/.well-known/oauth-protected-resource/api/mcp/<projectId>`. The issuer is `<APP_URL>/api/auth`. Registration, authorization, token and revocation endpoints are under `/api/auth/oauth2/*`. OAuth scopes are `posts:read`, `posts:write`, and optional `offline_access`. The MCP integration screen lists approved clients with a Disconnect button; this revokes only that user's OAuth grants for the selected project and leaves bearer tokens intact. Publishing/delete-post tools are never exposed through MCP.
+Public discovery is at `/.well-known/oauth-authorization-server/api/auth` and `/.well-known/oauth-protected-resource/api/mcp`. The issuer is `<APP_URL>/api/auth`. Registration, authorization, token and revocation endpoints are under `/api/auth/oauth2/*`. OAuth scopes are `posts:read`, `posts:write`, and optional `offline_access`. The MCP integration screen lists approved clients with a Disconnect button; this revokes that user's account OAuth grants for that client and leaves bearer tokens intact. Publishing/delete-post tools are never exposed through MCP.
 
 OAuth tables live in Drizzle alongside the existing auth tables. Credentials stay in Postgres across Vercel invocations; no in-memory authorization-code or token store is used. Daily generation requires a separate scheduled AI workflow; MCP is the delivery interface, not a scheduler.
 
@@ -98,9 +100,9 @@ OAuth flows use random, single-use state bound to an authenticated session, proj
 
 Facebook User tokens are exchanged for long-lived tokens before retrieving Page tokens. Instagram tokens are exchanged for long-lived tokens. Automatic background renewal is not yet implemented: reconnect Instagram before its token expires (typically 60 days), and reconnect either channel if access is revoked or tokens become invalid. Dashboard disconnect removes local credentials; customers can also revoke access in Meta's app settings.
 
-All four account/token values are stored in the `projects` database table. Tokens are write-only in settings responses: blank token fields keep existing values; Disconnect clears the channel ID/token. Meta access tokens are stored server-side as database secrets; restrict database access and backups accordingly. Project MCP tokens are stored as SHA-256 hashes, are returned only when created/replaced, and never grant publishing access. No channel credentials are exposed to MCP tools.
+Channel account IDs and credentials are stored in the `project_connectors` database table. Tokens are write-only in settings responses: blank token fields keep existing values; Disconnect clears the channel ID/token. Meta access tokens are stored server-side as database secrets; restrict database access and backups accordingly. Account MCP tokens are stored as SHA-256 hashes, are returned only when created/replaced, and never grant publishing access. No channel credentials are exposed to MCP tools.
 
-Existing posts are assigned to the default Personal workspace project by migration 0001. Existing environment credentials were copied into that project during this upgrade. The global Meta credential variables and MCP_TOKEN are no longer used by the runtime. Legacy `/api/mcp` connections must use the default project's new endpoint; its migrated MCP token remains valid until replaced.
+Existing posts are assigned to the default Personal workspace project by migration 0001. Existing environment credentials were copied into that project during this upgrade. The global Meta credential variables and MCP_TOKEN are no longer used by the runtime. Project-specific MCP endpoints and tokens have been removed. Reconnect clients to `/api/mcp` with account OAuth or a new account bearer token.
 
 Supported formats: Facebook text, single images, multi-photo posts and videos; Instagram single images, carousels and Reels. Instagram requires media. Images accept JPEG, PNG, or WebP up to 4.5 MB / 20 megapixels and are converted to JPEG; MP4 videos accept up to 100 MB through direct storage uploads. Stories are not supported. Manually entered credentials are not verified until publishing. Public users outside app roles require appropriate Meta review/access.
 
@@ -116,6 +118,7 @@ A post contains an ordered asset list: **up to 10 images, or one video**. Mixed 
 
 ```json
 {
+  "projectId": "YOUR_PROJECT_UUID",
   "title": "A small update",
   "caption": "Two views of our latest project.",
   "platforms": ["facebook", "instagram"],
@@ -174,7 +177,7 @@ Drizzle Kit loads `.env*` using Next's environment loader, matching the applicat
 
 Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing requires draft status; deletion is available for drafts, published posts, and posts needing review, but is blocked while publishing. Deleting removes the PostDispatch record and its private image, with a confirmation in the dashboard. Posts on the connected social networks are not deleted. Each channel's result is persisted separately; network calls happen outside the transaction. A durable delivery worker and reconciliation remain future improvements.
 
-Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each project has a separate MCP token and cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login, email verification, password reset emails, a scheduler.
+Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each account has a bearer token; MCP can create drafts but cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login, email verification, password reset emails, a scheduler.
 
 ## Meta debug logs
 
@@ -220,4 +223,12 @@ Public company details are centralized in `src/lib/public-site.ts`: Growth Optim
 
 The policies describe the current service, including human approval, private media, manual account-deletion requests, and external providers. Before launch, have the operator review the policy text against its actual processor agreements, hosting regions, international transfer arrangements, and log/backup retention. Configure the published `/privacy`, `/terms`, and `/data-deletion` URLs in the social-network app dashboards where requested.
 
-Connecting ChatGPT or Claude enables on-demand drafts; it does not install a daily schedule. `/guide` includes a reusable brand prompt and an external n8n example: Schedule Trigger → AI Agent with an MCP Client Tool → draft in PostDispatch → human review. Use a client supporting Streamable HTTP and a project-specific bearer credential. Configure the timezone, test manually, and activate the workflow in the scheduling service. The guide does not deploy a scheduler, and the n8n example has not been tested in a live n8n instance.
+Connecting ChatGPT or Claude enables on-demand drafts; it does not install a daily schedule. `/guide` includes a reusable brand prompt and an external n8n example: Schedule Trigger → AI Agent with an MCP Client Tool → draft in PostDispatch → human review. Use a client supporting Streamable HTTP and a account bearer credential. Configure the timezone, test manually, and activate the workflow in the scheduling service. The guide does not deploy a scheduler, and the n8n example has not been tested in a live n8n instance.
+
+## Account-level MCP
+
+Connect once at `${APP_URL}/api/mcp` using OAuth or an account bearer token from MCP integration. Consent covers all current and future projects belonging to the signed-in account. `list_projects` returns IDs, names, and channel availability without social credentials. All project tools (`get_project`, `list_posts`, `create_draft`, `create_draft_from_files`, `create_asset_upload`, `complete_asset_upload`, and `create_upload_token`) accept an optional `projectId`: it is omitted only when the account has exactly one project. With multiple projects, omission is an error; with zero projects, create a project first. An explicit ID always requires ownership. Resolution happens on every call, so a newly added second project immediately requires an explicit ID.
+
+Migration `0010` creates `account_mcp_tokens` and removes the project token column. Existing project tokens are intentionally invalidated. Existing project OAuth tokens cannot access the new audience or refresh into account credentials; users must reconnect. Account tokens are generated only on request, stored as SHA-256 hashes, and shown only once. Replacing an account token invalidates it for all clients using that token; OAuth grants are revoked separately in MCP integration.
+
+Private uploads remain bound to the selected project. `create_upload_token` returns a short-lived token and `/api/mcp/uploads?projectId=...` URL; raw uploads accept only that upload token. Direct upload completion URLs use `/api/mcp/uploads/complete?projectId=...` with the upload-specific completion token. Reuse the same projectId when finalizing uploads and creating drafts. The old `/api/mcp/<projectId>` routes and project token/OAuth settings endpoints are removed.

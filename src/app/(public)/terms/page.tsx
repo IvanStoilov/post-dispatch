@@ -63,7 +63,7 @@ export default function TermsPage() {
       <DocumentSection id="account" title="Accounts and authorization">
         <p>
           Provide accurate account information and protect your password,
-          session access, and project tokens. Grant access only to assistants
+          session access, and account tokens. Grant access only to assistants
           and automation services you trust. You are responsible for activity
           you authorize and should contact support promptly if you suspect
           unauthorized access.

@@ -60,7 +60,6 @@ export default async function Page({
   return (
     <ConsentForm
       query={query.toString()}
-      projectName={context.project.name}
       clientName={context.clientName}
       redirectHost={context.redirectHost}
       scopes={context.scopes}

@@ -15,7 +15,7 @@ import {
   POST as createProject,
 } from "../src/app/api/projects/route";
 import { PATCH as updateProject } from "../src/app/api/projects/[id]/route";
-import { POST as rotateToken } from "../src/app/api/projects/[id]/token/route";
+import { POST as rotateToken } from "../src/app/api/mcp-settings/token/route";
 import {
   GET as listPosts,
   POST as createPost,
@@ -26,7 +26,8 @@ import {
 } from "../src/app/api/posts/[id]/route";
 import { POST as publishPost } from "../src/app/api/posts/[id]/publish/route";
 import { GET as connections } from "../src/app/api/connections/route";
-import { handleProjectMcp } from "../src/lib/mcp";
+import { rotateAccountToken } from "../src/lib/mcp-account";
+import { handleAccountMcp } from "../src/lib/mcp";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -161,13 +162,9 @@ test(
             404,
           );
           assert.equal(
-            (
-              await rotateToken(
-                request(`/api/projects/${aId}/token`, "POST", b.cookie),
-                { params: Promise.resolve({ id: aId }) },
-              )
-            ).status,
-            404,
+            (await rotateToken(request("/api/mcp-settings/token", "POST", "")))
+              .status,
+            401,
           );
           assert.equal(
             (
@@ -258,13 +255,14 @@ test(
           );
         },
       );
+      const bearer = await rotateAccountToken(a.id);
       await t.test(
         "MCP still works with scoped tokens without a browser session",
         async () => {
-          const req = new Request(origin + `/api/mcp/${extra.project.id}`, {
+          const req = new Request(origin + "/api/mcp", {
             method: "POST",
             headers: {
-              authorization: `Bearer ${extra.mcpToken}`,
+              authorization: `Bearer ${bearer.mcpToken}`,
               "Content-Type": "application/json",
               accept: "application/json, text/event-stream",
             },
@@ -272,10 +270,13 @@ test(
               jsonrpc: "2.0",
               id: 1,
               method: "tools/call",
-              params: { name: "get_project", arguments: {} },
+              params: {
+                name: "get_project",
+                arguments: { projectId: extra.project.id },
+              },
             }),
           });
-          const response = await handleProjectMcp(req, extra.project.id);
+          const response = await handleAccountMcp(req);
           assert.equal(response.status, 200);
           const data = await response.json();
           assert.equal(
@@ -298,11 +299,11 @@ test(
             .jpeg()
             .toBuffer();
           async function mcpImage(args: Record<string, unknown>) {
-            const r = await handleProjectMcp(
-              new Request(origin + `/api/mcp/${extra.project.id}`, {
+            const r = await handleAccountMcp(
+              new Request(origin + "/api/mcp", {
                 method: "POST",
                 headers: {
-                  authorization: `Bearer ${extra.mcpToken}`,
+                  authorization: `Bearer ${bearer.mcpToken}`,
                   "Content-Type": "application/json",
                   accept: "application/json, text/event-stream",
                 },
@@ -313,6 +314,7 @@ test(
                   params: {
                     name: "create_draft",
                     arguments: {
+                      projectId: extra.project.id,
                       title: "Image test",
                       caption: "Image test",
                       platforms: ["instagram"],
@@ -321,7 +323,6 @@ test(
                   },
                 }),
               }),
-              extra.project.id,
             );
             const data = await r.json();
             assert.ok(
@@ -330,11 +331,11 @@ test(
             );
             return JSON.parse(data.result.content[0].text);
           }
-          const toolResponse = await handleProjectMcp(
-            new Request(origin + `/api/mcp/${extra.project.id}`, {
+          const toolResponse = await handleAccountMcp(
+            new Request(origin + "/api/mcp", {
               method: "POST",
               headers: {
-                authorization: `Bearer ${extra.mcpToken}`,
+                authorization: `Bearer ${bearer.mcpToken}`,
                 "Content-Type": "application/json",
                 accept: "application/json, text/event-stream",
               },
@@ -345,7 +346,6 @@ test(
                 params: {},
               }),
             }),
-            extra.project.id,
           );
           const tools = (await toolResponse.json()).result.tools;
           const mainTool = tools.find(
@@ -465,11 +465,11 @@ test(
           });
           assert.match(openapi.imageUrl, /^\/api\/posts\//);
           assert.ok(!JSON.stringify(openapi).includes("file_test"));
-          const fileResponse = await handleProjectMcp(
-            new Request(origin + `/api/mcp/${extra.project.id}`, {
+          const fileResponse = await handleAccountMcp(
+            new Request(origin + "/api/mcp", {
               method: "POST",
               headers: {
-                authorization: `Bearer ${extra.mcpToken}`,
+                authorization: `Bearer ${bearer.mcpToken}`,
                 "Content-Type": "application/json",
                 accept: "application/json, text/event-stream",
               },
@@ -480,6 +480,7 @@ test(
                 params: {
                   name: "create_draft_from_files",
                   arguments: {
+                    projectId: extra.project.id,
                     title: "ChatGPT file",
                     caption: "ChatGPT file",
                     platforms: ["instagram"],
@@ -495,7 +496,6 @@ test(
                 },
               }),
             }),
-            extra.project.id,
           );
           const fileResult = await fileResponse.json();
           assert.ok(!fileResult.result.isError, JSON.stringify(fileResult));

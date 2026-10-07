@@ -10,6 +10,7 @@ import { publicationImageUrl } from "./storage";
 import { withLogContext } from "./logger";
 import { connectors } from "./connectors/registry";
 import { platforms } from "./types";
+import { accountTokenConfigured } from "./mcp-account";
 export async function connections(projectId: string) {
   const project = await getProject(projectId);
   return {
@@ -19,7 +20,7 @@ export async function connections(projectId: string) {
         project.connections.some((c) => c.provider === p && isConnected(c)),
       ]),
     ),
-    mcp: !!project.mcpTokenHash,
+    mcp: await accountTokenConfigured(project.userId),
   };
 }
 export async function publishPost(projectId: string, id: string) {

@@ -6,17 +6,14 @@ export const maxDuration = 300;
 const schema = z
   .object({ uploadId: z.uuid(), completionToken: z.string().min(1).max(100) })
   .strict();
-export async function POST(
-  req: Request,
-  ctx: { params: Promise<{ projectId: string }> },
-) {
+export async function POST(req: Request) {
   try {
     const input = schema.parse(
       JSON.parse((await readBody(req, 4096, "Upload request")).toString()),
     );
     return Response.json(
       await completeDirectUpload(
-        (await ctx.params).projectId,
+        new URL(req.url).searchParams.get("projectId") || "",
         input.uploadId,
         input.completionToken,
       ),

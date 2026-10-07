@@ -15,13 +15,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { Check, ShieldCheck } from "lucide-react";
 export default function ConsentForm({
   query,
-  projectName,
   clientName,
   redirectHost,
   scopes,
 }: {
   query: string;
-  projectName: string;
   clientName: string;
   redirectHost: string;
   scopes: string[];
@@ -50,10 +48,11 @@ export default function ConsentForm({
       <Card>
         <CardHeader>
           <CardTitle>
-            <h1>Connect {projectName}?</h1>
+            <h1>Connect your PostDispatch account?</h1>
           </CardTitle>
           <CardDescription>
-            {clientName} is requesting access to this PostDispatch project.
+            {clientName} is requesting access to all your current and future
+            PostDispatch projects.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -77,8 +76,8 @@ export default function ConsentForm({
           <Alert>
             <ShieldCheck aria-hidden="true" />
             <AlertDescription>
-              Publishing requires your approval in PostDispatch. Other projects
-              stay private.
+              Publishing requires your approval in PostDispatch. This connection
+              can read and create drafts across your projects.
             </AlertDescription>
           </Alert>
           <p className="break-words text-xs leading-relaxed text-muted-foreground">

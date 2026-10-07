@@ -43,6 +43,5 @@ export type Project = {
   instagramApiHost: "graph.facebook.com" | "graph.instagram.com";
   facebookConfigured: boolean;
   instagramConfigured: boolean;
-  mcpConfigured: boolean;
   connectors?: Partial<Record<Platform, ConnectionSummary>>;
 };
