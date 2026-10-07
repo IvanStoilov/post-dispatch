@@ -1,4 +1,4 @@
-import { publishPost } from "@/lib/meta";
+import { publishPost } from "@/lib/publishing";
 import { authenticated, ownedProject } from "@/lib/api-auth";
 export const runtime = "nodejs";
 export const maxDuration = 300;

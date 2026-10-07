@@ -1,12 +1,10 @@
+import { platforms } from "./types";
 import { z } from "zod";
 import { assetInputSchema, openaiFileSchema } from "./asset-inputs";
 const draftFields = {
   title: z.string().trim().min(1).max(120),
   caption: z.string().trim().min(1).max(2200),
-  platforms: z
-    .array(z.enum(["instagram", "facebook"]))
-    .min(1)
-    .max(2),
+  platforms: z.array(z.enum(platforms)).min(1).max(platforms.length),
   source: z
     .string()
     .describe("ChatGPT for ChatGPT agent, Claude for Claude, etc.")

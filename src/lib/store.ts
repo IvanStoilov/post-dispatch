@@ -1,3 +1,4 @@
+import { platforms } from "./types";
 import { and, asc, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
@@ -37,9 +38,9 @@ const draftFields = z
     imageUploadId: z.uuid().optional(),
     keepImage: z.boolean().default(false),
     platforms: z
-      .array(z.enum(["instagram", "facebook"]))
+      .array(z.enum(platforms))
       .min(1)
-      .max(2)
+      .max(platforms.length)
       .transform((v) => [...new Set(v)]),
     source: z.string().trim().min(1).max(60).default("Manual"),
   })
@@ -390,7 +391,7 @@ export async function getPostImage(projectId: string, id: string) {
 export async function claimPost(
   projectId: string,
   id: string,
-  connected: Record<Platform, boolean>,
+  connected: Partial<Record<Platform, boolean>>,
 ): Promise<Post> {
   validId(id);
   return getDb().transaction(async (tx) => {

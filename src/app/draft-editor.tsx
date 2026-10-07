@@ -1,5 +1,6 @@
 "use client";
-import { Facebook, Instagram } from "@/components/channel-icons";
+import { platforms, channelLabels } from "@/lib/connectors/catalog";
+import { channelIcons } from "@/components/channel-catalog";
 import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Post, PostAsset, Platform } from "@/lib/types";
@@ -262,14 +263,15 @@ export default function DraftEditor({
                     aria-labelledby="draft-channels"
                     variant="outline"
                   >
-                    <ToggleGroupItem value="facebook">
-                      <Facebook data-icon="inline-start" aria-hidden="true" />
-                      Facebook
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="instagram">
-                      <Instagram data-icon="inline-start" aria-hidden="true" />
-                      Instagram
-                    </ToggleGroupItem>
+                    {platforms.map((platform) => {
+                      const Icon = channelIcons[platform];
+                      return (
+                        <ToggleGroupItem key={platform} value={platform}>
+                          <Icon data-icon="inline-start" aria-hidden="true" />
+                          {channelLabels[platform]}
+                        </ToggleGroupItem>
+                      );
+                    })}
                   </ToggleGroup>
                   {!form.platforms.length && (
                     <FieldDescription>

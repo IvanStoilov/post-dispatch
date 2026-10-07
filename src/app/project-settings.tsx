@@ -1,7 +1,8 @@
 "use client";
-import { Facebook, Instagram } from "@/components/channel-icons";
+import { platforms, channelLabels } from "@/lib/connectors/catalog";
+import { channelIcons } from "@/components/channel-catalog";
 import { useEffect, useState } from "react";
-import type { Project } from "@/lib/types";
+import type { Project, Platform } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -73,10 +74,8 @@ export default function ProjectSettings({
       const status = new URLSearchParams(window.location.search).get(
         "connection",
       );
-      if (status === "facebook" || status === "instagram")
-        setMessage(
-          `${status === "facebook" ? "Facebook" : "Instagram"} connected.`,
-        );
+      if (platforms.some((p) => p === status))
+        setMessage(`${channelLabels[status as Platform]} connected.`);
       else if (status === "cancelled")
         setMessage("Connection cancelled. Your saved accounts were kept.");
       else if (status === "failed")
@@ -85,18 +84,19 @@ export default function ProjectSettings({
     return () => clearTimeout(timer);
   }, []);
   const [busy, setBusy] = useState(false);
-  const [disconnecting, setDisconnecting] = useState<
-    "facebook" | "instagram" | null
-  >(null);
-  async function connect(provider: "facebook" | "instagram") {
+  const [disconnecting, setDisconnecting] = useState<Platform | null>(null);
+  async function connect(provider: Platform) {
     setBusy(true);
     setMessage("");
     try {
-      const response = await fetch(`/api/meta/${provider}/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id }),
-      });
+      const response = await fetch(
+        `/api/${provider === "linkedin" ? "connectors" : "meta"}/${provider}/start`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: project.id }),
+        },
+      );
       const result = await response.json();
       if (!response.ok)
         throw new Error(result.error || "Could not start connection");
@@ -141,24 +141,27 @@ export default function ProjectSettings({
       setBusy(false);
     }
   }
-  async function disconnect(platform: "facebook" | "instagram") {
+  async function disconnect(platform: Platform) {
     setBusy(true);
+    setMessage("");
     try {
-      await call(`/api/projects/${project.id}`, {
-        name,
-        ...(platform === "facebook"
-          ? { facebookPageId: "", facebookPageToken: "" }
-          : { instagramAccountId: "", instagramAccessToken: "" }),
-      });
+      const response = await fetch(
+        `/api/projects/${project.id}/connectors/${platform}`,
+        { method: "DELETE" },
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Disconnect failed");
       if (platform === "facebook") {
         setFacebookPageId("");
         setFacebookPageToken("");
-      } else {
+      }
+      if (platform === "instagram") {
         setInstagramAccountId("");
         setInstagramAccessToken("");
       }
       setMessage("Channel disconnected.");
       await onSaved();
+      setDisconnecting(null);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Disconnect failed");
     } finally {
@@ -251,13 +254,18 @@ export default function ProjectSettings({
           </CardContent>
         </Card>
         <div className="grid gap-6 lg:grid-cols-2">
-          {(["facebook", "instagram"] as const).map((provider) => {
+          {platforms.map((provider) => {
             const facebook = provider === "facebook";
-            const configured = facebook
-              ? project.facebookConfigured
-              : project.instagramConfigured;
-            const Icon = facebook ? Facebook : Instagram;
-            const label = facebook ? "Facebook" : "Instagram";
+            const connection = project.connectors?.[provider];
+            const configured =
+              connection?.configured ??
+              (facebook
+                ? project.facebookConfigured
+                : provider === "instagram"
+                  ? project.instagramConfigured
+                  : false);
+            const Icon = channelIcons[provider];
+            const label = channelLabels[provider];
             return (
               <Card key={provider}>
                 <CardHeader>
@@ -270,11 +278,17 @@ export default function ProjectSettings({
                   <CardDescription>
                     {facebook
                       ? "Publish to your Facebook Page."
-                      : "Publish to a Business or Creator account."}
+                      : provider === "linkedin"
+                        ? "Publish to a personal profile or company Page."
+                        : "Publish to a Business or Creator account."}
                   </CardDescription>
                   <CardAction>
                     <Badge variant={configured ? "secondary" : "outline"}>
-                      {configured ? "Configured" : "Not connected"}
+                      {configured
+                        ? "Configured"
+                        : connection?.expiresAt
+                          ? "Reconnect required"
+                          : "Not connected"}
                     </Badge>
                   </CardAction>
                 </CardHeader>
@@ -291,103 +305,113 @@ export default function ProjectSettings({
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     {facebook
                       ? "Sign in with Facebook, grant publishing access, and choose your Page."
-                      : "Sign in with Instagram and grant publishing access. No Facebook Page needed."}
+                      : provider === "linkedin"
+                        ? "Sign in with LinkedIn, then choose your profile or an authorized company Page."
+                        : "Sign in with Instagram and grant publishing access. No Facebook Page needed."}
                   </p>
-                  <Accordion type="single" collapsible>
-                    <AccordionItem value="manual">
-                      <AccordionTrigger>Manual configuration</AccordionTrigger>
-                      <AccordionContent>
-                        <FieldGroup className="py-3">
-                          <Field>
-                            <FieldLabel htmlFor={`${provider}-id`}>
-                              {facebook ? "Page ID" : "Account ID"}
-                            </FieldLabel>
-                            <Input
-                              id={`${provider}-id`}
-                              name={`${provider}Id`}
-                              autoComplete="off"
-                              spellCheck={false}
-                              value={
-                                facebook ? facebookPageId : instagramAccountId
-                              }
-                              disabled={busy}
-                              onChange={(e) =>
-                                facebook
-                                  ? setFacebookPageId(e.target.value)
-                                  : setInstagramAccountId(e.target.value)
-                              }
-                            />
-                          </Field>
-                          <Field>
-                            <FieldLabel htmlFor={`${provider}-token`}>
-                              {facebook ? "Page access token" : "Access token"}
-                            </FieldLabel>
-                            <Input
-                              id={`${provider}-token`}
-                              name={`${provider}Token`}
-                              type="password"
-                              autoComplete="new-password"
-                              value={
-                                facebook
-                                  ? facebookPageToken
-                                  : instagramAccessToken
-                              }
-                              disabled={busy}
-                              onChange={(e) =>
-                                facebook
-                                  ? setFacebookPageToken(e.target.value)
-                                  : setInstagramAccessToken(e.target.value)
-                              }
-                              placeholder={
-                                configured
-                                  ? "Leave blank to keep saved token…"
-                                  : "Paste your token…"
-                              }
-                            />
-                            <FieldDescription>
-                              Saved tokens are never displayed.
-                            </FieldDescription>
-                          </Field>
-                          {!facebook && (
+                  {provider !== "linkedin" && (
+                    <Accordion type="single" collapsible>
+                      <AccordionItem value="manual">
+                        <AccordionTrigger>
+                          Manual configuration
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <FieldGroup className="py-3">
                             <Field>
-                              <FieldLabel htmlFor="instagram-host">
-                                Login method
+                              <FieldLabel htmlFor={`${provider}-id`}>
+                                {facebook ? "Page ID" : "Account ID"}
                               </FieldLabel>
-                              <Select
-                                value={host}
-                                disabled={busy}
-                                onValueChange={(value) =>
-                                  setHost(value as Project["instagramApiHost"])
+                              <Input
+                                id={`${provider}-id`}
+                                name={`${provider}Id`}
+                                autoComplete="off"
+                                spellCheck={false}
+                                value={
+                                  facebook ? facebookPageId : instagramAccountId
                                 }
-                              >
-                                <SelectTrigger
-                                  id="instagram-host"
-                                  className="w-full"
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectGroup>
-                                    <SelectItem value="graph.facebook.com">
-                                      Facebook Login
-                                    </SelectItem>
-                                    <SelectItem value="graph.instagram.com">
-                                      Instagram Login
-                                    </SelectItem>
-                                  </SelectGroup>
-                                </SelectContent>
-                              </Select>
+                                disabled={busy}
+                                onChange={(e) =>
+                                  facebook
+                                    ? setFacebookPageId(e.target.value)
+                                    : setInstagramAccountId(e.target.value)
+                                }
+                              />
                             </Field>
-                          )}
-                        </FieldGroup>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
+                            <Field>
+                              <FieldLabel htmlFor={`${provider}-token`}>
+                                {facebook
+                                  ? "Page access token"
+                                  : "Access token"}
+                              </FieldLabel>
+                              <Input
+                                id={`${provider}-token`}
+                                name={`${provider}Token`}
+                                type="password"
+                                autoComplete="new-password"
+                                value={
+                                  facebook
+                                    ? facebookPageToken
+                                    : instagramAccessToken
+                                }
+                                disabled={busy}
+                                onChange={(e) =>
+                                  facebook
+                                    ? setFacebookPageToken(e.target.value)
+                                    : setInstagramAccessToken(e.target.value)
+                                }
+                                placeholder={
+                                  configured
+                                    ? "Leave blank to keep saved token…"
+                                    : "Paste your token…"
+                                }
+                              />
+                              <FieldDescription>
+                                Saved tokens are never displayed.
+                              </FieldDescription>
+                            </Field>
+                            {!facebook && (
+                              <Field>
+                                <FieldLabel htmlFor="instagram-host">
+                                  Login method
+                                </FieldLabel>
+                                <Select
+                                  value={host}
+                                  disabled={busy}
+                                  onValueChange={(value) =>
+                                    setHost(
+                                      value as Project["instagramApiHost"],
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger
+                                    id="instagram-host"
+                                    className="w-full"
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      <SelectItem value="graph.facebook.com">
+                                        Facebook Login
+                                      </SelectItem>
+                                      <SelectItem value="graph.instagram.com">
+                                        Instagram Login
+                                      </SelectItem>
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                              </Field>
+                            )}
+                          </FieldGroup>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  )}
                 </CardContent>
                 <CardFooter className="justify-between gap-3">
                   <span className="truncate text-xs text-muted-foreground">
                     {configured
-                      ? `Account ${facebook ? project.facebookPageId : project.instagramAccountId}`
+                      ? `Account ${connection?.accountName || connection?.accountId || (facebook ? project.facebookPageId : project.instagramAccountId)}`
                       : "Connect an account to start publishing"}
                   </span>
                   {configured && (
@@ -432,7 +456,7 @@ export default function ProjectSettings({
           <AlertDialogHeader>
             <AlertDialogTitle>
               Disconnect{" "}
-              {disconnecting === "facebook" ? "Facebook" : "Instagram"}?
+              {disconnecting ? channelLabels[disconnecting] : "channel"}?
             </AlertDialogTitle>
             <AlertDialogDescription>
               This project will stop publishing to this account. You can
@@ -446,10 +470,7 @@ export default function ProjectSettings({
               disabled={busy}
               onClick={(event) => {
                 event.preventDefault();
-                if (disconnecting)
-                  void disconnect(disconnecting).then(() =>
-                    setDisconnecting(null),
-                  );
+                if (disconnecting) void disconnect(disconnecting);
               }}
             >
               Disconnect

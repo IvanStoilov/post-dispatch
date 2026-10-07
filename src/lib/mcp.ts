@@ -1,3 +1,5 @@
+import { platforms } from "./types";
+import { isConnected } from "./projects";
 import { getAuth } from "./auth";
 import { oauthChallenge } from "./oauth";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -40,10 +42,12 @@ export async function handleProjectMcp(req: Request, projectId: string) {
   const context = {
     id: project.id,
     name: project.name,
-    channels: {
-      facebook: !!(project.facebookPageId && project.facebookPageToken),
-      instagram: !!(project.instagramAccountId && project.instagramAccessToken),
-    },
+    channels: Object.fromEntries(
+      platforms.map((p) => [
+        p,
+        project.connections.some((c) => c.provider === p && isConnected(c)),
+      ]),
+    ),
   };
   const server = new McpServer(
     { name: "post-dispatch", version: "0.4.0" },

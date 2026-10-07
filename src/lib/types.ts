@@ -12,7 +12,14 @@ export type PostAsset = {
   url: string;
   mimeType: string;
 };
-export type Platform = "instagram" | "facebook";
+export const platforms = ["facebook", "instagram", "linkedin"] as const;
+export type Platform = (typeof platforms)[number];
+export type ConnectionSummary = {
+  accountId: string;
+  accountName: string;
+  configured: boolean;
+  expiresAt: string | null;
+};
 export type Post = {
   id: string;
   projectId: string;
@@ -37,4 +44,5 @@ export type Project = {
   facebookConfigured: boolean;
   instagramConfigured: boolean;
   mcpConfigured: boolean;
+  connectors?: Partial<Record<Platform, ConnectionSummary>>;
 };

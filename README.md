@@ -41,7 +41,7 @@ Send `Authorization: Bearer <project token>` from that project’s MCP integrati
 
 - `get_project`: identify the connected project and its configured channels (no secrets).
 - `create_upload_token`: returns a short-lived bearer token and the upload endpoint for sending image files over plain HTTP (see Private images).
-- `create_draft`: title, caption, platforms (`facebook`, `instagram`), optional ordered `assets` array, optional source. Supports up to 10 images OR one MP4 video. Each source uses EXTERNAL_URL, INLINE_BASE64 (images only), UPLOAD_ID, or OPENAPI_FILE; optional `kind` IMAGE/VIDEO is checked against the bytes. Missing Instagram media returns `needsMedia` / `needsImage` and a `reviewUrl`.
+- `create_draft`: title, caption, platforms (`facebook`, `instagram`, `linkedin`), optional ordered `assets` array, optional source. Supports up to 10 images OR one MP4 video. Each source uses EXTERNAL_URL, INLINE_BASE64 (images only), UPLOAD_ID, or OPENAPI_FILE; optional `kind` IMAGE/VIDEO is checked against the bytes. Missing Instagram media returns `needsMedia` / `needsImage` and a `reviewUrl`.
 - `create_asset_upload`: prepares a private S3 PUT URL for an image or video. Requires `mimeType` and exact `fileSize` in bytes. PUT the bytes, then finalize.
 - `complete_asset_upload`: verifies an uploaded file, copies it to an immutable key, and returns `assetUploadId` for `assets: [{"type":"UPLOAD_ID","uploadId":"..."}]`.
 - `create_draft_from_files`: ChatGPT attachment tool with `openai/fileParams: ["assets"]`; `assets` is an ordered array of plain `{download_url,file_id,mime_type?,file_name?}` file objects. Supports multiple images or one video.
@@ -172,7 +172,7 @@ pnpm db:studio     # Browse the database locally
 
 Drizzle Kit loads `.env*` using Next's environment loader, matching the application's environment precedence. Migrations are committed in `drizzle/` and are applied explicitly, not during requests or builds. The database URL example is commented out so copying `.env.example` into `.env.local` does not override your configured `.env` value.
 
-Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing requires draft status; deletion is available for drafts, published posts, and posts needing review, but is blocked while publishing. Deleting removes the PostDispatch record and its private image, with a confirmation in the dashboard. Posts on Facebook and Instagram are not deleted. Each channel's result is persisted separately; network calls happen outside the transaction. A durable delivery worker and reconciliation remain future improvements.
+Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing requires draft status; deletion is available for drafts, published posts, and posts needing review, but is blocked while publishing. Deleting removes the PostDispatch record and its private image, with a confirmation in the dashboard. Posts on the connected social networks are not deleted. Each channel's result is persisted separately; network calls happen outside the transaction. A durable delivery worker and reconciliation remain future improvements.
 
 Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each project has a separate MCP token and cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login, email verification, password reset emails, a scheduler.
 
@@ -193,3 +193,21 @@ pnpm build
 Tests cover Better Auth signup/signin/signout, hashed passwords, session expiry and revocation, user ownership across every API, project isolation, token rotation, secret redaction, and publishing. Database integration tests use TEST_DATABASE_URL if supplied, otherwise DATABASE_URL. They create uniquely identified temporary test posts, mock all Meta publishing calls, and remove only those test IDs afterward. No real social posts are sent. Tests are skipped if no database URL is configured.
 
 Reference: [Meta publishing](https://developers.facebook.com/docs/instagram-platform/content-publishing/), [Facebook Page posts](https://developers.facebook.com/docs/pages-api/posts/), [MCP TypeScript SDK](https://ts.sdk.modelcontextprotocol.io/server).
+
+## LinkedIn and connector architecture
+
+Connections are stored in `project_connectors`, with one destination per network per project. Migration `0009` copies existing Facebook/Instagram account IDs, credentials, and Instagram API hosts before removing the old project columns. Tokens are excluded from project responses and MCP context.
+
+The shared publisher in `src/lib/publishing.ts` claims the draft once, validates all destinations, calls each provider adapter, and saves each delivery independently. Provider adapters and media capabilities live in `src/lib/connectors/registry.ts`; the frontend and MCP schemas share the platform catalog. Network-specific upload protocols stay inside their adapters. Add future networks to the platform catalog/database enum and registry, then implement their authorization and account-selection flow. Failed or uncertain submissions still require manual review to avoid duplicates.
+
+### Configure LinkedIn
+
+1. Create an app at <https://www.linkedin.com/developers/apps>, and enable **Share on LinkedIn** and **Sign In with LinkedIn using OpenID Connect**.
+2. Set `LINKEDIN_CLIENT_ID` and `LINKEDIN_CLIENT_SECRET` on the server. `LINKEDIN_API_VERSION` defaults to `202605`.
+3. Register `${APP_URL}/api/connectors/linkedin/callback` as an authorized redirect URL, matching the exact deployed HTTPS origin.
+4. For company Pages, obtain **Community Management API** access and the `w_organization_social` and `rw_organization_admin` permissions, then set `LINKEDIN_ORGANIZATION_POSTING=true`. Leave it false while awaiting approval so personal-profile connections remain available.
+5. Open a project's Connections tab, click **Connect LinkedIn**, and choose your personal profile or an authorized company Page. Reconnect to change the selected destination. To use another LinkedIn destination independently, create another project.
+
+Personal connections request `openid profile w_member_social`. Company-enabled connections additionally request organization publishing/admin access; only approved accounts with publishing roles appear in the picker. The connector supports text, images, multiple images, and one MP4 video. Media is read from private storage and uploaded to LinkedIn; videos use multipart uploads, finalization, and readiness checks. Expired LinkedIn tokens require reconnecting; automatic token refresh is not implemented.
+
+Tests mock LinkedIn's network calls and cover OAuth state/session/project isolation, account selection, replay, private credentials, expiry, registry publishing, image upload, and multipart video receipts. A live authorization/publishing check requires your LinkedIn app credentials and product access.

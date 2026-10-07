@@ -23,3 +23,11 @@ export function Instagram(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function LinkedIn(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M5 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM3 9h4v12H3V9Zm6 0h4v1.6c.8-1.2 2-1.9 3.5-1.9 3 0 4.5 1.9 4.5 5.3v7h-4v-6.5c0-1.7-.6-2.6-1.8-2.6-1.5 0-2.2 1-2.2 2.8V21H9V9Z" />
+    </svg>
+  );
+}

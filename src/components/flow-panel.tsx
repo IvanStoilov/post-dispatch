@@ -22,7 +22,7 @@ export function FlowPanel() {
         {
           icon: Send,
           title: "Give it the green light",
-          text: "Publish to Facebook and Instagram when ready.",
+          text: "Publish to your connected channels when ready.",
         },
       ].map(({ icon: Icon, title, text }, index) => (
         <div key={title} className="relative flex gap-4 pb-7 last:pb-0">

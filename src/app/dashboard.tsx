@@ -1,4 +1,5 @@
 "use client";
+import { platforms, channelLabels } from "@/lib/connectors/catalog";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -164,7 +165,7 @@ export default function Dashboard({
       if (query.has("connection")) setView("Connections");
       else if (navigation.some((item) => item.view === requested))
         setView(requested);
-      if (["all", "facebook", "instagram"].includes(query.get("channel") || ""))
+      if (["all", ...platforms].includes(query.get("channel") || ""))
         setFilter(query.get("channel")!);
       setSearch(query.get("search") || "");
     }, 0);
@@ -175,6 +176,7 @@ export default function Dashboard({
   const [connections, setConnections] = useState({
     facebook: false,
     instagram: false,
+    linkedin: false,
     mcp: false,
   });
   const [editing, setEditing] = useState<string | null>(null);
@@ -436,7 +438,7 @@ export default function Dashboard({
       setView(navigation.some((item) => item.view === value) ? value : "Inbox");
       setSearch(query.get("search") || "");
       setFilter(
-        ["facebook", "instagram"].includes(query.get("channel") || "")
+        platforms.some((p) => p === query.get("channel"))
           ? query.get("channel")!
           : "all",
       );
@@ -664,8 +666,11 @@ export default function Dashboard({
                   spacing={0}
                 >
                   <ToggleGroupItem value="all">All posts</ToggleGroupItem>
-                  <ToggleGroupItem value="instagram">Instagram</ToggleGroupItem>
-                  <ToggleGroupItem value="facebook">Facebook</ToggleGroupItem>
+                  {platforms.map((platform) => (
+                    <ToggleGroupItem key={platform} value={platform}>
+                      {channelLabels[platform]}
+                    </ToggleGroupItem>
+                  ))}
                 </ToggleGroup>
                 <InputGroup className="sm:w-64">
                   <InputGroupInput

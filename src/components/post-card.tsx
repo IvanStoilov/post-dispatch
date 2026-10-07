@@ -1,5 +1,6 @@
 "use client";
-import { Facebook, Instagram } from "@/components/channel-icons";
+import { channelLabels } from "@/lib/connectors/catalog";
+import { channelIcons } from "./channel-catalog";
 import {
   Check,
   FileText,
@@ -23,11 +24,11 @@ import MediaGallery from "@/app/media-gallery";
 import type { Post, Platform } from "@/lib/types";
 
 export function PlatformBadge({ platform }: { platform: Platform }) {
-  const Icon = platform === "instagram" ? Instagram : Facebook;
+  const Icon = channelIcons[platform];
   return (
     <Badge variant="outline">
       <Icon data-icon="inline-start" aria-hidden="true" />
-      {platform === "instagram" ? "Instagram" : "Facebook"}
+      {channelLabels[platform]}
     </Badge>
   );
 }
@@ -138,7 +139,7 @@ export function PostCard({
               {post.status === "published"
                 ? "Delivered to your channels."
                 : post.status === "publishing"
-                  ? "Delivery in progress. Check Meta if interrupted."
+                  ? "Delivery in progress. Check the selected networks if interrupted."
                   : "Check your channels before resubmitting."}
             </p>
           )}

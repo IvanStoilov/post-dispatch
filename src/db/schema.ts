@@ -15,7 +15,11 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import type { Platform } from "../lib/types";
-export const platformEnum = pgEnum("post_platform", ["instagram", "facebook"]);
+export const platformEnum = pgEnum("post_platform", [
+  "instagram",
+  "facebook",
+  "linkedin",
+]);
 export const statusEnum = pgEnum("post_status", [
   "draft",
   "publishing",
@@ -114,13 +118,6 @@ export const projects = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     name: varchar("name", { length: 120 }).notNull(),
-    facebookPageId: text("facebook_page_id").notNull().default(""),
-    facebookPageToken: text("facebook_page_token").notNull().default(""),
-    instagramAccountId: text("instagram_account_id").notNull().default(""),
-    instagramAccessToken: text("instagram_access_token").notNull().default(""),
-    instagramApiHost: varchar("instagram_api_host", { length: 32 })
-      .notNull()
-      .default("graph.facebook.com"),
     mcpTokenHash: varchar("mcp_token_hash", { length: 64 }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .notNull()
@@ -132,13 +129,39 @@ export const projects = pgTable(
   (table) => [
     index("projects_user_id_idx").on(table.userId),
     check("projects_name_not_empty", sql`length(trim(${table.name})) > 0`),
-    check(
-      "projects_instagram_host_valid",
-      sql`${table.instagramApiHost} IN ('graph.facebook.com', 'graph.instagram.com')`,
-    ),
   ],
 );
 export type ProjectRow = typeof projects.$inferSelect;
+export const projectConnectors = pgTable(
+  "project_connectors",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    provider: platformEnum("provider").notNull(),
+    accountId: text("account_id").notNull(),
+    accountName: text("account_name").notNull().default(""),
+    accessToken: text("access_token").notNull(),
+    refreshToken: text("refresh_token"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    scopes: text("scopes").array().notNull().default([]),
+    metadata: jsonb("metadata")
+      .$type<{ apiHost?: string }>()
+      .notNull()
+      .default({}),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("project_connectors_project_provider_idx").on(
+      t.projectId,
+      t.provider,
+    ),
+  ],
+);
+export type ConnectorRow = typeof projectConnectors.$inferSelect;
 export const posts = pgTable(
   "posts",
   {
@@ -182,7 +205,7 @@ export const posts = pgTable(
     check("posts_source_not_empty", sql`length(trim(${table.source})) > 0`),
     check(
       "posts_platforms_valid",
-      sql`cardinality(${table.platforms}) BETWEEN 1 AND 2 AND array_position(${table.platforms}, NULL) IS NULL AND (cardinality(${table.platforms}) = 1 OR ${table.platforms}[1] <> ${table.platforms}[2])`,
+      sql`cardinality(${table.platforms}) BETWEEN 1 AND 3 AND array_position(${table.platforms}, NULL) IS NULL AND ${table.platforms}[1] IS DISTINCT FROM ${table.platforms}[2] AND ${table.platforms}[1] IS DISTINCT FROM ${table.platforms}[3] AND (cardinality(${table.platforms}) < 3 OR ${table.platforms}[2] <> ${table.platforms}[3])`,
     ),
     check(
       "posts_results_object",
