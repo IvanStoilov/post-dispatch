@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
@@ -17,15 +18,19 @@ export function getDb() {
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 15000,
     });
-    pool.on("error", () => {
-      console.error("PostDispatch: an idle database connection failed.");
+    pool.on("error", (error) => {
+      logger.error("database.connection.failure", { error });
     });
     state.dispatchDatabase = { pool, db: drizzle(pool, { schema }) };
+    logger.debug("database.pool.created", { maxConnections: 5 });
   }
   return state.dispatchDatabase.db;
 }
 export async function closeDb() {
   const database = state.dispatchDatabase;
   delete state.dispatchDatabase;
-  if (database) await database.pool.end();
+  if (database) {
+    await database.pool.end();
+    logger.debug("database.pool.closed");
+  }
 }

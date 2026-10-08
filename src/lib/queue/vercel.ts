@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 import {
   send as vercelSend,
   handleCallback as vercelHandleCallback,
@@ -29,8 +30,11 @@ export function handleCallback<T>(handler: QueueHandler<T>) {
         "x-postdispatch-queue-secret",
         process.env.CRON_SECRET,
       )
-    )
+    ) {
+      logger.warn("queue.callback.denied");
       return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    logger.debug("queue.callback.accepted");
     return vercelHandleCallback(handler)(request);
   };
 }

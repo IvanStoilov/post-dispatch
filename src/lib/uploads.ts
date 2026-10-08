@@ -1,3 +1,4 @@
+import { loggedOperation, logger } from "./logger";
 import { createHash, randomBytes } from "node:crypto";
 import { and, count, eq, gt, lte, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -38,36 +39,42 @@ export function uploadEndpoint(projectId: string) {
   return `${appOrigin()}/api/mcp/uploads?projectId=${projectId}`;
 }
 export async function createUploadToken(projectId: string) {
-  z.uuid().parse(projectId);
-  await getDb()
-    .delete(uploadTokens)
-    .where(
-      and(
-        eq(uploadTokens.projectId, projectId),
-        lte(uploadTokens.expiresAt, sql`now()`),
-      ),
-    );
-  const token = randomBytes(32).toString("base64url");
-  const [row] = await getDb()
-    .insert(uploadTokens)
-    .values({
-      projectId,
-      tokenHash: hashToken(token),
-      uploadsRemaining: UPLOADS_PER_TOKEN,
-      expiresAt: minutesFromNow(TOKEN_TTL_MINUTES),
-    })
-    .returning();
-  const uploadUrl = uploadEndpoint(projectId);
-  return {
-    uploadUrl,
-    token,
-    expiresAt: new Date(row.expiresAt).toISOString(),
-    maxUploads: UPLOADS_PER_TOKEN,
-    maxBytes: MAX_IMAGE_BYTES,
-    acceptedTypes: ["image/jpeg", "image/png", "image/webp"],
-    example: `curl -sS -X POST --data-binary @image.jpg -H "Content-Type: image/jpeg" -H "Authorization: Bearer ${token}" "${uploadUrl}"`,
-    next: 'POST each image file to uploadUrl with this token. Each response returns an imageUploadId; pass it to create_draft as assets: [{ type: "UPLOAD_ID", uploadId: imageUploadId }].',
-  };
+  return loggedOperation(
+    "lib.uploads.createUploadToken",
+    { projectId },
+    async () => {
+      z.uuid().parse(projectId);
+      await getDb()
+        .delete(uploadTokens)
+        .where(
+          and(
+            eq(uploadTokens.projectId, projectId),
+            lte(uploadTokens.expiresAt, sql`now()`),
+          ),
+        );
+      const token = randomBytes(32).toString("base64url");
+      const [row] = await getDb()
+        .insert(uploadTokens)
+        .values({
+          projectId,
+          tokenHash: hashToken(token),
+          uploadsRemaining: UPLOADS_PER_TOKEN,
+          expiresAt: minutesFromNow(TOKEN_TTL_MINUTES),
+        })
+        .returning();
+      const uploadUrl = uploadEndpoint(projectId);
+      return {
+        uploadUrl,
+        token,
+        expiresAt: new Date(row.expiresAt).toISOString(),
+        maxUploads: UPLOADS_PER_TOKEN,
+        maxBytes: MAX_IMAGE_BYTES,
+        acceptedTypes: ["image/jpeg", "image/png", "image/webp"],
+        example: `curl -sS -X POST --data-binary @image.jpg -H "Content-Type: image/jpeg" -H "Authorization: Bearer ${token}" "${uploadUrl}"`,
+        next: 'POST each image file to uploadUrl with this token. Each response returns an imageUploadId; pass it to create_draft as assets: [{ type: "UPLOAD_ID", uploadId: imageUploadId }].',
+      };
+    },
+  );
 }
 // Spends one use of a project-bound upload token. Rejected images refund it.
 async function authorizeUpload(
@@ -101,21 +108,29 @@ async function authorizeUpload(
   };
 }
 export async function removeExpiredUploads(projectId: string) {
-  const expired = await getDb()
-    .delete(imageUploads)
-    .where(
-      and(
-        eq(imageUploads.projectId, projectId),
-        lte(imageUploads.expiresAt, sql`now()`),
-      ),
-    )
-    .returning();
-  for (const upload of expired)
-    try {
-      await removeImage(upload);
-    } catch {
-      console.error("Could not clean up an expired image upload");
-    }
+  return loggedOperation(
+    "lib.uploads.removeExpiredUploads",
+    { projectId },
+    async () => {
+      const expired = await getDb()
+        .delete(imageUploads)
+        .where(
+          and(
+            eq(imageUploads.projectId, projectId),
+            lte(imageUploads.expiresAt, sql`now()`),
+          ),
+        )
+        .returning();
+      for (const upload of expired)
+        try {
+          await removeImage(upload);
+        } catch {
+          logger.warn("storage.cleanup.failure", {
+            reason: "Could not clean up an expired image upload",
+          });
+        }
+    },
+  );
 }
 async function uploadBytes(req: Request) {
   const body = await readBody(req, MAX_IMAGE_BYTES + 64 * 1024, "Image");
@@ -133,71 +148,77 @@ async function uploadBytes(req: Request) {
   return Buffer.from(await file.arrayBuffer());
 }
 export async function receiveImageUpload(projectId: string, req: Request) {
-  if (!z.uuid().safeParse(projectId).success)
-    throw new UploadError("A valid projectId is required for uploads", 400);
-  const refund = await authorizeUpload(
-    projectId,
-    req.headers.get("authorization"),
+  return loggedOperation(
+    "lib.uploads.receiveImageUpload",
+    { projectId },
+    async () => {
+      if (!z.uuid().safeParse(projectId).success)
+        throw new UploadError("A valid projectId is required for uploads", 400);
+      const refund = await authorizeUpload(
+        projectId,
+        req.headers.get("authorization"),
+      );
+      try {
+        await removeExpiredUploads(projectId);
+        const [{ unclaimed }] = await getDb()
+          .select({ unclaimed: count() })
+          .from(imageUploads)
+          .where(eq(imageUploads.projectId, projectId));
+        if (unclaimed >= MAX_UNCLAIMED_UPLOADS)
+          throw new UploadError(
+            "Too many unused image uploads. Create drafts from them or wait for them to expire.",
+            429,
+          );
+        let bytes: Buffer;
+        try {
+          bytes = await uploadBytes(req);
+        } catch (e) {
+          if (e instanceof UploadError) throw e;
+          if (e instanceof Error && /too large/.test(e.message))
+            throw new UploadError(IMAGE_TOO_LARGE, 413);
+          throw new UploadError(
+            e instanceof Error ? e.message : "Could not read the image",
+            400,
+          );
+        }
+        let image;
+        try {
+          image = await storeAsset(projectId, bytes);
+        } catch (e) {
+          throw new UploadError(
+            e instanceof Error ? e.message : "Invalid image",
+            400,
+          );
+        }
+        try {
+          const [upload] = await getDb()
+            .insert(imageUploads)
+            .values({
+              imageKey: image.imageKey,
+              imageBucket: image.imageBucket,
+              kind: image.kind,
+              mimeType: image.mimeType,
+              projectId,
+              expiresAt: minutesFromNow(UPLOAD_TTL_MINUTES),
+            })
+            .returning();
+          return {
+            assetUploadId: upload.id,
+            imageUploadId: upload.id,
+            kind: upload.kind,
+            expiresAt: new Date(upload.expiresAt).toISOString(),
+            next: 'Pass assets: [{ type: "UPLOAD_ID", uploadId: assetUploadId }] to create_draft before it expires.',
+          };
+        } catch (e) {
+          await removeImage(image);
+          throw e;
+        }
+      } catch (e) {
+        await refund();
+        throw e;
+      }
+    },
   );
-  try {
-    await removeExpiredUploads(projectId);
-    const [{ unclaimed }] = await getDb()
-      .select({ unclaimed: count() })
-      .from(imageUploads)
-      .where(eq(imageUploads.projectId, projectId));
-    if (unclaimed >= MAX_UNCLAIMED_UPLOADS)
-      throw new UploadError(
-        "Too many unused image uploads. Create drafts from them or wait for them to expire.",
-        429,
-      );
-    let bytes: Buffer;
-    try {
-      bytes = await uploadBytes(req);
-    } catch (e) {
-      if (e instanceof UploadError) throw e;
-      if (e instanceof Error && /too large/.test(e.message))
-        throw new UploadError(IMAGE_TOO_LARGE, 413);
-      throw new UploadError(
-        e instanceof Error ? e.message : "Could not read the image",
-        400,
-      );
-    }
-    let image;
-    try {
-      image = await storeAsset(projectId, bytes);
-    } catch (e) {
-      throw new UploadError(
-        e instanceof Error ? e.message : "Invalid image",
-        400,
-      );
-    }
-    try {
-      const [upload] = await getDb()
-        .insert(imageUploads)
-        .values({
-          imageKey: image.imageKey,
-          imageBucket: image.imageBucket,
-          kind: image.kind,
-          mimeType: image.mimeType,
-          projectId,
-          expiresAt: minutesFromNow(UPLOAD_TTL_MINUTES),
-        })
-        .returning();
-      return {
-        assetUploadId: upload.id,
-        imageUploadId: upload.id,
-        kind: upload.kind,
-        expiresAt: new Date(upload.expiresAt).toISOString(),
-        next: 'Pass assets: [{ type: "UPLOAD_ID", uploadId: assetUploadId }] to create_draft before it expires.',
-      };
-    } catch (e) {
-      await removeImage(image);
-      throw e;
-    }
-  } catch (e) {
-    await refund();
-    throw e;
-  }
 }
 // Consumes the upload inside the caller's transaction so a failed insert
 // leaves it claimable and one upload can never back two posts.
@@ -206,26 +227,32 @@ export async function claimImageUpload(
   projectId: string,
   uploadId: string,
 ) {
-  const [upload] = await tx
-    .delete(imageUploads)
-    .where(
-      and(
-        eq(imageUploads.projectId, projectId),
-        eq(imageUploads.id, uploadId),
-        gt(imageUploads.expiresAt, sql`now()`),
-      ),
-    )
-    .returning();
-  if (!upload)
-    throw new Error("Image upload not found, expired, or already used");
-  return {
-    id: upload.id,
-    kind: upload.kind,
-    mimeType:
-      upload.kind === "VIDEO"
-        ? ("video/mp4" as const)
-        : ("image/jpeg" as const),
-    imageKey: upload.imageKey,
-    imageBucket: upload.imageBucket,
-  };
+  return loggedOperation(
+    "lib.uploads.claimImageUpload",
+    { projectId },
+    async () => {
+      const [upload] = await tx
+        .delete(imageUploads)
+        .where(
+          and(
+            eq(imageUploads.projectId, projectId),
+            eq(imageUploads.id, uploadId),
+            gt(imageUploads.expiresAt, sql`now()`),
+          ),
+        )
+        .returning();
+      if (!upload)
+        throw new Error("Image upload not found, expired, or already used");
+      return {
+        id: upload.id,
+        kind: upload.kind,
+        mimeType:
+          upload.kind === "VIDEO"
+            ? ("video/mp4" as const)
+            : ("image/jpeg" as const),
+        imageKey: upload.imageKey,
+        imageBucket: upload.imageBucket,
+      };
+    },
+  );
 }

@@ -1,3 +1,4 @@
+import { loggedRequest, logger } from "@/lib/logger";
 import { after } from "next/server";
 import {
   retryFailedPublication,
@@ -10,22 +11,26 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  return authenticated(req, async (userId) => {
-    const projectId = await ownedProject(req, userId);
-    try {
-      const ids = await retryFailedPublication(
-        projectId,
-        (await ctx.params).id,
-      );
-      after(async () => {
-        for (const id of ids) await dispatchPublishingJob(id);
-      });
-      return Response.json({ queued: true }, { status: 202 });
-    } catch (error) {
-      return Response.json(
-        { error: error instanceof Error ? error.message : "Retry failed" },
-        { status: 400 },
-      );
-    }
+  return loggedRequest(req, "/api/posts/[id]/retry", async () => {
+    return authenticated(req, async (userId) => {
+      const projectId = await ownedProject(req, userId);
+      try {
+        const ids = await retryFailedPublication(
+          projectId,
+          (await ctx.params).id,
+        );
+        after(async () => {
+          for (const id of ids) await dispatchPublishingJob(id);
+        });
+        return Response.json({ queued: true }, { status: 202 });
+      } catch (error) {
+        logger.warn("http.handler.rejected", { error: error });
+
+        return Response.json(
+          { error: error instanceof Error ? error.message : "Retry failed" },
+          { status: 400 },
+        );
+      }
+    });
   });
 }

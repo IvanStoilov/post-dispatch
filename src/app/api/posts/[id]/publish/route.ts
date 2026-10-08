@@ -1,3 +1,4 @@
+import { loggedRequest, logger } from "@/lib/logger";
 import { after } from "next/server";
 import { enqueuePublication, dispatchPublishingJob } from "@/lib/publish-jobs";
 import { authenticated, ownedProject } from "@/lib/api-auth";
@@ -7,22 +8,26 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  return authenticated(req, async (userId) => {
-    const projectId = await ownedProject(req, userId);
-    try {
-      const { post, jobIds } = await enqueuePublication(
-        projectId,
-        (await ctx.params).id,
-      );
-      after(async () => {
-        for (const id of jobIds) await dispatchPublishingJob(id);
-      });
-      return Response.json(post, { status: 202 });
-    } catch (e) {
-      return Response.json(
-        { error: e instanceof Error ? e.message : "Publishing failed" },
-        { status: 400 },
-      );
-    }
+  return loggedRequest(req, "/api/posts/[id]/publish", async () => {
+    return authenticated(req, async (userId) => {
+      const projectId = await ownedProject(req, userId);
+      try {
+        const { post, jobIds } = await enqueuePublication(
+          projectId,
+          (await ctx.params).id,
+        );
+        after(async () => {
+          for (const id of jobIds) await dispatchPublishingJob(id);
+        });
+        return Response.json(post, { status: 202 });
+      } catch (e) {
+        logger.warn("http.handler.rejected", { error: e });
+
+        return Response.json(
+          { error: e instanceof Error ? e.message : "Publishing failed" },
+          { status: 400 },
+        );
+      }
+    });
   });
 }

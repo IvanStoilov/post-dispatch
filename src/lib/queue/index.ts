@@ -1,3 +1,4 @@
+import { loggedOperation, logger } from "../logger";
 import { randomUUID } from "node:crypto";
 
 export type QueueDriver = "local" | "vercel";
@@ -29,24 +30,42 @@ export function createQueue<T>(topic: string, handler: QueueHandler<T>) {
     payload: T,
     options?: { delaySeconds?: number },
   ): Promise<{ messageId: string | null }> {
-    // Match the JSON boundary of hosted messaging. Local handlers cannot mutate
-    // the caller's payload or receive objects that cannot cross that boundary.
-    const serialized = JSON.stringify(payload);
-    if (serialized === undefined) {
-      throw new Error("Queue payload must be JSON serializable");
-    }
-    const message = JSON.parse(serialized) as T;
-    if (queueDriver() === "local") {
-      if (options?.delaySeconds && options.delaySeconds > 0)
-        throw new Error(
-          "Local delayed jobs must be scheduled in Postgres and run by jobs:work",
-        );
-      const messageId = `local-${randomUUID()}`;
-      await handler(message);
-      return { messageId };
-    }
-    const provider = await import("./vercel");
-    return provider.send(topic, message, options);
+    return loggedOperation("queue.send", {}, async () => {
+      // Match the JSON boundary of hosted messaging. Local handlers cannot mutate
+      // the caller's payload or receive objects that cannot cross that boundary.
+      const serialized = JSON.stringify(payload);
+      if (serialized === undefined) {
+        throw new Error("Queue payload must be JSON serializable");
+      }
+      const message = JSON.parse(serialized) as T;
+      logger.debug("queue.message.sending", {
+        topic,
+        driver: queueDriver(),
+        delaySeconds: options?.delaySeconds ?? 0,
+      });
+      if (queueDriver() === "local") {
+        if (options?.delaySeconds && options.delaySeconds > 0)
+          throw new Error(
+            "Local delayed jobs must be scheduled in Postgres and run by jobs:work",
+          );
+        const messageId = `local-${randomUUID()}`;
+        await handler(message);
+        logger.debug("queue.message.completed", {
+          topic,
+          driver: "local",
+          messageId,
+        });
+        return { messageId };
+      }
+      const provider = await import("./vercel");
+      const result = await provider.send(topic, message, options);
+      logger.debug("queue.message.sent", {
+        topic,
+        driver: "vercel",
+        messageId: result.messageId,
+      });
+      return result;
+    });
   }
 
   function handleCallback() {

@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { publicPages, publicAssets } from "@/lib/public-routes";
 import { getSessionCookie } from "better-auth/cookies";
@@ -12,19 +13,29 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   const expected = new URL(process.env.APP_URL || "http://localhost:8200");
   const origin = req.headers.get("origin");
-  if (req.headers.get("host") !== expected.host)
+  if (req.headers.get("host") !== expected.host) {
+    logger.warn("http.proxy.denied", {
+      reason: "invalid_host",
+      method: req.method,
+    });
     return NextResponse.json(
       { error: "Invalid host. Configure APP_URL for this deployment." },
       { status: 403 },
     );
+  }
   const oauthProtocol = [
     "/api/auth/oauth2/token",
     "/api/auth/oauth2/register",
     "/api/auth/oauth2/revoke",
     "/api/auth/oauth2/introspect",
   ].includes(req.nextUrl.pathname);
-  if (origin && origin !== expected.origin && !oauthProtocol)
+  if (origin && origin !== expected.origin && !oauthProtocol) {
+    logger.warn("http.proxy.denied", {
+      reason: "invalid_origin",
+      method: req.method,
+    });
     return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const path = req.nextUrl.pathname;
   if (
     publicPages.some((p) => p === path) ||
@@ -38,6 +49,10 @@ export function proxy(req: NextRequest) {
   )
     return NextResponse.next();
   if (!getSessionCookie(req)) {
+    logger.debug("http.proxy.signin.required", {
+      method: req.method,
+      isApi: path.startsWith("/api/"),
+    });
     if (path.startsWith("/api/"))
       return NextResponse.json(
         { error: "Sign in to continue" },

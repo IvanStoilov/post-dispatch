@@ -175,7 +175,7 @@ pnpm db:studio     # Browse the database locally
 
 Drizzle Kit loads `.env*` using Next's environment loader, matching the application's environment precedence. Migrations are committed in `drizzle/` and are applied explicitly, not during requests or builds. The database URL example is commented out so copying `.env.example` into `.env.local` does not override your configured `.env` value.
 
-Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing requires draft status; deletion is available for drafts, published posts, and posts needing review, but is blocked while publishing. Deleting removes the PostDispatch record and its private image, with a confirmation in the dashboard. Posts on the connected social networks are not deleted. Each channel's result is persisted separately; network calls happen outside the transaction. A durable delivery worker and reconciliation remain future improvements.
+Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing requires draft status; deletion is available for drafts, published posts, and posts needing review, but is blocked while publishing. Deleting removes the PostDispatch record and its private image, with a confirmation in the dashboard. Posts on the connected social networks are not deleted. Each channel's result is persisted separately; network calls happen outside the transaction. Publishing now uses durable per-channel jobs and conservative reconciliation; see Durable publishing below.
 
 Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each account has a bearer token; MCP can create drafts but cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login, email verification, password reset emails, a scheduler.
 
@@ -183,7 +183,7 @@ Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote ac
 
 Winston writes JSON debug logs to the server terminal locally and to Vercel runtime logs in production. Each Meta POST and Instagram processing GET logs `meta.request` and `meta.response`, with request ID, project/post IDs, request fields, HTTP status, duration, response body (including error codes/subcodes), and available Meta trace/usage headers. Network, timeout, response-read and JSON parsing failures log `meta.failure`. Requests never log authorization headers; access tokens and URL credentials/query strings are redacted, and long strings are truncated.
 
-Debug logging is enabled by default. Set `LOG_LEVEL=info` to suppress it, or `LOG_LEVEL=debug` to enable it explicitly, then restart/redeploy. Logs contain post captions and media object paths, so keep access to server logs limited. Retry a submission and filter Vercel runtime logs by its post ID to see the failing call and Meta's response.
+Debug logging is enabled by default. Set `LOG_LEVEL=info` to suppress it, or `LOG_LEVEL=debug` to enable it explicitly, then restart/redeploy. Logs omit post captions, credentials, cookies, inline file bytes and signed URL query parameters. They include internal IDs and media object paths, so keep access to server logs limited. Retry a submission and filter Vercel runtime logs by its post ID to see the failing call and Meta's response.
 
 ## Validation
 
@@ -315,3 +315,13 @@ processing, retries and recovery, including after restarting the server. All
 state stays in Postgres, so the worker can resume after a restart. The adapter's
 local `send()` does not implement delayed timers; the database's due time and the
 worker provide that scheduling without contacting Vercel.
+
+## Application logging
+
+Winston emits structured JSON to the server console (Vercel runtime logs in production).
+Set `LOG_LEVEL=debug` for request and operation starts, completions, durations, MCP tool names, uploads/storage, OAuth/connectors, database pool lifecycle, queue delivery, job checkpoints and recovery scans.
+`LOG_LEVEL=info` keeps important lifecycle events and warnings/errors while reducing routine output. Restart or redeploy after changing the level.
+
+Filter by `traceId` to follow an HTTP request through nested operations and social API calls; individual provider calls also have their own `requestId`. Filter by `jobId` or `postId` across queue deliveries and recovery attempts. `operationId` pairs service starts with completions/failures. A normal response with an error status and MCP `isError` results are logged even when no exception escapes.
+
+Redaction runs centrally before every Winston transport. Request/response bodies, function arguments, passwords, cookies, OAuth codes, upload tokens and media bytes are not recorded by the tracing helpers. Existing social API diagnostics preserve provider error codes/statuses and identifiers while redacting credentials, post content and private URL query strings. Never add raw request bodies or arbitrary user input to log metadata.

@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 import { jwt } from "better-auth/plugins";
 import { oauthPlugins, appOrigin } from "./oauth-provider";
 import * as schema from "../db/schema";
@@ -18,6 +19,11 @@ function makeAuth() {
     throw new Error("BETTER_AUTH_SECRET is required");
   return betterAuth({
     appName: "PostDispatch",
+    logger: {
+      level: "debug",
+      log: (level, message) =>
+        logger.log(level, "auth.library", { reason: message }),
+    },
     baseURL: process.env.APP_URL || "http://localhost:8200",
     secret: process.env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(getDb(), {
@@ -55,6 +61,7 @@ function makeAuth() {
       user: {
         create: {
           after: async (user) => {
+            logger.info("auth.user.created", { userId: user.id });
             await getDb().transaction(async (tx) => {
               const legacyEmail =
                 process.env.LEGACY_OWNER_EMAIL?.trim().toLowerCase();
@@ -72,6 +79,7 @@ function makeAuth() {
                   .insert(projects)
                   .values({ userId: user.id, name: "Personal workspace" });
             });
+            logger.info("auth.workspace.ready", { userId: user.id });
           },
         },
       },

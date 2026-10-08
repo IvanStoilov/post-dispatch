@@ -1,3 +1,4 @@
+import { loggedOperation } from "./logger";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
@@ -77,168 +78,197 @@ export function publicProject(p: ConnectedProject): Project {
   };
 }
 export async function getProject(id: string) {
-  z.uuid().parse(id);
-  const [p] = await getDb().select().from(projects).where(eq(projects.id, id));
-  if (!p) throw new Error("Project not found");
-  return hydrateProject(p);
+  return loggedOperation("lib.projects.getProject", {}, async () => {
+    z.uuid().parse(id);
+    const [p] = await getDb()
+      .select()
+      .from(projects)
+      .where(eq(projects.id, id));
+    if (!p) throw new Error("Project not found");
+    return hydrateProject(p);
+  });
 }
 export async function listProjects(userId: string) {
-  const rows = await getDb()
-    .select()
-    .from(projects)
-    .where(eq(projects.userId, userId))
-    .orderBy(desc(projects.createdAt));
-  const connections = await getDb()
-    .select()
-    .from(projectConnectors)
-    .innerJoin(projects, eq(projects.id, projectConnectors.projectId))
-    .where(eq(projects.userId, userId));
-  return rows.map((p) =>
-    publicProject(
-      connected(
-        p,
-        connections
-          .filter((c) => c.projects.id === p.id)
-          .map((c) => c.project_connectors),
+  return loggedOperation("lib.projects.listProjects", { userId }, async () => {
+    const rows = await getDb()
+      .select()
+      .from(projects)
+      .where(eq(projects.userId, userId))
+      .orderBy(desc(projects.createdAt));
+    const connections = await getDb()
+      .select()
+      .from(projectConnectors)
+      .innerJoin(projects, eq(projects.id, projectConnectors.projectId))
+      .where(eq(projects.userId, userId));
+    return rows.map((p) =>
+      publicProject(
+        connected(
+          p,
+          connections
+            .filter((c) => c.projects.id === p.id)
+            .map((c) => c.project_connectors),
+        ),
       ),
-    ),
-  );
+    );
+  });
 }
 export async function createProject(userId: string, input: unknown) {
-  const values = projectSchema.parse(input);
-  const [p] = await getDb()
-    .insert(projects)
-    .values({ name: values.name, userId })
-    .returning();
-  const project = await updateProject(userId, p.id, values);
-  return { project };
+  return loggedOperation("lib.projects.createProject", { userId }, async () => {
+    const values = projectSchema.parse(input);
+    const [p] = await getDb()
+      .insert(projects)
+      .values({ name: values.name, userId })
+      .returning();
+    const project = await updateProject(userId, p.id, values);
+    return { project };
+  });
 }
 export async function updateProject(
   userId: string,
   id: string,
   input: unknown,
 ) {
-  z.uuid().parse(id);
-  const values = projectSchema.parse(input);
-  await getDb().transaction(async (tx) => {
-    const [p] = await tx
-      .update(projects)
-      .set({ name: values.name, updatedAt: sql`now()` })
-      .where(and(eq(projects.id, id), eq(projects.userId, userId)))
-      .returning();
-    if (!p) throw new Error("Project not found");
-    for (const provider of ["facebook", "instagram"] as const) {
-      const accountId =
-        provider === "facebook"
-          ? values.facebookPageId
-          : values.instagramAccountId;
-      const accessToken =
-        provider === "facebook"
-          ? values.facebookPageToken
-          : values.instagramAccessToken;
-      if (
-        accountId === undefined &&
-        accessToken === undefined &&
-        !(provider === "instagram" && values.instagramApiHost !== undefined)
-      )
-        continue;
-      const [old] = await tx
-        .select()
-        .from(projectConnectors)
-        .where(
-          and(
-            eq(projectConnectors.projectId, id),
-            eq(projectConnectors.provider, provider),
-          ),
+  return loggedOperation("lib.projects.updateProject", { userId }, async () => {
+    z.uuid().parse(id);
+    const values = projectSchema.parse(input);
+    await getDb().transaction(async (tx) => {
+      const [p] = await tx
+        .update(projects)
+        .set({ name: values.name, updatedAt: sql`now()` })
+        .where(and(eq(projects.id, id), eq(projects.userId, userId)))
+        .returning();
+      if (!p) throw new Error("Project not found");
+      for (const provider of ["facebook", "instagram"] as const) {
+        const accountId =
+          provider === "facebook"
+            ? values.facebookPageId
+            : values.instagramAccountId;
+        const accessToken =
+          provider === "facebook"
+            ? values.facebookPageToken
+            : values.instagramAccessToken;
+        if (
+          accountId === undefined &&
+          accessToken === undefined &&
+          !(provider === "instagram" && values.instagramApiHost !== undefined)
         )
-        .for("update");
-      const data = {
-        projectId: id,
-        provider,
-        accountId: accountId ?? old?.accountId ?? "",
-        accessToken: accessToken ?? old?.accessToken ?? "",
-        metadata:
-          provider === "instagram"
-            ? {
-                apiHost:
-                  values.instagramApiHost ??
-                  old?.metadata.apiHost ??
-                  "graph.facebook.com",
-              }
-            : {},
-        updatedAt: new Date(),
-      };
-      if (!data.accountId && !data.accessToken)
-        await tx
-          .delete(projectConnectors)
+          continue;
+        const [old] = await tx
+          .select()
+          .from(projectConnectors)
           .where(
             and(
               eq(projectConnectors.projectId, id),
               eq(projectConnectors.provider, provider),
             ),
-          );
-      else
-        await tx
-          .insert(projectConnectors)
-          .values(data)
-          .onConflictDoUpdate({
-            target: [projectConnectors.projectId, projectConnectors.provider],
-            set: data,
-          });
-    }
+          )
+          .for("update");
+        const data = {
+          projectId: id,
+          provider,
+          accountId: accountId ?? old?.accountId ?? "",
+          accessToken: accessToken ?? old?.accessToken ?? "",
+          metadata:
+            provider === "instagram"
+              ? {
+                  apiHost:
+                    values.instagramApiHost ??
+                    old?.metadata.apiHost ??
+                    "graph.facebook.com",
+                }
+              : {},
+          updatedAt: new Date(),
+        };
+        if (!data.accountId && !data.accessToken)
+          await tx
+            .delete(projectConnectors)
+            .where(
+              and(
+                eq(projectConnectors.projectId, id),
+                eq(projectConnectors.provider, provider),
+              ),
+            );
+        else
+          await tx
+            .insert(projectConnectors)
+            .values(data)
+            .onConflictDoUpdate({
+              target: [projectConnectors.projectId, projectConnectors.provider],
+              set: data,
+            });
+      }
+    });
+    return publicProject(await getOwnedProject(userId, id));
   });
-  return publicProject(await getOwnedProject(userId, id));
 }
 export async function saveConnector(
   userId: string,
   projectId: string,
   values: Omit<typeof projectConnectors.$inferInsert, "id" | "projectId">,
 ) {
-  await getDb().transaction(async (tx) => {
-    const [p] = await tx
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
-      .for("update");
-    if (!p) throw new Error("Project not found");
-    await tx
-      .insert(projectConnectors)
-      .values({ ...values, projectId })
-      .onConflictDoUpdate({
-        target: [projectConnectors.projectId, projectConnectors.provider],
-        set: {
-          ...values,
-          refreshToken: values.refreshToken ?? null,
-          expiresAt: values.expiresAt ?? null,
-          scopes: values.scopes ?? [],
-          metadata: values.metadata ?? {},
-          updatedAt: new Date(),
-        },
+  return loggedOperation(
+    "lib.projects.saveConnector",
+    { userId, projectId },
+    async () => {
+      await getDb().transaction(async (tx) => {
+        const [p] = await tx
+          .select()
+          .from(projects)
+          .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
+          .for("update");
+        if (!p) throw new Error("Project not found");
+        await tx
+          .insert(projectConnectors)
+          .values({ ...values, projectId })
+          .onConflictDoUpdate({
+            target: [projectConnectors.projectId, projectConnectors.provider],
+            set: {
+              ...values,
+              refreshToken: values.refreshToken ?? null,
+              expiresAt: values.expiresAt ?? null,
+              scopes: values.scopes ?? [],
+              metadata: values.metadata ?? {},
+              updatedAt: new Date(),
+            },
+          });
       });
-  });
+    },
+  );
 }
 export async function disconnectConnector(
   userId: string,
   projectId: string,
   provider: Platform,
 ) {
-  await getOwnedProject(userId, projectId);
-  await getDb()
-    .delete(projectConnectors)
-    .where(
-      and(
-        eq(projectConnectors.projectId, projectId),
-        eq(projectConnectors.provider, provider),
-      ),
-    );
+  return loggedOperation(
+    "lib.projects.disconnectConnector",
+    { userId, projectId, provider },
+    async () => {
+      await getOwnedProject(userId, projectId);
+      await getDb()
+        .delete(projectConnectors)
+        .where(
+          and(
+            eq(projectConnectors.projectId, projectId),
+            eq(projectConnectors.provider, provider),
+          ),
+        );
+    },
+  );
 }
 
 export async function getOwnedProject(userId: string, id: string) {
-  z.uuid().parse(id);
-  const [p] = await getDb()
-    .select()
-    .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.userId, userId)));
-  if (!p) throw new Error("Project not found");
-  return hydrateProject(p);
+  return loggedOperation(
+    "lib.projects.getOwnedProject",
+    { userId },
+    async () => {
+      z.uuid().parse(id);
+      const [p] = await getDb()
+        .select()
+        .from(projects)
+        .where(and(eq(projects.id, id), eq(projects.userId, userId)));
+      if (!p) throw new Error("Project not found");
+      return hydrateProject(p);
+    },
+  );
 }

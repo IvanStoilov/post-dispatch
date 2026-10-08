@@ -1,3 +1,4 @@
+import { loggedOperation } from "./logger";
 import { platforms } from "./types";
 import {
   linkedinAccounts,
@@ -390,162 +391,202 @@ async function instagramAccount(code: string) {
   };
 }
 export async function startConnection(req: Request, provider: Provider) {
-  sameOrigin(req);
-  const session = await identity(req);
-  const { projectId } = z
-    .object({ projectId: z.uuid() })
-    .parse(await req.json());
-  await getOwnedProject(session.user.id, projectId);
-  const config = connectorConfig(provider);
-  const state = await savePending({
-    provider,
-    projectId,
-    userId: session.user.id,
-    sessionId: session.session.id,
-    phase: "authorize",
-  });
-  const url = new URL(
-    provider === "facebook"
-      ? `https://www.facebook.com/${version()}/dialog/oauth`
-      : provider === "linkedin"
-        ? "https://www.linkedin.com/oauth/v2/authorization"
-        : "https://www.instagram.com/oauth/authorize",
+  return loggedOperation(
+    "lib.connector-connect.startConnection",
+    { provider },
+    async () => {
+      sameOrigin(req);
+      const session = await identity(req);
+      const { projectId } = z
+        .object({ projectId: z.uuid() })
+        .parse(await req.json());
+      await getOwnedProject(session.user.id, projectId);
+      const config = connectorConfig(provider);
+      const state = await savePending({
+        provider,
+        projectId,
+        userId: session.user.id,
+        sessionId: session.session.id,
+        phase: "authorize",
+      });
+      const url = new URL(
+        provider === "facebook"
+          ? `https://www.facebook.com/${version()}/dialog/oauth`
+          : provider === "linkedin"
+            ? "https://www.linkedin.com/oauth/v2/authorization"
+            : "https://www.instagram.com/oauth/authorize",
+      );
+      url.search = new URLSearchParams({
+        client_id: config.id,
+        redirect_uri: config.callback,
+        response_type: "code",
+        state,
+        scope:
+          provider === "facebook"
+            ? "pages_show_list,pages_read_engagement,pages_manage_posts"
+            : provider === "linkedin"
+              ? linkedinScopes().join(" ")
+              : "instagram_business_basic,instagram_business_content_publish",
+        ...(provider === "facebook"
+          ? { auth_type: "rerequest" }
+          : provider === "instagram"
+            ? { enable_fb_login: "0" }
+            : {}),
+      }).toString();
+      return withCookie(
+        Response.json({ url: url.toString() }),
+        provider,
+        state,
+      );
+    },
   );
-  url.search = new URLSearchParams({
-    client_id: config.id,
-    redirect_uri: config.callback,
-    response_type: "code",
-    state,
-    scope:
-      provider === "facebook"
-        ? "pages_show_list,pages_read_engagement,pages_manage_posts"
-        : provider === "linkedin"
-          ? linkedinScopes().join(" ")
-          : "instagram_business_basic,instagram_business_content_publish",
-    ...(provider === "facebook"
-      ? { auth_type: "rerequest" }
-      : provider === "instagram"
-        ? { enable_fb_login: "0" }
-        : {}),
-  }).toString();
-  return withCookie(Response.json({ url: url.toString() }), provider, state);
 }
 export async function callbackConnection(req: Request, provider: Provider) {
-  const url = new URL(req.url);
-  if (
-    !cookie(req, provider) ||
-    url.searchParams.get("state") !== cookie(req, provider)
-  )
-    throw new ConnectorError(
-      "Invalid OAuth state. Start the connection again.",
-    );
-  const value = await pending(req, provider, "authorize", true);
-  if (url.searchParams.has("error"))
-    return withCookie(
-      redirect(`/?projectId=${value.projectId}&connection=cancelled`),
-      provider,
-    );
-  const code = z.string().min(1).max(4096).parse(url.searchParams.get("code"));
-  if (provider === "facebook") {
-    const pages = await facebookPages(code);
-    const nonce = await savePending({ ...value, phase: "select", pages });
-    return withCookie(redirect("/connections/facebook"), provider, nonce);
-  }
-  if (provider === "linkedin") {
-    const accounts = await linkedinAccounts(
-      code,
-      connectorConfig(provider).callback,
-    );
-    const nonce = await savePending({
-      ...value,
-      phase: "select",
-      linkedin: accounts,
-    });
-    return withCookie(redirect("/connections/linkedin"), provider, nonce);
-  }
-  const account = await instagramAccount(code);
-  const project = await getOwnedProject(value.userId, value.projectId);
-  await updateProject(value.userId, value.projectId, {
-    name: project.name,
-    instagramAccountId: account.id,
-    instagramAccessToken: account.token,
-    instagramApiHost: "graph.instagram.com",
-  });
-  return withCookie(
-    redirect(`/?projectId=${value.projectId}&connection=instagram`),
-    provider,
+  return loggedOperation(
+    "lib.connector-connect.callbackConnection",
+    { provider },
+    async () => {
+      const url = new URL(req.url);
+      if (
+        !cookie(req, provider) ||
+        url.searchParams.get("state") !== cookie(req, provider)
+      )
+        throw new ConnectorError(
+          "Invalid OAuth state. Start the connection again.",
+        );
+      const value = await pending(req, provider, "authorize", true);
+      if (url.searchParams.has("error"))
+        return withCookie(
+          redirect(`/?projectId=${value.projectId}&connection=cancelled`),
+          provider,
+        );
+      const code = z
+        .string()
+        .min(1)
+        .max(4096)
+        .parse(url.searchParams.get("code"));
+      if (provider === "facebook") {
+        const pages = await facebookPages(code);
+        const nonce = await savePending({ ...value, phase: "select", pages });
+        return withCookie(redirect("/connections/facebook"), provider, nonce);
+      }
+      if (provider === "linkedin") {
+        const accounts = await linkedinAccounts(
+          code,
+          connectorConfig(provider).callback,
+        );
+        const nonce = await savePending({
+          ...value,
+          phase: "select",
+          linkedin: accounts,
+        });
+        return withCookie(redirect("/connections/linkedin"), provider, nonce);
+      }
+      const account = await instagramAccount(code);
+      const project = await getOwnedProject(value.userId, value.projectId);
+      await updateProject(value.userId, value.projectId, {
+        name: project.name,
+        instagramAccountId: account.id,
+        instagramAccessToken: account.token,
+        instagramApiHost: "graph.instagram.com",
+      });
+      return withCookie(
+        redirect(`/?projectId=${value.projectId}&connection=instagram`),
+        provider,
+      );
+    },
   );
 }
 export async function availablePages(req: Request) {
-  const value = await pending(req, "facebook", "select", false);
-  const project = await getOwnedProject(value.userId, value.projectId);
-  return Response.json(
-    {
-      projectName: project.name,
-      pages: value.pages!.map(({ id, name }) => ({ id, name })),
+  return loggedOperation(
+    "lib.connector-connect.availablePages",
+    {},
+    async () => {
+      const value = await pending(req, "facebook", "select", false);
+      const project = await getOwnedProject(value.userId, value.projectId);
+      return Response.json(
+        {
+          projectName: project.name,
+          pages: value.pages!.map(({ id, name }) => ({ id, name })),
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     },
-    { headers: { "Cache-Control": "no-store" } },
   );
 }
 export async function selectPage(req: Request) {
-  sameOrigin(req);
-  const { pageId } = z
-    .object({ pageId: z.string().min(1).max(100) })
-    .parse(await req.json());
-  const value = await pending(req, "facebook", "select", false);
-  const page = value.pages?.find((item) => item.id === pageId);
-  if (!page)
-    throw new ConnectorError("Select a Page from the authorized list.");
-  await pending(req, "facebook", "select", true);
-  const project = await getOwnedProject(value.userId, value.projectId);
-  await updateProject(value.userId, value.projectId, {
-    name: project.name,
-    facebookPageId: page.id,
-    facebookPageToken: page.access_token,
+  return loggedOperation("lib.connector-connect.selectPage", {}, async () => {
+    sameOrigin(req);
+    const { pageId } = z
+      .object({ pageId: z.string().min(1).max(100) })
+      .parse(await req.json());
+    const value = await pending(req, "facebook", "select", false);
+    const page = value.pages?.find((item) => item.id === pageId);
+    if (!page)
+      throw new ConnectorError("Select a Page from the authorized list.");
+    await pending(req, "facebook", "select", true);
+    const project = await getOwnedProject(value.userId, value.projectId);
+    await updateProject(value.userId, value.projectId, {
+      name: project.name,
+      facebookPageId: page.id,
+      facebookPageToken: page.access_token,
+    });
+    return withCookie(
+      Response.json({
+        url: `/?projectId=${value.projectId}&connection=facebook`,
+      }),
+      "facebook",
+    );
   });
-  return withCookie(
-    Response.json({
-      url: `/?projectId=${value.projectId}&connection=facebook`,
-    }),
-    "facebook",
-  );
 }
 export async function availableLinkedInAccounts(req: Request) {
-  const value = await pending(req, "linkedin", "select", false);
-  const project = await getOwnedProject(value.userId, value.projectId);
-  return Response.json(
-    {
-      projectName: project.name,
-      pages: value.linkedin!.map(({ id, name }) => ({ id, name })),
+  return loggedOperation(
+    "lib.connector-connect.availableLinkedInAccounts",
+    {},
+    async () => {
+      const value = await pending(req, "linkedin", "select", false);
+      const project = await getOwnedProject(value.userId, value.projectId);
+      return Response.json(
+        {
+          projectName: project.name,
+          pages: value.linkedin!.map(({ id, name }) => ({ id, name })),
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     },
-    { headers: { "Cache-Control": "no-store" } },
   );
 }
 export async function selectLinkedInAccount(req: Request) {
-  sameOrigin(req);
-  const { pageId } = z
-    .object({ pageId: z.string().min(1).max(200) })
-    .parse(await req.json());
-  const value = await pending(req, "linkedin", "select", false);
-  const account = value.linkedin?.find((a) => a.id === pageId);
-  if (!account)
-    throw new ConnectorError("Choose an authorized LinkedIn account.");
-  await pending(req, "linkedin", "select", true);
-  await saveConnector(value.userId, value.projectId, {
-    provider: "linkedin",
-    accountId: account.id,
-    accountName: account.name,
-    accessToken: account.access_token,
-    expiresAt: new Date(account.expiresAt),
-    scopes: account.scopes,
-    refreshToken: null,
-    metadata: {},
-  });
-  return withCookie(
-    Response.json({
-      url: `/?projectId=${value.projectId}&connection=linkedin`,
-    }),
-    "linkedin",
+  return loggedOperation(
+    "lib.connector-connect.selectLinkedInAccount",
+    {},
+    async () => {
+      sameOrigin(req);
+      const { pageId } = z
+        .object({ pageId: z.string().min(1).max(200) })
+        .parse(await req.json());
+      const value = await pending(req, "linkedin", "select", false);
+      const account = value.linkedin?.find((a) => a.id === pageId);
+      if (!account)
+        throw new ConnectorError("Choose an authorized LinkedIn account.");
+      await pending(req, "linkedin", "select", true);
+      await saveConnector(value.userId, value.projectId, {
+        provider: "linkedin",
+        accountId: account.id,
+        accountName: account.name,
+        accessToken: account.access_token,
+        expiresAt: new Date(account.expiresAt),
+        scopes: account.scopes,
+        refreshToken: null,
+        metadata: {},
+      });
+      return withCookie(
+        Response.json({
+          url: `/?projectId=${value.projectId}&connection=linkedin`,
+        }),
+        "linkedin",
+      );
+    },
   );
 }
 export function connectionError(
