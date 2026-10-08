@@ -1,0 +1,2 @@
+ALTER TABLE "project_connectors" ADD CONSTRAINT "project_connectors_access_token_encrypted" CHECK ("project_connectors"."access_token" LIKE 'pdcred:v1:%' AND length("project_connectors"."access_token") >= 48) NOT VALID;--> statement-breakpoint
+ALTER TABLE "project_connectors" ADD CONSTRAINT "project_connectors_refresh_token_encrypted" CHECK ("project_connectors"."refresh_token" IS NULL OR ("project_connectors"."refresh_token" LIKE 'pdcred:v1:%' AND length("project_connectors"."refresh_token") >= 48)) NOT VALID;

@@ -1,3 +1,4 @@
+import { encryptedToken } from "./encrypted-token";
 import { sql } from "drizzle-orm";
 import {
   pgTable,
@@ -150,8 +151,8 @@ export const projectConnectors = pgTable(
     provider: platformEnum("provider").notNull(),
     accountId: text("account_id").notNull(),
     accountName: text("account_name").notNull().default(""),
-    accessToken: text("access_token").notNull(),
-    refreshToken: text("refresh_token"),
+    accessToken: encryptedToken("access_token").notNull(),
+    refreshToken: encryptedToken("refresh_token"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     scopes: text("scopes").array().notNull().default([]),
     metadata: jsonb("metadata")
@@ -163,6 +164,14 @@ export const projectConnectors = pgTable(
       .defaultNow(),
   },
   (t) => [
+    check(
+      "project_connectors_access_token_encrypted",
+      sql`${t.accessToken} LIKE 'pdcred:v1:%' AND length(${t.accessToken}) >= 48`,
+    ),
+    check(
+      "project_connectors_refresh_token_encrypted",
+      sql`${t.refreshToken} IS NULL OR (${t.refreshToken} LIKE 'pdcred:v1:%' AND length(${t.refreshToken}) >= 48)`,
+    ),
     uniqueIndex("project_connectors_project_provider_idx").on(
       t.projectId,
       t.provider,

@@ -41,7 +41,9 @@ const sanitize = winston.format((info) => {
     ...(context.getStore()?.redactionSecrets ?? []),
     ...Object.entries(process.env)
       .filter(([key]) =>
-        /SECRET|TOKEN|PASSWORD|DATABASE_URL|ACCESS_KEY/.test(key),
+        /SECRET|TOKEN|PASSWORD|DATABASE_URL|ACCESS_KEY|CREDENTIALS_ENCRYPTION_KEY/.test(
+          key,
+        ),
       )
       .map(([, value]) => value || "")
       .filter((value) => value.length >= 8),

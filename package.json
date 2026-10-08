@@ -10,6 +10,7 @@
     "format": "prettier --write src README.md",
     "test": "tsx --test tests/*.test.ts",
     "jobs:work": "tsx scripts/publishing-worker.ts",
+    "credentials:encrypt": "tsx scripts/encrypt-credentials.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
