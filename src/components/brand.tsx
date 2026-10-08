@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Send } from "lucide-react";
+import { BrandMark } from "./brand-mark";
 import { cn } from "cn";
 
 export function Brand({ className }: { className?: string }) {
@@ -12,9 +12,7 @@ export function Brand({ className }: { className?: string }) {
         className,
       )}
     >
-      <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-        <Send className="size-4" aria-hidden="true" />
-      </span>
+      <BrandMark />
       <span>PostDispatch</span>
     </Link>
   );

@@ -232,3 +232,9 @@ Connect once at `${APP_URL}/api/mcp` using OAuth or an account bearer token from
 Migration `0010` creates `account_mcp_tokens` and removes the project token column. Existing project tokens are intentionally invalidated. Existing project OAuth tokens cannot access the new audience or refresh into account credentials; users must reconnect. Account tokens are generated only on request, stored as SHA-256 hashes, and shown only once. Replacing an account token invalidates it for all clients using that token; OAuth grants are revoked separately in MCP integration.
 
 Private uploads remain bound to the selected project. `create_upload_token` returns a short-lived token and `/api/mcp/uploads?projectId=...` URL; raw uploads accept only that upload token. Direct upload completion URLs use `/api/mcp/uploads/complete?projectId=...` with the upload-specific completion token. Reuse the same projectId when finalizing uploads and creating drafts. The old `/api/mcp/<projectId>` routes and project token/OAuth settings endpoints are removed.
+
+## Brand assets
+
+The PostDispatch mark combines a P with a dispatch arrow in its negative space. The shared `Brand` component uses the mark with the app's Manrope wordmark and theme colors. Reusable exports are in `public/brand/`: `logo.svg`, `logo-on-dark.svg`, `logo.png`, `mark.svg`, and `mark.png`. SVG wordmarks embed the bundled Manrope font so they do not require a remote font. PNGs have transparent backgrounds.
+
+Next.js discovers `src/app/favicon.ico` (16/32/48 pixels), `icon.svg`, and `apple-icon.png` (180 pixels) automatically. To regenerate exports from the shared mark geometry and Tailwind theme colors, run `node --import tsx scripts/generate-brand.ts` from the project root.
