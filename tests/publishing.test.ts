@@ -31,7 +31,7 @@ import {
   getProject,
   listProjects,
 } from "../src/lib/projects";
-import { publishPost } from "../src/lib/meta";
+import { publishPost } from "./helpers/direct-publish";
 import type { Platform } from "../src/lib/types";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)

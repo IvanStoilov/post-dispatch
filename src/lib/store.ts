@@ -2,7 +2,7 @@ import { platforms } from "./types";
 import { and, asc, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
-import { posts, postAssets, type PostRow } from "../db/schema";
+import { posts, postAssets, publishJobs, type PostRow } from "../db/schema";
 import type { Platform, Post, StoredAsset } from "./types";
 import {
   imageFileSchema,
@@ -72,11 +72,12 @@ type MediaPost = PostRow & {
   assets: StoredAsset[];
   imageKey: string | null;
   imageBucket: string | null;
+  deliveries?: Post["deliveries"];
 };
 export function storedAssets(row: { assets: StoredAsset[] }): StoredAsset[] {
   return row.assets;
 }
-async function hydrate(
+export async function hydrate(
   rows: PostRow[],
   db: ReturnType<typeof getDb> | Tx = getDb(),
 ): Promise<MediaPost[]> {
@@ -91,6 +92,20 @@ async function hydrate(
       ),
     )
     .orderBy(asc(postAssets.position));
+  const deliveries = await db
+    .select({
+      postId: publishJobs.postId,
+      platform: publishJobs.platform,
+      status: publishJobs.status,
+      error: publishJobs.error,
+    })
+    .from(publishJobs)
+    .where(
+      inArray(
+        publishJobs.postId,
+        rows.map((row) => row.id),
+      ),
+    );
   const grouped = new Map<string, StoredAsset[]>();
   for (const asset of media) {
     const items = grouped.get(asset.postId) || [];
@@ -108,13 +123,19 @@ async function hydrate(
     const first = assets[0]?.kind === "IMAGE" ? assets[0] : undefined;
     return {
       ...row,
+      deliveries: deliveries
+        .filter((j) => j.postId === row.id)
+        .map(({ postId, ...safe }) => {
+          void postId;
+          return safe;
+        }),
       assets,
       imageKey: first?.imageKey ?? null,
       imageBucket: first?.imageBucket ?? null,
     };
   });
 }
-function toPost(row: MediaPost): Post {
+export function toPost(row: MediaPost): Post {
   const { imageKey, imageBucket, assets: rawAssets, ...safe } = row;
   void imageKey;
   void imageBucket;

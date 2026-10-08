@@ -26,7 +26,7 @@ import {
 } from "../src/lib/connectors/linkedin";
 import { mcpDraftSchema, filesDraftSchema } from "../src/lib/mcp-images";
 import { createPost, deletePost } from "../src/lib/store";
-import { publishPost } from "../src/lib/publishing";
+import { publishPost } from "./helpers/direct-publish";
 import type { Post } from "../src/lib/types";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)

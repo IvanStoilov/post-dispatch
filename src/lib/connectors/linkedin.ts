@@ -2,7 +2,11 @@ import { z } from "zod";
 import { setTimeout as delay } from "node:timers/promises";
 import { logger, logContext, redact } from "../logger";
 import { readImage } from "../storage";
-import type { PublishContext } from "./types";
+import {
+  MediaPending,
+  type PublishContext,
+  type PublishProgress,
+} from "./types";
 
 // Posts commentary uses LinkedIn's little Text Format, not raw plaintext.
 const reservedTextCharacters = new Set("\\|{}@[]()<>#*_~");
@@ -215,12 +219,13 @@ export async function publishLinkedIn({
   assets,
   urls,
   signal,
+  progress,
 }: PublishContext) {
   if (!/^urn:li:(person|organization):[\w-]+$/.test(connection.accountId))
     throw new Error("Invalid LinkedIn account. Reconnect it.");
   const token = connection.accessToken;
-  const ids: string[] = [];
-  for (const asset of assets) {
+  const ids: string[] = [...(progress?.state.mediaIds || [])];
+  for (const asset of assets.slice(ids.length)) {
     const bytes = await readImage(asset);
     ids.push(
       await uploadLinkedInAsset(
@@ -229,13 +234,20 @@ export async function publishLinkedIn({
         bytes,
         asset.kind,
         signal,
+        progress,
       ),
     );
+    if (progress) {
+      const state = { ...progress.state, mediaIds: [...ids] };
+      await progress.checkpoint(state);
+      progress.state = state;
+    }
   }
   if (!assets.length && urls.length)
     throw new Error(
       "Re-upload this post’s image before publishing to LinkedIn.",
     );
+  await progress?.beforeSubmit();
   const { response } = await linkedinRequest("/rest/posts", token, signal, {
     author: connection.accountId,
     commentary: escapeLinkedInText(post.caption),
@@ -267,6 +279,7 @@ export async function uploadLinkedInAsset(
   bytes: Uint8Array,
   kind: "IMAGE" | "VIDEO",
   signal: AbortSignal,
+  progress?: PublishProgress,
 ): Promise<string> {
   if (kind === "IMAGE") {
     const { data } = await linkedinRequest<{
@@ -277,59 +290,73 @@ export async function uploadLinkedInAsset(
     await upload(data.value.uploadUrl, bytes, token, signal, "image/jpeg");
     return data.value.image;
   } else {
-    const { data } = await linkedinRequest<{
-      value: {
-        video: string;
-        uploadToken: string;
-        uploadInstructions: {
-          firstByte: number;
-          lastByte: number;
-          uploadUrl: string;
-        }[];
-      };
-    }>("/rest/videos?action=initializeUpload", token, signal, {
-      initializeUploadRequest: {
-        owner: owner,
-        fileSizeBytes: bytes.length,
-        uploadCaptions: false,
-        uploadThumbnail: false,
-      },
-    });
-    const parts: string[] = [];
-    let offset = 0;
-    for (const part of data.value.uploadInstructions) {
-      if (
-        part.firstByte !== offset ||
-        part.lastByte < offset ||
-        part.lastByte >= bytes.length
-      )
-        throw new Error("Invalid LinkedIn video upload ranges.");
-      const r = await upload(
-        part.uploadUrl,
-        bytes.subarray(part.firstByte, part.lastByte + 1),
+    let videoId = progress?.state.videoId;
+    if (!videoId) {
+      const { data } = await linkedinRequest<{
+        value: {
+          video: string;
+          uploadToken: string;
+          uploadInstructions: {
+            firstByte: number;
+            lastByte: number;
+            uploadUrl: string;
+          }[];
+        };
+      }>("/rest/videos?action=initializeUpload", token, signal, {
+        initializeUploadRequest: {
+          owner: owner,
+          fileSizeBytes: bytes.length,
+          uploadCaptions: false,
+          uploadThumbnail: false,
+        },
+      });
+      const parts: string[] = [];
+      let offset = 0;
+      for (const part of data.value.uploadInstructions) {
+        if (
+          part.firstByte !== offset ||
+          part.lastByte < offset ||
+          part.lastByte >= bytes.length
+        )
+          throw new Error("Invalid LinkedIn video upload ranges.");
+        const r = await upload(
+          part.uploadUrl,
+          bytes.subarray(part.firstByte, part.lastByte + 1),
+          token,
+          signal,
+          "application/octet-stream",
+        );
+        const etag = r.headers.get("etag");
+        if (!etag)
+          throw new Error("LinkedIn did not return a video upload receipt.");
+        parts.push(etag.replace(/^"|"$/g, ""));
+        offset = part.lastByte + 1;
+      }
+      if (offset !== bytes.length)
+        throw new Error("Incomplete LinkedIn video upload.");
+      await linkedinRequest(
+        "/rest/videos?action=finalizeUpload",
         token,
         signal,
-        "application/octet-stream",
+        {
+          finalizeUploadRequest: {
+            video: data.value.video,
+            uploadToken: data.value.uploadToken,
+            uploadedPartIds: parts,
+          },
+        },
       );
-      const etag = r.headers.get("etag");
-      if (!etag)
-        throw new Error("LinkedIn did not return a video upload receipt.");
-      parts.push(etag.replace(/^"|"$/g, ""));
-      offset = part.lastByte + 1;
+      videoId = data.value.video;
+      if (progress) {
+        const state = { ...progress.state, videoId };
+        await progress.checkpoint(state);
+        progress.state = state;
+      }
     }
-    if (offset !== bytes.length)
-      throw new Error("Incomplete LinkedIn video upload.");
-    await linkedinRequest("/rest/videos?action=finalizeUpload", token, signal, {
-      finalizeUploadRequest: {
-        video: data.value.video,
-        uploadToken: data.value.uploadToken,
-        uploadedPartIds: parts,
-      },
-    });
     let ready = false;
     for (let attempt = 0; attempt < 18; attempt++) {
       const { data: video } = await linkedinRequest<{ status: string }>(
-        `/rest/videos/${encodeURIComponent(data.value.video)}`,
+        `/rest/videos/${encodeURIComponent(videoId)}`,
         token,
         signal,
       );
@@ -339,12 +366,13 @@ export async function uploadLinkedInAsset(
       }
       if (!["PROCESSING", "WAITING_UPLOAD"].includes(video.status))
         throw new Error("LinkedIn video processing failed.");
+      if (progress) throw new MediaPending(15);
       await delay(5000, undefined, { signal });
     }
     if (!ready)
       throw new Error(
         "LinkedIn is still processing the video. Check before resubmitting.",
       );
-    return data.value.video;
+    return videoId;
   }
 }

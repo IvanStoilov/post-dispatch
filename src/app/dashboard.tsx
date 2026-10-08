@@ -157,6 +157,8 @@ export default function Dashboard({
   const requestSequence = useRef(0);
   const project = projects.find((p) => p.id === projectId);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [view, setView] = useState<View>("Inbox");
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -171,8 +173,6 @@ export default function Dashboard({
     }, 0);
     return () => clearTimeout(timer);
   }, []);
-  const [filter, setFilter] = useState("all");
-  const [search, setSearch] = useState("");
   const [connections, setConnections] = useState({
     facebook: false,
     instagram: false,
@@ -365,9 +365,25 @@ export default function Dashboard({
           : "Publishing…",
       );
       await request(`/api/posts/${p.id}/publish`, "POST");
-      setNotice("Published successfully.");
+      setNotice(
+        "Publishing queued. You can close this page; progress will update automatically.",
+      );
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Publishing failed");
+    } finally {
+      await refresh();
+      setBusy(false);
+    }
+  }
+  async function retryPublication(id: string) {
+    setBusy(true);
+    try {
+      await request(`/api/posts/${id}/retry`, "POST");
+      setNotice(
+        "Retry queued for failed channels. Completed channels will be skipped.",
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Retry failed");
     } finally {
       await refresh();
       setBusy(false);
@@ -741,6 +757,7 @@ export default function Dashboard({
                       busy={busy}
                       onEdit={() => edit(post)}
                       onPublish={() => setConfirm(post)}
+                      onRetry={() => void retryPublication(post.id)}
                       onDelete={() => setDeleteConfirm(post)}
                     />
                   ))}

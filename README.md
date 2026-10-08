@@ -238,3 +238,80 @@ Private uploads remain bound to the selected project. `create_upload_token` retu
 The PostDispatch mark combines a P with a dispatch arrow in its negative space. The shared `Brand` component uses the mark with the app's Manrope wordmark and theme colors. Reusable exports are in `public/brand/`: `logo.svg`, `logo-on-dark.svg`, `logo.png`, `mark.svg`, and `mark.png`. SVG wordmarks embed the bundled Manrope font so they do not require a remote font. PNGs have transparent backgrounds.
 
 Next.js discovers `src/app/favicon.ico` (16/32/48 pixels), `icon.svg`, and `apple-icon.png` (180 pixels) automatically. To regenerate exports from the shared mark geometry and Tailwind theme colors, run `node --import tsx scripts/generate-brand.ts` from the project root.
+
+### Queue adapter
+
+`src/lib/queue` defines a small messaging boundary. Development defaults to local
+execution: `send()` awaits the shared handler without contacting Vercel. Handler
+errors reach the caller; local delivery has no automatic retries or persistence.
+Production and Vercel deployments select the Vercel adapter. Local delivery is
+rejected in production, and unknown `QUEUE_DRIVER` values fail explicitly.
+
+Define each topic and its handler once, then export its `send` and callback:
+
+```ts
+const publishingQueue = createQueue<{ jobId: string }>(
+  "publishing",
+  async ({ jobId }) => processPublishingJob(jobId),
+);
+export const send = publishingQueue.send;
+export const POST = publishingQueue.handleCallback();
+
+// In the producer:
+await send({ jobId });
+```
+
+For hosted delivery, configure the consumer route's queue trigger in `vercel.json`.
+The local callback route rejects HTTP delivery; development calls the handler
+through `send()` directly. Only `src/lib/queue/vercel.ts` imports the provider SDK.
+Queue messages should carry job IDs, with job state and duplicate protection in
+Postgres. The publishing endpoint saves jobs and returns HTTP 202; workers use this adapter
+to deliver those jobs.
+
+### Durable publishing
+
+Approving a post atomically saves its content/media snapshot and one `publish_jobs`
+row per destination, then returns HTTP 202. The dashboard shows per-channel
+progress and refreshes it automatically. Posts stay immutable while publishing.
+Workers claim a ten-minute fenced lease and have a four-minute execution deadline.
+Only job IDs go into queue messages; credentials are read from the original
+connected account, and a changed/disconnected account cannot receive the post.
+
+Unpublished photo IDs, Instagram containers, and finalized LinkedIn video IDs are
+checkpointed in Postgres. Media processing yields a delayed message instead of
+keeping a function alive. Safe preparation failures retry up to five attempts with
+backoff; processing is limited to 120 polls and a 24-hour preparation deadline.
+Completed destinations are skipped. The UI can retry failed preparation channels
+without repeating successes; it cannot retry uncertain final submissions.
+
+The worker records `submitting` **before** calling the final publishing endpoint.
+If that call's response is lost, interrupted, or cannot be saved, the job is
+reconciled rather than published again. Instagram checks the saved container.
+Without an exact published post ID, Facebook/LinkedIn outcomes cannot be established
+safely; the job becomes `needs_review`. A published Instagram container with no
+saved post ID also requires review. There is no claim of exactly-once external
+publishing, and caption/time matching never authorizes a retry.
+
+The job row is also a durable outbox. Dispatch is reserved in Postgres before
+sending; a crash between commit and enqueue, an expired message, or an abandoned
+worker is recovered by `/api/cron/publishing`. Overlapping deliveries cannot publish
+through another worker's lease. Configure a random **CRON_SECRET** in Vercel;
+recovery fails closed without it. Queue delivery carries the same secret in an internal header, checked before
+the SDK processes any payload. Missing/invalid secrets cannot trigger publishing;
+the SDK handles queue leases and acknowledgements after that check.
+
+`vercel.json` registers the `publishing` queue consumer and a daily recovery sweep
+at 04:00 UTC, compatible with Hobby cron limits. Normal delivery and delayed
+continuations are event-driven; the sweep is a fallback. **On Pro, change the cron
+schedule to `*/5 * * * *` for recovery within approximately five minutes** (an active
+worker lease must also expire). With the daily default, a missed dispatch may wait
+until the next sweep. Redeploy after adding CRON_SECRET and the queue configuration.
+Hosted queue delivery must be verified on the deployment; local tests use the
+provider-free adapter and mock social network requests.
+
+During local development, run `pnpm jobs:work` alongside `pnpm dev`. Initial jobs
+may execute through the post-response callback; the local worker handles delayed
+processing, retries and recovery, including after restarting the server. All
+state stays in Postgres, so the worker can resume after a restart. The adapter's
+local `send()` does not implement delayed timers; the database's due time and the
+worker provide that scheduling without contacting Vercel.

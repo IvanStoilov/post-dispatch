@@ -38,12 +38,14 @@ export function PostCard({
   onEdit,
   onPublish,
   onDelete,
+  onRetry,
 }: {
   post: Post;
   busy: boolean;
   onEdit: () => void;
   onPublish: () => void;
   onDelete: () => void;
+  onRetry: () => void;
 }) {
   const label = {
     draft: "Awaiting review",
@@ -95,6 +97,29 @@ export function PostCard({
           </CardDescription>
         </CardHeader>
         <CardContent className="mt-auto flex flex-col gap-3">
+          {!!post.deliveries?.length && (
+            <div
+              className="flex flex-col gap-1 text-xs text-muted-foreground"
+              aria-live="polite"
+            >
+              {post.deliveries.map((delivery) => (
+                <p key={delivery.platform}>
+                  {channelLabels[delivery.platform]}:{" "}
+                  {
+                    {
+                      queued: "Queued",
+                      preparing: "Preparing media",
+                      waiting: "Processing media",
+                      submitting: "Submitting",
+                      published: "Published",
+                      failed: "Failed before submission",
+                      needs_review: "Check account — outcome uncertain",
+                    }[delivery.status]
+                  }
+                </p>
+              ))}
+            </div>
+          )}
           {post.error && (
             <Alert variant="destructive">
               <AlertCircle aria-hidden="true" />
@@ -139,10 +164,16 @@ export function PostCard({
               {post.status === "published"
                 ? "Delivered to your channels."
                 : post.status === "publishing"
-                  ? "Delivery in progress. Check the selected networks if interrupted."
+                  ? "Delivery continues in the background. You can close this page."
                   : "Check your channels before resubmitting."}
             </p>
           )}
+          {post.status === "needs_review" &&
+            post.deliveries?.some((d) => d.status === "failed") && (
+              <Button variant="outline" disabled={busy} onClick={onRetry}>
+                Retry failed channels
+              </Button>
+            )}
           {post.status !== "publishing" && (
             <Button
               variant="ghost"

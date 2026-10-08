@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/queues/publishing/route.ts": {
+      "experimentalTriggers": [
+        { "type": "queue/v2beta", "topic": "publishing" }
+      ]
+    }
+  },
+  "crons": [{ "path": "/api/cron/publishing", "schedule": "0 4 * * *" }]
+}

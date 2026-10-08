@@ -548,3 +548,67 @@ export const oauthClientAssertions = pgTable("oauth_client_assertions", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
+
+// Each destination is independent. The row is also the durable queue outbox.
+export const publishJobStatus = pgEnum("publish_job_status", [
+  "queued",
+  "preparing",
+  "waiting",
+  "submitting",
+  "published",
+  "failed",
+  "needs_review",
+]);
+export const publishJobs = pgTable(
+  "publish_jobs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    platform: platformEnum("platform").notNull(),
+    accountId: text("account_id").notNull(),
+    status: publishJobStatus("status").notNull().default("queued"),
+    snapshot: jsonb("snapshot")
+      .$type<{
+        post: import("../lib/types").Post;
+        assets: import("../lib/types").StoredAsset[];
+        externalUrl: string;
+      }>()
+      .notNull(),
+    state: jsonb("state")
+      .$type<import("../lib/connectors/types").PublishState>()
+      .notNull()
+      .default({}),
+    remoteId: text("remote_id"),
+    attempts: integer("attempts").notNull().default(0),
+    polls: integer("polls").notNull().default(0),
+    error: text("error"),
+    leaseToken: uuid("lease_token"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    dispatchAt: timestamp("dispatch_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("publish_jobs_post_platform_idx").on(t.postId, t.platform),
+    index("publish_jobs_dispatch_idx").on(t.status, t.dispatchAt),
+    check(
+      "publish_jobs_attempts_valid",
+      sql`${t.attempts} >= 0 AND ${t.polls} >= 0`,
+    ),
+  ],
+);
+export type PublishJob = typeof publishJobs.$inferSelect;

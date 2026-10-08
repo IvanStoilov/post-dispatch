@@ -39,7 +39,7 @@ import { mcpDraftSchema, filesDraftSchema } from "../src/lib/mcp-images";
 import { validateAssetKinds } from "../src/lib/asset-inputs";
 import { rotateAccountToken } from "../src/lib/mcp-account";
 import { handleAccountMcp } from "../src/lib/mcp";
-import { publishPost } from "../src/lib/meta";
+import { publishPost } from "./helpers/direct-publish";
 import { GET as previewAsset } from "../src/app/api/posts/[id]/assets/[assetId]/route";
 import {
   POST as prepareUpload,

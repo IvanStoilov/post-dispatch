@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { metaRequest } from "../meta-client";
-import type { PublishContext } from "./types";
+import { MediaPending, type PublishContext } from "./types";
 function endpoint(host: string, id: string, edge = "") {
   return `https://${host}/${process.env.META_API_VERSION || "v25.0"}/${id}${edge ? `/${edge}` : ""}`;
 }
@@ -30,6 +30,7 @@ export async function waitForInstagramContainer(
   id: string,
   token: string,
   signal: AbortSignal,
+  durable = false,
 ) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const { response, data } = await metaRequest(
@@ -47,6 +48,7 @@ export async function waitForInstagramContainer(
         data.status ||
           `Instagram media processing failed (${data.status_code || "unknown status"})`,
       );
+    if (durable) throw new MediaPending(60);
     if (attempt < 3) await delay(60000, undefined, { signal });
   }
   throw new Error(
@@ -59,63 +61,70 @@ export async function publishMeta({
   assets,
   urls,
   signal,
+  progress,
 }: PublishContext) {
   const video = assets[0]?.kind === "VIDEO";
-  let publishedId: string;
+  const submit = async (
+    host: string,
+    id: string,
+    edge: string,
+    fields: Record<string, string>,
+  ) => {
+    await progress?.beforeSubmit();
+    return graph(host, id, edge, connection.accessToken, fields, signal);
+  };
+  const checkpoint = async (state: import("./types").PublishState) => {
+    if (progress) {
+      await progress.checkpoint(state);
+      progress.state = state;
+    }
+  };
   if (connection.provider === "facebook") {
     const page = connection.accountId,
       token = connection.accessToken;
     if (video)
-      publishedId = await graph(
-        "graph-video.facebook.com",
-        page,
-        "videos",
-        token,
-        { file_url: urls[0], description: post.caption },
-        signal,
-      );
-    else if (urls.length > 1) {
-      const fields: Record<string, string> = { message: post.caption };
-      for (const [index, url] of urls.entries()) {
-        const photo = await graph(
-          "graph.facebook.com",
-          page,
-          "photos",
-          token,
-          { url, published: "false" },
-          signal,
+      return submit("graph-video.facebook.com", page, "videos", {
+        file_url: urls[0],
+        description: post.caption,
+      });
+    if (urls.length > 1) {
+      const photos = [...(progress?.state.mediaIds || [])];
+      for (let i = photos.length; i < urls.length; i++) {
+        photos.push(
+          await graph(
+            "graph.facebook.com",
+            page,
+            "photos",
+            token,
+            { url: urls[i], published: "false" },
+            signal,
+          ),
         );
-        fields[`attached_media[${index}]`] = JSON.stringify({
-          media_fbid: photo,
-        });
+        await checkpoint({ mediaIds: photos });
       }
-      publishedId = await graph(
-        "graph.facebook.com",
-        page,
-        "feed",
-        token,
-        fields,
-        signal,
-      );
-    } else
-      publishedId = await graph(
-        "graph.facebook.com",
-        page,
-        urls.length ? "photos" : "feed",
-        token,
-        urls.length
-          ? { url: urls[0], caption: post.caption }
-          : { message: post.caption },
-        signal,
-      );
-  } else {
-    const account = connection.accountId,
-      token = connection.accessToken;
-    const host =
-      connection.metadata.apiHost === "graph.instagram.com"
-        ? "graph.instagram.com"
-        : "graph.facebook.com";
-    let container: string;
+      const fields: Record<string, string> = { message: post.caption };
+      photos.forEach((photo, i) => {
+        fields[`attached_media[${i}]`] = JSON.stringify({ media_fbid: photo });
+      });
+      return submit("graph.facebook.com", page, "feed", fields);
+    }
+    return submit(
+      "graph.facebook.com",
+      page,
+      urls.length ? "photos" : "feed",
+      urls.length
+        ? { url: urls[0], caption: post.caption }
+        : { message: post.caption },
+    );
+  }
+  const host =
+    connection.metadata.apiHost === "graph.instagram.com"
+      ? "graph.instagram.com"
+      : "graph.facebook.com";
+  const account = connection.accountId,
+    token = connection.accessToken;
+  let container = progress?.state.containerId;
+  if (!container) {
     if (video) {
       container = await graph(
         host,
@@ -130,20 +139,21 @@ export async function publishMeta({
         },
         signal,
       );
-      await waitForInstagramContainer(host, container, token, signal);
     } else if (urls.length > 1) {
-      const children: string[] = [];
-      for (const url of urls)
+      const children = [...(progress?.state.mediaIds || [])];
+      for (let i = children.length; i < urls.length; i++) {
         children.push(
           await graph(
             host,
             account,
             "media",
             token,
-            { image_url: url, is_carousel_item: "true" },
+            { image_url: urls[i], is_carousel_item: "true" },
             signal,
           ),
         );
+        await checkpoint({ mediaIds: children });
+      }
       container = await graph(
         host,
         account,
@@ -156,8 +166,7 @@ export async function publishMeta({
         },
         signal,
       );
-      await waitForInstagramContainer(host, container, token, signal);
-    } else
+    } else {
       container = await graph(
         host,
         account,
@@ -166,14 +175,10 @@ export async function publishMeta({
         { image_url: urls[0], caption: post.caption },
         signal,
       );
-    publishedId = await graph(
-      host,
-      account,
-      "media_publish",
-      token,
-      { creation_id: container },
-      signal,
-    );
+    }
+    await checkpoint({ ...progress?.state, containerId: container });
   }
-  return publishedId;
+  if (video || urls.length > 1 || progress)
+    await waitForInstagramContainer(host, container, token, signal, !!progress);
+  return submit(host, account, "media_publish", { creation_id: container });
 }

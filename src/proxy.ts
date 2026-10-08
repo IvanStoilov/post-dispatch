@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { publicPages, publicAssets } from "@/lib/public-routes";
 import { getSessionCookie } from "better-auth/cookies";
 export function proxy(req: NextRequest) {
+  // Internal delivery authenticates with CRON_SECRET before processing;
+  // the Queue SDK subsequently handles its message lease and receipt. Vercel may use the deployment hostname.
+  if (
+    ["/api/queues/publishing", "/api/cron/publishing"].includes(
+      req.nextUrl.pathname,
+    )
+  )
+    return NextResponse.next();
   const expected = new URL(process.env.APP_URL || "http://localhost:8200");
   const origin = req.headers.get("origin");
   if (req.headers.get("host") !== expected.host)

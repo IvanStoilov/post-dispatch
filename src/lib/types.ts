@@ -33,6 +33,18 @@ export type Post = {
   createdAt: string;
   results: Partial<Record<Platform, string>>;
   error?: string;
+  deliveries?: {
+    platform: Platform;
+    status:
+      | "queued"
+      | "preparing"
+      | "waiting"
+      | "submitting"
+      | "published"
+      | "failed"
+      | "needs_review";
+    error: string | null;
+  }[];
 };
 
 export type Project = {
