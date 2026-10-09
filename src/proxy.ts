@@ -44,6 +44,8 @@ export function proxy(req: NextRequest) {
     path.startsWith("/.well-known/") ||
     path === "/signin" ||
     path === "/signup" ||
+    path === "/forgot-password" ||
+    path === "/reset-password" ||
     path === "/api/mcp" ||
     path.startsWith("/api/mcp/")
   )

@@ -68,18 +68,29 @@ test(
         );
         const data = await response.json();
         createdUsers.push(data.user.id);
-        return { id: data.user.id, email, cookie: cookies(response) };
+        // Email verification is required, so signup alone gives no session.
+        assert.equal(data.token, null);
+        assert.equal(cookies(response), "");
+        const [user] = await getDb()
+          .select()
+          .from(users)
+          .where(eq(users.id, data.user.id));
+        assert.equal(user.emailVerified, false);
+        await getDb()
+          .update(users)
+          .set({ emailVerified: true })
+          .where(eq(users.id, data.user.id));
+        const signin = await getAuth().handler(
+          request("/api/auth/sign-in/email", "POST", "", { email, password }),
+        );
+        assert.equal(signin.status, 200);
+        return { id: data.user.id, email, cookie: cookies(signin) };
       };
       const a = await signup(),
         b = await signup();
       await t.test(
-        "signup creates hashed credentials and a usable session without verification",
+        "signup creates hashed credentials and a usable session once verified",
         async () => {
-          const [user] = await getDb()
-            .select()
-            .from(users)
-            .where(eq(users.id, a.id));
-          assert.equal(user.emailVerified, false);
           const [account] = await getDb()
             .select()
             .from(accounts)

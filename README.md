@@ -25,7 +25,21 @@ Open http://localhost:8200/signup to create an account, or /signin to sign in. D
 
 ## Authentication and ownership
 
-Better Auth uses email/password authentication through its Drizzle adapter. Signup/signin are at `/signup` and `/signin`; auth endpoints are under `/api/auth`. Signup automatically signs the user in. Email verification is disabled for now. Social providers and password reset emails are not configured.
+Better Auth uses email/password authentication through its Drizzle adapter. Signup/signin are at `/signup` and `/signin`; auth endpoints are under `/api/auth`. New accounts must confirm their email before signing in: signup sends a confirmation link (valid 24 hours), and signing in unconfirmed re-sends it. The link signs the user in. Accounts that existed before verification was introduced are marked verified by migration 0013. Forgotten passwords are reset at `/forgot-password`; reset links are single-use, expire after 1 hour, and sign out every other session. Social providers are not configured.
+
+### Email
+
+Mail goes through `src/lib/mail`, which hides the provider behind one `sendMail()` call. Pick a provider with `MAIL_PROVIDER`:
+
+| `MAIL_PROVIDER` | Also set           | Notes                                                                                                                          |
+| --------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `resend`        | `RESEND_API_KEY`   | Verify your sending domain in Resend, and keep click tracking off so one-time links aren't rewritten.                          |
+| `sendgrid`      | `SENDGRID_API_KEY` | Verify the sender identity or domain. Click tracking is disabled per message.                                                  |
+| `console`       | —                  | Development only: prints emails, including links, to the server output. The default outside production; refused in production. |
+
+`MAIL_FROM` (for example `PostDispatch <hello@yourdomain.com>`) is required in production; `MAIL_REPLY_TO` is optional. To add another provider, implement `MailProvider` in `src/lib/mail/providers/` and register it in `src/lib/mail/index.ts`. Emails are sent after the response, and failures are logged as `mail.failed` with the reason.
+
+Templates are [React Email](https://react.email) components in `src/emails` (shared layout and brand colors in `src/emails/_components`). `src/lib/mail/templates.tsx` renders each one to HTML plus a plain-text version. Preview them at http://localhost:8300 with `pnpm email:dev`, which shows each template with its `PreviewProps` and checks client compatibility. The logo is loaded from `APP_URL`, so it only appears in real emails once `APP_URL` is a publicly reachable domain.
 
 The auth schema consists of `users`, `sessions`, `accounts`, and `verifications`. Better Auth hashes passwords in credential accounts, stores sessions in Postgres, and sets its session cookies. `BETTER_AUTH_SECRET` must remain private and stable across deployments.
 
@@ -177,7 +191,7 @@ Drizzle Kit loads `.env*` using Next's environment loader, matching the applicat
 
 Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing requires draft status; deletion is available for drafts, published posts, and posts needing review, but is blocked while publishing. Deleting removes the PostDispatch record and its private image, with a confirmation in the dashboard. Posts on the connected social networks are not deleted. Each channel's result is persisted separately; network calls happen outside the transaction. Publishing now uses durable per-channel jobs and conservative reconciliation; see Durable publishing below.
 
-Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each account has a bearer token; MCP can create drafts but cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login, email verification, password reset emails, a scheduler.
+Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each account has a bearer token; MCP can create drafts but cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login or scheduler.
 
 ## Meta debug logs
 

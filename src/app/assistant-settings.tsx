@@ -119,9 +119,9 @@ export default function AssistantSettings({
             <div className="flex flex-col gap-3">
               <h3 className="text-sm font-semibold">Try a first draft</h3>
               <blockquote className="rounded-lg bg-muted p-4 text-sm leading-relaxed">
-                Create a Facebook draft for {project?.name || "my project"}{" "}
-                about our latest update. Use projectId{" "}
-                {project?.id || "from list_projects"}.
+                Create a Facebook draft for the project
+                {project?.name || "my project"} about our latest update and send
+                it to the PostDispatch MCP.
               </blockquote>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 Remote assistants need a public HTTPS endpoint. Call

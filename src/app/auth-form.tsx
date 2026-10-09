@@ -3,8 +3,7 @@ import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { Brand } from "@/components/brand";
-import { FlowPanel } from "@/components/flow-panel";
+import { AuthShell } from "./auth-shell";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,13 +23,26 @@ import {
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowRight, AlertCircle } from "lucide-react";
+import { ArrowRight, AlertCircle, CheckCircle2, MailCheck } from "lucide-react";
+export type AuthNotice = "verified" | "verification-failed" | "password-reset";
+const notices: Record<AuthNotice, { text: string; error?: boolean }> = {
+  verified: { text: "Your email is confirmed. Sign in to continue." },
+  "verification-failed": {
+    text: "That confirmation link is invalid or has expired. Sign in and we’ll send you a new one.",
+    error: true,
+  },
+  "password-reset": {
+    text: "Your password has been changed. Sign in with your new password.",
+  },
+};
 export default function AuthForm({
   mode,
   oauthQuery,
+  notice,
 }: {
   mode: "signin" | "signup";
   oauthQuery?: string;
+  notice?: AuthNotice;
 }) {
   const router = useRouter();
   const signup = mode === "signup";
@@ -40,6 +52,9 @@ export default function AuthForm({
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Set once a confirmation email is on its way; switches to the inbox view.
+  const [sentTo, setSentTo] = useState("");
+  const [resent, setResent] = useState(false);
   const confirmationInput = useRef<HTMLInputElement>(null);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,25 +65,38 @@ export default function AuthForm({
       return;
     }
     setBusy(true);
+    // Where the confirmation link lands; /signin forwards signed-in users on.
+    const callbackURL = `/signin?${oauthQuery ? `${oauthQuery}&` : ""}verified=1`;
     try {
       const result = signup
         ? await authClient.signUp.email({
             name: name.trim(),
             email: email.trim(),
             password,
-            callbackURL: "/",
+            callbackURL,
             ...(oauthQuery ? { oauth_query: oauthQuery } : {}),
           })
         : await authClient.signIn.email({
             email: email.trim(),
             password,
-            callbackURL: "/",
+            callbackURL,
             ...(oauthQuery ? { oauth_query: oauthQuery } : {}),
           });
+      if (result.error?.code === "EMAIL_NOT_VERIFIED") {
+        // Sign-in re-sends the confirmation link for unverified accounts.
+        setSentTo(email.trim());
+        setBusy(false);
+        return;
+      }
       if (result.error) {
         setError(
           result.error.message || "Unable to sign in. Please try again.",
         );
+        setBusy(false);
+        return;
+      }
+      if (signup && !result.data?.token) {
+        setSentTo(email.trim());
         setBusy(false);
         return;
       }
@@ -88,180 +116,251 @@ export default function AuthForm({
       setBusy(false);
     }
   }
+  async function resend() {
+    setBusy(true);
+    setError("");
+    const result = await authClient.sendVerificationEmail({
+      email: sentTo,
+      callbackURL: `/signin?${oauthQuery ? `${oauthQuery}&` : ""}verified=1`,
+    });
+    setBusy(false);
+    if (result.error)
+      setError(result.error.message || "Could not send the email. Try again.");
+    else setResent(true);
+  }
   const mismatch = signup && error === "Your passwords do not match.";
-  return (
-    <main className="grid min-h-svh lg:grid-cols-2">
-      <section className="hidden flex-col justify-between border-r px-12 py-10 lg:flex xl:px-20">
-        <Brand />
-        <div className="mx-auto flex w-full max-w-md flex-col gap-10 py-16">
-          <div className="flex flex-col gap-5">
-            <p className="text-display font-semibold">
-              Your ideas.
-              <br />
-              Ready for the world.
-            </p>
-            <p className="max-w-sm text-base leading-relaxed text-muted-foreground">
-              One place to turn AI drafts into posts you’re proud to publish.
-            </p>
-          </div>
-          <FlowPanel />
-        </div>
-      </section>
-      <section className="flex min-w-0 flex-col items-center justify-center gap-10 bg-card px-6 py-12 sm:px-10">
-        <div className="lg:hidden">
-          <Brand />
-        </div>
+  if (sentTo)
+    return (
+      <AuthShell>
         <Card className="w-full max-w-sm ring-0">
           <CardHeader>
+            <MailCheck className="mb-2 size-8" aria-hidden="true" />
             <CardTitle>
-              <h1>{signup ? "Create your account" : "Welcome back"}</h1>
+              <h1>Check your inbox</h1>
             </CardTitle>
             <CardDescription>
-              {signup
-                ? "Bring your projects and posts together."
-                : "Sign in to your publishing workspace."}
+              {signup ? "We sent" : "Your email isn’t confirmed yet. We sent"} a
+              confirmation link to <strong>{sentTo}</strong>. Open it to
+              {oauthQuery
+                ? " finish connecting your assistant."
+                : " start using PostDispatch."}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form id="auth-form" onSubmit={submit}>
-              <FieldGroup>
-                {signup && (
-                  <Field>
-                    <FieldLabel htmlFor="name">Your name</FieldLabel>
-                    <Input
-                      id="name"
-                      name="name"
-                      required
-                      autoComplete="name"
-                      maxLength={120}
-                      value={name}
-                      disabled={busy}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Your name…"
-                    />
-                  </Field>
-                )}
+          <CardContent className="flex flex-col gap-4">
+            {resent && (
+              <Alert>
+                <CheckCircle2 aria-hidden="true" />
+                <AlertDescription>
+                  Sent again. It can take a minute to arrive; check your spam
+                  folder too.
+                </AlertDescription>
+              </Alert>
+            )}
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle aria-hidden="true" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <Button
+              variant="outline"
+              onClick={resend}
+              disabled={busy || resent}
+              className="w-full"
+            >
+              {busy && <Spinner data-icon="inline-start" />}
+              Resend email
+            </Button>
+          </CardContent>
+          <CardFooter className="justify-center">
+            <Button
+              variant="link"
+              onClick={() => {
+                setSentTo("");
+                setResent(false);
+                setError("");
+              }}
+            >
+              Use a different email
+            </Button>
+          </CardFooter>
+        </Card>
+      </AuthShell>
+    );
+  return (
+    <AuthShell>
+      <Card className="w-full max-w-sm ring-0">
+        <CardHeader>
+          <CardTitle>
+            <h1>{signup ? "Create your account" : "Welcome back"}</h1>
+          </CardTitle>
+          <CardDescription>
+            {signup
+              ? "Bring your projects and posts together."
+              : "Sign in to your publishing workspace."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form id="auth-form" onSubmit={submit}>
+            <FieldGroup>
+              {notice && (
+                <Alert
+                  variant={notices[notice].error ? "destructive" : "default"}
+                >
+                  {notices[notice].error ? (
+                    <AlertCircle aria-hidden="true" />
+                  ) : (
+                    <CheckCircle2 aria-hidden="true" />
+                  )}
+                  <AlertDescription>{notices[notice].text}</AlertDescription>
+                </Alert>
+              )}
+              {signup && (
                 <Field>
-                  <FieldLabel htmlFor="email">Email address</FieldLabel>
+                  <FieldLabel htmlFor="name">Your name</FieldLabel>
                   <Input
-                    id="email"
-                    name="email"
-                    type="email"
+                    id="name"
+                    name="name"
                     required
-                    autoComplete="email"
-                    spellCheck={false}
-                    maxLength={254}
-                    value={email}
+                    autoComplete="name"
+                    maxLength={120}
+                    value={name}
                     disabled={busy}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com…"
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your name…"
                   />
                 </Field>
-                <Field>
+              )}
+              <Field>
+                <FieldLabel htmlFor="email">Email address</FieldLabel>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  spellCheck={false}
+                  maxLength={254}
+                  value={email}
+                  disabled={busy}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com…"
+                />
+              </Field>
+              <Field>
+                <div className="flex items-center justify-between">
                   <FieldLabel htmlFor="password">Password</FieldLabel>
+                  {!signup && (
+                    <Link
+                      href="/forgot-password"
+                      className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                    >
+                      Forgot password?
+                    </Link>
+                  )}
+                </div>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  minLength={8}
+                  maxLength={128}
+                  autoComplete={signup ? "new-password" : "current-password"}
+                  value={password}
+                  disabled={busy}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                {signup && (
+                  <FieldDescription>
+                    Use at least 8 characters.
+                  </FieldDescription>
+                )}
+              </Field>
+              {signup && (
+                <Field data-invalid={mismatch}>
+                  <FieldLabel htmlFor="confirmation">
+                    Confirm password
+                  </FieldLabel>
                   <Input
-                    id="password"
-                    name="password"
+                    ref={confirmationInput}
+                    id="confirmation"
+                    name="confirmation"
                     type="password"
                     required
                     minLength={8}
                     maxLength={128}
-                    autoComplete={signup ? "new-password" : "current-password"}
-                    value={password}
+                    autoComplete="new-password"
+                    aria-invalid={mismatch}
+                    aria-describedby={
+                      mismatch ? "confirmation-error" : undefined
+                    }
+                    value={confirmation}
                     disabled={busy}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => setConfirmation(e.target.value)}
                   />
-                  {signup && (
-                    <FieldDescription>
-                      Use at least 8 characters.
-                    </FieldDescription>
+                  {mismatch && (
+                    <FieldError id="confirmation-error">{error}</FieldError>
                   )}
                 </Field>
-                {signup && (
-                  <Field data-invalid={mismatch}>
-                    <FieldLabel htmlFor="confirmation">
-                      Confirm password
-                    </FieldLabel>
-                    <Input
-                      ref={confirmationInput}
-                      id="confirmation"
-                      name="confirmation"
-                      type="password"
-                      required
-                      minLength={8}
-                      maxLength={128}
-                      autoComplete="new-password"
-                      aria-invalid={mismatch}
-                      aria-describedby={
-                        mismatch ? "confirmation-error" : undefined
-                      }
-                      value={confirmation}
-                      disabled={busy}
-                      onChange={(e) => setConfirmation(e.target.value)}
-                    />
-                    {mismatch && (
-                      <FieldError id="confirmation-error">{error}</FieldError>
-                    )}
-                  </Field>
-                )}
-                {error && !mismatch && (
-                  <Alert variant="destructive">
-                    <AlertCircle aria-hidden="true" />
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                <Button
-                  type="submit"
-                  size="lg"
-                  disabled={busy}
-                  className="w-full"
-                >
-                  {busy && <Spinner data-icon="inline-start" />}
-                  {busy
-                    ? signup
-                      ? "Creating account…"
-                      : "Signing in…"
-                    : signup
-                      ? "Create account"
-                      : "Sign in"}
-                  {!busy && (
-                    <ArrowRight data-icon="inline-end" aria-hidden="true" />
-                  )}
-                </Button>
-              </FieldGroup>
-            </form>
-          </CardContent>
-          <CardFooter className="justify-center gap-1.5">
-            <span>
-              {signup ? "Already have an account?" : "New to PostDispatch?"}
-            </span>
-            <Button variant="link" asChild>
-              <Link
-                href={
-                  (signup ? "/signin" : "/signup") +
-                  (oauthQuery ? `?${oauthQuery}` : "")
-                }
+              )}
+              {error && !mismatch && (
+                <Alert variant="destructive">
+                  <AlertCircle aria-hidden="true" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <Button
+                type="submit"
+                size="lg"
+                disabled={busy}
+                className="w-full"
               >
-                {signup ? "Sign in" : "Create an account"}
-              </Link>
-            </Button>
-          </CardFooter>
-        </Card>
-        <p className="max-w-sm text-center text-xs leading-6 text-muted-foreground">
-          {signup ? "By creating an account, you agree to our " : "Read our "}
-          <Link className="document-link" href="/terms">
-            Terms
-          </Link>
-          {signup ? ". See how we handle your information in our " : " and "}
-          <Link className="document-link" href="/privacy">
-            Privacy policy
-          </Link>
-          .{" "}
-          <Link className="document-link" href="/support">
-            Need help?
-          </Link>
-        </p>
-      </section>
-    </main>
+                {busy && <Spinner data-icon="inline-start" />}
+                {busy
+                  ? signup
+                    ? "Creating account…"
+                    : "Signing in…"
+                  : signup
+                    ? "Create account"
+                    : "Sign in"}
+                {!busy && (
+                  <ArrowRight data-icon="inline-end" aria-hidden="true" />
+                )}
+              </Button>
+            </FieldGroup>
+          </form>
+        </CardContent>
+        <CardFooter className="justify-center gap-1.5">
+          <span>
+            {signup ? "Already have an account?" : "New to PostDispatch?"}
+          </span>
+          <Button variant="link" asChild>
+            <Link
+              href={
+                (signup ? "/signin" : "/signup") +
+                (oauthQuery ? `?${oauthQuery}` : "")
+              }
+            >
+              {signup ? "Sign in" : "Create an account"}
+            </Link>
+          </Button>
+        </CardFooter>
+      </Card>
+      <p className="max-w-sm text-center text-xs leading-6 text-muted-foreground">
+        {signup ? "By creating an account, you agree to our " : "Read our "}
+        <Link className="document-link" href="/terms">
+          Terms
+        </Link>
+        {signup ? ". See how we handle your information in our " : " and "}
+        <Link className="document-link" href="/privacy">
+          Privacy policy
+        </Link>
+        .{" "}
+        <Link className="document-link" href="/support">
+          Need help?
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

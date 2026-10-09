@@ -121,7 +121,7 @@ export async function loggedRequest(
       route,
       method: request.method,
       ...(authAction &&
-      /^(sign-in\/email|sign-up\/email|sign-out|get-session|oauth2\/(authorize|token|consent|register|revoke|introspect))$/.test(
+      /^(sign-in\/email|sign-up\/email|sign-out|get-session|verify-email|send-verification-email|request-password-reset|reset-password|oauth2\/(authorize|token|consent|register|revoke|introspect))$/.test(
         authAction,
       )
         ? { authAction }

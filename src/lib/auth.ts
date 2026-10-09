@@ -1,4 +1,7 @@
 import { logger } from "./logger";
+import { after } from "next/server";
+import { sendMail } from "./mail";
+import { passwordResetEmail, verificationEmail } from "./mail/templates";
 import { jwt } from "better-auth/plugins";
 import { oauthPlugins, appOrigin } from "./oauth-provider";
 import * as schema from "../db/schema";
@@ -14,6 +17,19 @@ import {
   projects,
 } from "../db/schema";
 const LEGACY_OWNER = "legacy-project-owner";
+// Emails go out after the response so slow providers don't delay requests
+// and response timing doesn't reveal whether an account exists.
+function runInBackground(task: Promise<unknown>) {
+  const logged = task.catch((error) =>
+    logger.error("auth.background.failed", { error }),
+  );
+  try {
+    after(logged);
+  } catch {
+    // Outside a Next.js request (scripts, tests) there is no after().
+    void logged;
+  }
+}
 function makeAuth() {
   if (!process.env.BETTER_AUTH_SECRET)
     throw new Error("BETTER_AUTH_SECRET is required");
@@ -50,11 +66,31 @@ function makeAuth() {
     ],
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: false,
+      requireEmailVerification: true,
       autoSignIn: true,
       minPasswordLength: 8,
       maxPasswordLength: 128,
+      resetPasswordTokenExpiresIn: 60 * 60,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, url }) =>
+        sendMail(
+          passwordResetEmail({ to: user.email, name: user.name, url }),
+          "password_reset",
+        ),
     },
+    emailVerification: {
+      sendOnSignUp: true,
+      // Signing in unverified re-sends the link, so expired links recover.
+      sendOnSignIn: true,
+      autoSignInAfterVerification: true,
+      expiresIn: 24 * 60 * 60,
+      sendVerificationEmail: async ({ user, url }) =>
+        sendMail(
+          verificationEmail({ to: user.email, name: user.name, url }),
+          "email_verification",
+        ),
+    },
+    advanced: { backgroundTasks: { handler: runInBackground } },
     trustedOrigins: [process.env.APP_URL || "http://localhost:8200"],
     rateLimit: { enabled: true },
     databaseHooks: {
@@ -91,9 +127,9 @@ const state = globalThis as typeof globalThis & {
   dispatchAuthVersion?: string;
 };
 export function getAuth() {
-  if (state.dispatchAuthVersion !== "oauth-account-v2") {
+  if (state.dispatchAuthVersion !== "email-verification-v1") {
     state.dispatchAuth = undefined;
-    state.dispatchAuthVersion = "oauth-account-v2";
+    state.dispatchAuthVersion = "email-verification-v1";
   }
   return (state.dispatchAuth ??= makeAuth());
 }
