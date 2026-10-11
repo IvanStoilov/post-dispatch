@@ -1,3 +1,4 @@
+import { config } from "../config";
 import { loggedOperation, logger } from "../logger";
 import { randomUUID } from "node:crypto";
 
@@ -5,17 +6,10 @@ export type QueueDriver = "local" | "vercel";
 export type QueueHandler<T> = (payload: T) => Promise<void>;
 
 export function queueDriver(): QueueDriver {
-  const driver =
-    process.env.QUEUE_DRIVER ||
-    (process.env.NODE_ENV === "production" || process.env.VERCEL === "1"
-      ? "vercel"
-      : "local");
-  if (driver !== "local" && driver !== "vercel") {
-    throw new Error("QUEUE_DRIVER must be local or vercel");
-  }
+  const driver = config.QUEUE_DRIVER;
   if (
     driver === "local" &&
-    (process.env.NODE_ENV === "production" || process.env.VERCEL === "1")
+    (config.NODE_ENV === "production" || config.VERCEL === "1")
   ) {
     throw new Error("The local queue driver is only available in development");
   }

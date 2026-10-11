@@ -1,3 +1,4 @@
+import { config } from "../config";
 import { loggedOperation, withLogSecrets } from "../logger";
 import { z } from "zod";
 import { setTimeout as delay } from "node:timers/promises";
@@ -21,14 +22,14 @@ export function linkedinScopes() {
     "openid",
     "profile",
     "w_member_social",
-    ...(process.env.LINKEDIN_ORGANIZATION_POSTING === "true"
+    ...(config.LINKEDIN_ORGANIZATION_POSTING
       ? ["w_organization_social", "rw_organization_admin"]
       : []),
   ];
 }
 export function linkedinConfig() {
-  const id = process.env.LINKEDIN_CLIENT_ID;
-  const secret = process.env.LINKEDIN_CLIENT_SECRET;
+  const id = config.LINKEDIN_CLIENT_ID;
+  const secret = config.LINKEDIN_CLIENT_SECRET;
   if (!id || !secret)
     throw new Error(
       "Configure LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET on the server.",
@@ -59,7 +60,7 @@ export async function linkedinRequest<T>(
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          "LinkedIn-Version": process.env.LINKEDIN_API_VERSION || "202605",
+          "LinkedIn-Version": config.LINKEDIN_API_VERSION,
           "X-Restli-Protocol-Version": "2.0.0",
         },
         ...(body ? { body: JSON.stringify(body) } : {}),

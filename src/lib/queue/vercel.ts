@@ -1,3 +1,4 @@
+import { config } from "../config";
 import { logger } from "../logger";
 import {
   send as vercelSend,
@@ -14,7 +15,7 @@ export async function send<T>(
   payload: T,
   options?: { delaySeconds?: number },
 ) {
-  const secret = process.env.CRON_SECRET;
+  const secret = config.CRON_SECRET;
   if (!secret)
     throw new Error("Configure CRON_SECRET for queue delivery and recovery");
   return vercelSend(topic, payload, {
@@ -28,7 +29,7 @@ export function handleCallback<T>(handler: QueueHandler<T>) {
       !internalRequestAuthorized(
         request,
         "x-postdispatch-queue-secret",
-        process.env.CRON_SECRET,
+        config.CRON_SECRET,
       )
     ) {
       logger.warn("queue.callback.denied");

@@ -1,3 +1,4 @@
+import { config } from "./config";
 import { loggedOperation } from "./logger";
 import {
   S3Client,
@@ -42,21 +43,21 @@ let client: S3Client | undefined;
 let discoveredBucket: Promise<string> | undefined;
 export function storage() {
   if (
-    !process.env.AWS_ENDPOINT_URL_S3 ||
-    !process.env.AWS_ACCESS_KEY_ID ||
-    !process.env.AWS_SECRET_ACCESS_KEY ||
-    !process.env.AWS_REGION
+    !config.AWS_ENDPOINT_URL_S3 ||
+    !config.AWS_ACCESS_KEY_ID ||
+    !config.AWS_SECRET_ACCESS_KEY ||
+    !config.AWS_REGION
   )
     throw new Error("Image storage is not configured");
   return (client ??= new S3Client({
-    endpoint: process.env.AWS_ENDPOINT_URL_S3,
-    region: process.env.AWS_REGION,
+    endpoint: config.AWS_ENDPOINT_URL_S3,
+    region: config.AWS_REGION,
     forcePathStyle: true,
   }));
 }
 export async function bucket() {
   return loggedOperation("lib.storage.bucket", {}, async () => {
-    if (process.env.AWS_S3_BUCKET) return process.env.AWS_S3_BUCKET;
+    if (config.AWS_S3_BUCKET) return config.AWS_S3_BUCKET;
     if (!discoveredBucket)
       discoveredBucket = storage()
         .send(new ListBucketsCommand({}))

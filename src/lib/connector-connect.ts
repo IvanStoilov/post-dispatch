@@ -1,3 +1,4 @@
+import { config } from "./config";
 import { loggedOperation } from "./logger";
 import { platforms } from "./types";
 import {
@@ -41,7 +42,7 @@ type Pending = {
 };
 class ConnectorError extends Error {}
 const lifetime = 10 * 60;
-const version = () => process.env.META_API_VERSION || "v25.0";
+const version = () => config.META_API_VERSION;
 export function connectorConfig(provider: Provider) {
   if (provider === "linkedin") {
     let config;
@@ -60,8 +61,12 @@ export function connectorConfig(provider: Provider) {
     };
   }
   const prefix = provider === "facebook" ? "FACEBOOK" : "INSTAGRAM";
-  const id = process.env[`${prefix}_APP_ID`];
-  const secret = process.env[`${prefix}_APP_SECRET`];
+  const id =
+    provider === "facebook" ? config.FACEBOOK_APP_ID : config.INSTAGRAM_APP_ID;
+  const secret =
+    provider === "facebook"
+      ? config.FACEBOOK_APP_SECRET
+      : config.INSTAGRAM_APP_SECRET;
   if (!id || !secret)
     throw new ConnectorError(
       `${prefix}_APP_ID and ${prefix}_APP_SECRET must be configured on the server.`,
@@ -73,10 +78,10 @@ export function connectorConfig(provider: Provider) {
   };
 }
 function key() {
-  if (!process.env.BETTER_AUTH_SECRET)
+  if (!config.BETTER_AUTH_SECRET)
     throw new ConnectorError("BETTER_AUTH_SECRET is required");
   return createHash("sha256")
-    .update(`postdispatch-meta:${process.env.BETTER_AUTH_SECRET}`)
+    .update(`postdispatch-meta:${config.BETTER_AUTH_SECRET}`)
     .digest();
 }
 function seal(value: Pending) {

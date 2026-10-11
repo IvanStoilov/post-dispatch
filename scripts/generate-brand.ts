@@ -1,3 +1,4 @@
+import { config as appConfig, setFontconfigFile } from "../src/lib/config";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import sharp from "sharp";
 import { tmpdir } from "node:os";
@@ -6,7 +7,7 @@ import { brandMarkPath } from "../src/lib/brand";
 
 async function generateBrand() {
   // Keep font generation self-contained when the host has no Fontconfig setup.
-  if (!process.env.FONTCONFIG_FILE) {
+  if (!appConfig.FONTCONFIG_FILE) {
     const cache = join(tmpdir(), "postdispatch-brand-font-cache");
     const config = join(tmpdir(), "postdispatch-brand-fontconfig.xml");
     await mkdir(cache, { recursive: true });
@@ -17,7 +18,7 @@ async function generateBrand() {
       config,
       `<?xml version="1.0"?><fontconfig><dir>${xml(fontDir)}</dir><cachedir>${xml(cache)}</cachedir></fontconfig>`,
     );
-    process.env.FONTCONFIG_FILE = config;
+    setFontconfigFile(config);
   }
   const css = await readFile("src/app/globals.css", "utf8");
   const color = (name: string) => {

@@ -1,3 +1,4 @@
+import { config, environmentSecrets } from "./config";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import winston from "winston";
@@ -39,14 +40,7 @@ export const withLogSecrets = <T>(secrets: string[], action: () => T): T =>
 const sanitize = winston.format((info) => {
   const secrets = [
     ...(context.getStore()?.redactionSecrets ?? []),
-    ...Object.entries(process.env)
-      .filter(([key]) =>
-        /SECRET|TOKEN|PASSWORD|DATABASE_URL|ACCESS_KEY|CREDENTIALS_ENCRYPTION_KEY/.test(
-          key,
-        ),
-      )
-      .map(([, value]) => value || "")
-      .filter((value) => value.length >= 8),
+    ...environmentSecrets(),
   ];
   const safe = redact({ ...logContext(), ...info }, secrets) as Record<
     string,
@@ -155,7 +149,7 @@ export async function loggedRequest(
   });
 }
 
-const level = process.env.LOG_LEVEL || "debug";
+const level = config.LOG_LEVEL;
 export const logger = winston.createLogger({
   level: Object.hasOwn(winston.config.npm.levels, level) ? level : "debug",
   format: winston.format.combine(

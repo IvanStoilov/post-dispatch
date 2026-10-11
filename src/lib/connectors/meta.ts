@@ -1,9 +1,10 @@
+import { config } from "../config";
 import { loggedOperation, withLogSecrets } from "../logger";
 import { setTimeout as delay } from "node:timers/promises";
 import { metaRequest } from "../meta-client";
 import { MediaPending, type PublishContext } from "./types";
 function endpoint(host: string, id: string, edge = "") {
-  return `https://${host}/${process.env.META_API_VERSION || "v25.0"}/${id}${edge ? `/${edge}` : ""}`;
+  return `https://${host}/${config.META_API_VERSION}/${id}${edge ? `/${edge}` : ""}`;
 }
 async function graph(
   host: string,

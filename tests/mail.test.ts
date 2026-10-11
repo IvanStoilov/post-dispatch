@@ -60,7 +60,7 @@ test("parseAddress handles named and bare addresses", () => {
 test("provider selection", async (t) => {
   t.after(restore);
   process.env.MAIL_PROVIDER = "mailchimp";
-  assert.throws(() => mailProvider(), /Unknown MAIL_PROVIDER "mailchimp"/);
+  assert.throws(() => mailProvider(), /MAIL_PROVIDER must be/);
   process.env.MAIL_PROVIDER = "resend";
   delete process.env.RESEND_API_KEY;
   assert.throws(() => mailProvider(), /RESEND_API_KEY is required/);

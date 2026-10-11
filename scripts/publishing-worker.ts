@@ -1,3 +1,4 @@
+import { config } from "../src/lib/config";
 import { logger } from "../src/lib/logger";
 import { loadEnvConfig } from "@next/env";
 import { setTimeout as delay } from "node:timers/promises";
@@ -6,11 +7,7 @@ import { recoverPublishingJobs } from "../src/lib/publish-jobs";
 import { queueDriver } from "../src/lib/queue";
 loadEnvConfig(process.cwd());
 // Static imports initialize Winston before this script loads .env files.
-if (
-  process.env.LOG_LEVEL &&
-  Object.hasOwn(logger.levels, process.env.LOG_LEVEL)
-)
-  logger.level = process.env.LOG_LEVEL;
+logger.level = config.LOG_LEVEL;
 async function main() {
   if (queueDriver() !== "local")
     throw new Error("The local publishing worker requires QUEUE_DRIVER=local");

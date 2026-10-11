@@ -1,3 +1,4 @@
+import { config } from "./config";
 import { loggedOperation } from "./logger";
 import { randomUUID } from "node:crypto";
 import { and, arrayContains, eq } from "drizzle-orm";
@@ -86,9 +87,7 @@ export async function oauthConsentContext(
     "lib.oauth.oauthConsentContext",
     { userId },
     async () => {
-      if (
-        !(await verifyOAuthQueryParams(query, process.env.BETTER_AUTH_SECRET!))
-      )
+      if (!(await verifyOAuthQueryParams(query, config.BETTER_AUTH_SECRET!)))
         throw new Error(
           "This connection request is invalid or has expired. Start again from your MCP client.",
         );

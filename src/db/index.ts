@@ -1,3 +1,4 @@
+import { config } from "../lib/config";
 import { logger } from "../lib/logger";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -7,7 +8,7 @@ const state = globalThis as typeof globalThis & {
 };
 export function getDb() {
   if (!state.dispatchDatabase) {
-    const connectionString = process.env.DATABASE_URL;
+    const connectionString = config.DATABASE_URL;
     if (!connectionString)
       throw new Error(
         "DATABASE_URL is required. Configure your Postgres connection in .env.",

@@ -1,3 +1,4 @@
+import { config } from "./config";
 import { loggedOperation, logger } from "./logger";
 import { createHash, randomBytes } from "node:crypto";
 import { and, count, eq, gt, lte, sql } from "drizzle-orm";
@@ -33,7 +34,7 @@ function minutesFromNow(minutes: number) {
   return sql.raw(`now() + interval '${minutes} minutes'`);
 }
 export function appOrigin() {
-  return new URL(process.env.APP_URL || "http://localhost:8200").origin;
+  return config.APP_URL;
 }
 export function uploadEndpoint(projectId: string) {
   return `${appOrigin()}/api/mcp/uploads?projectId=${projectId}`;

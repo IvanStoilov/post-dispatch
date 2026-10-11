@@ -8,6 +8,7 @@
     "start": "next start -p 8200",
     "email:dev": "email dev --dir src/emails --port 8300",
     "lint": "eslint",
+    "env:check": "tsx scripts/check-config.ts",
     "format": "prettier --write src README.md",
     "test": "tsx --test tests/*.test.ts",
     "jobs:work": "tsx scripts/publishing-worker.ts",

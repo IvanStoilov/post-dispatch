@@ -1,3 +1,4 @@
+import { config as appConfig } from "./lib/config";
 import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { publicPages, publicAssets } from "@/lib/public-routes";
@@ -11,7 +12,7 @@ export function proxy(req: NextRequest) {
     )
   )
     return NextResponse.next();
-  const expected = new URL(process.env.APP_URL || "http://localhost:8200");
+  const expected = new URL(appConfig.APP_URL);
   const origin = req.headers.get("origin");
   if (req.headers.get("host") !== expected.host) {
     logger.warn("http.proxy.denied", {

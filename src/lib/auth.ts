@@ -1,3 +1,4 @@
+import { config } from "./config";
 import { logger } from "./logger";
 import { after } from "next/server";
 import { sendMail } from "./mail";
@@ -31,7 +32,7 @@ function runInBackground(task: Promise<unknown>) {
   }
 }
 function makeAuth() {
-  if (!process.env.BETTER_AUTH_SECRET)
+  if (!config.BETTER_AUTH_SECRET)
     throw new Error("BETTER_AUTH_SECRET is required");
   return betterAuth({
     appName: "PostDispatch",
@@ -40,8 +41,8 @@ function makeAuth() {
       log: (level, message) =>
         logger.log(level, "auth.library", { reason: message }),
     },
-    baseURL: process.env.APP_URL || "http://localhost:8200",
-    secret: process.env.BETTER_AUTH_SECRET,
+    baseURL: config.APP_URL,
+    secret: config.BETTER_AUTH_SECRET,
     database: drizzleAdapter(getDb(), {
       provider: "pg",
       schema: {
@@ -91,7 +92,7 @@ function makeAuth() {
         ),
     },
     advanced: { backgroundTasks: { handler: runInBackground } },
-    trustedOrigins: [process.env.APP_URL || "http://localhost:8200"],
+    trustedOrigins: [config.APP_URL],
     rateLimit: { enabled: true },
     databaseHooks: {
       user: {
@@ -100,7 +101,7 @@ function makeAuth() {
             logger.info("auth.user.created", { userId: user.id });
             await getDb().transaction(async (tx) => {
               const legacyEmail =
-                process.env.LEGACY_OWNER_EMAIL?.trim().toLowerCase();
+                config.LEGACY_OWNER_EMAIL?.trim().toLowerCase();
               let inherited = false;
               if (legacyEmail && user.email.toLowerCase() === legacyEmail) {
                 const claimed = await tx

@@ -1,3 +1,4 @@
+import { config } from "./config";
 import {
   oauthProvider,
   getOAuthProviderApi,
@@ -8,7 +9,7 @@ import { z } from "zod";
 
 export const MCP_SCOPES = ["posts:read", "posts:write"] as const;
 export function appOrigin() {
-  return new URL(process.env.APP_URL || "http://localhost:8200").origin;
+  return config.APP_URL;
 }
 export function accountResource() {
   return `${appOrigin()}/api/mcp`;

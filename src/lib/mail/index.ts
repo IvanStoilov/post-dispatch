@@ -1,3 +1,4 @@
+import { config, requireConfig } from "../config";
 import { logger } from "../logger";
 import { consoleProvider } from "./providers/console";
 import { maildevProvider } from "./providers/maildev";
@@ -8,26 +9,19 @@ import type { MailMessage, MailProvider } from "./types";
 export type { MailMessage, MailProvider } from "./types";
 export { MailError } from "./types";
 
-function requireEnv(name: string) {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required for MAIL_PROVIDER`);
-  return value;
-}
 // Switch providers with MAIL_PROVIDER; each reads its own API key.
 const providers: Record<string, () => MailProvider> = {
-  resend: () => resendProvider(requireEnv("RESEND_API_KEY")),
-  sendgrid: () => sendgridProvider(requireEnv("SENDGRID_API_KEY")),
+  resend: () => resendProvider(requireConfig("RESEND_API_KEY")),
+  sendgrid: () => sendgridProvider(requireConfig("SENDGRID_API_KEY")),
   console: () => {
-    if (process.env.NODE_ENV === "production")
+    if (config.NODE_ENV === "production")
       throw new Error("MAIL_PROVIDER=console cannot be used in production");
     return consoleProvider();
   },
   maildev: () => maildevProvider(),
 };
 export function mailProvider(): MailProvider {
-  const name =
-    process.env.MAIL_PROVIDER ||
-    (process.env.NODE_ENV === "production" ? "" : "console");
+  const name = config.MAIL_PROVIDER;
   if (!name)
     throw new Error(
       `Set MAIL_PROVIDER to one of: ${Object.keys(providers).join(", ")}`,
@@ -40,12 +34,7 @@ export function mailProvider(): MailProvider {
   return create();
 }
 export function mailFrom() {
-  if (process.env.MAIL_FROM) return process.env.MAIL_FROM;
-  if (process.env.NODE_ENV === "production")
-    throw new Error(
-      "MAIL_FROM is required, e.g. PostDispatch <hello@example.com>",
-    );
-  return "PostDispatch <noreply@localhost>";
+  return requireConfig("MAIL_FROM");
 }
 // Callers such as Better Auth may swallow the error, so every failure,
 // including missing configuration, is logged here with its reason.
@@ -60,9 +49,7 @@ export async function sendMail(
     const { id } = await provider.send({
       ...rendered,
       from: mailFrom(),
-      ...(process.env.MAIL_REPLY_TO
-        ? { replyTo: process.env.MAIL_REPLY_TO }
-        : {}),
+      ...(config.MAIL_REPLY_TO ? { replyTo: config.MAIL_REPLY_TO } : {}),
     });
     logger.info("mail.sent", { provider: provider.name, kind, messageId: id });
   } catch (error) {

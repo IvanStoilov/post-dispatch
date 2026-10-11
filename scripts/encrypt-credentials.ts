@@ -1,3 +1,4 @@
+import { config } from "../src/lib/config";
 import { loadEnvConfig } from "@next/env";
 import { Pool } from "pg";
 import {
@@ -6,18 +7,14 @@ import {
 } from "../src/lib/credential-encryption";
 import { logger } from "../src/lib/logger";
 loadEnvConfig(process.cwd());
-if (
-  process.env.LOG_LEVEL &&
-  Object.hasOwn(logger.levels, process.env.LOG_LEVEL)
-)
-  logger.level = process.env.LOG_LEVEL;
+logger.level = config.LOG_LEVEL;
 
 async function main() {
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.");
+  if (!config.DATABASE_URL) throw new Error("DATABASE_URL is required.");
   // Validate the key before connecting, even if there are no existing credentials.
   decryptCredential(encryptCredential("", "access_token"), "access_token");
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: config.DATABASE_URL,
     max: 1,
     connectionTimeoutMillis: 15000,
   });

@@ -1,10 +1,11 @@
+import { config } from "./config";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 export const CREDENTIAL_PREFIX = "pdcred:v1:";
 export type CredentialField = "access_token" | "refresh_token";
 
 function encryptionKey(): Buffer {
-  const value = process.env.CREDENTIALS_ENCRYPTION_KEY;
+  const value = config.CREDENTIALS_ENCRYPTION_KEY;
   if (!value || !/^[a-f\d]{64}$/i.test(value))
     throw new Error(
       "CREDENTIALS_ENCRYPTION_KEY must be a 32-byte hexadecimal key (64 characters).",

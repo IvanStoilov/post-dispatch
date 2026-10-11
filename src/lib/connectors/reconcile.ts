@@ -1,3 +1,4 @@
+import { config } from "../config";
 import { loggedOperation } from "../logger";
 import type { ConnectorRow } from "../../db/schema";
 import type { PublishState } from "./types";
@@ -20,7 +21,7 @@ export async function reconcileSubmission(
             ? "graph.instagram.com"
             : "graph.facebook.com";
         const { response, data } = await metaRequest(
-          `https://${host}/${process.env.META_API_VERSION || "v25.0"}/${state.containerId}?fields=status_code,status`,
+          `https://${host}/${config.META_API_VERSION}/${state.containerId}?fields=status_code,status`,
           connection.accessToken,
           signal,
         );
