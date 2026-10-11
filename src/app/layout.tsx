@@ -3,12 +3,15 @@ import type { Metadata, Viewport } from "next";
 import { siteOrigin } from "@/lib/public-site";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
+
+const title = `${process.env.NODE_ENV === "development" ? "[Dev] " : ""}${brand.name} — ${brand.tagline}`;
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteOrigin()),
-  title: `${brand.name} — ${brand.tagline}`,
+  title,
   alternates: { canonical: "/" },
   openGraph: {
-    title: `${brand.name} — ${brand.tagline}`,
+    title,
     description:
       "Receive AI drafts, review your content, and publish to Facebook, Instagram, and LinkedIn.",
     type: "website",
@@ -19,13 +22,13 @@ export const metadata: Metadata = {
         url: "/brand/social-card.png",
         width: 1200,
         height: 630,
-        alt: `${brand.name} — ${brand.tagline}`,
+        alt: title,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: `${brand.name} — ${brand.tagline}`,
+    title,
     description: brand.description,
     images: ["/brand/social-card.png"],
   },

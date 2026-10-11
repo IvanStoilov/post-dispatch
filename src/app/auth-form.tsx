@@ -1,6 +1,6 @@
 "use client";
 import { useAppPath } from "@/components/app-navigation";
-import { useState, useRef } from "react";
+import { useState, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
@@ -25,6 +25,11 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { ArrowRight, AlertCircle, CheckCircle2, MailCheck } from "lucide-react";
+// The server-rendered form must not submit before its client handler is ready.
+const subscribeToHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
+
 export type AuthNotice = "verified" | "verification-failed" | "password-reset";
 const notices: Record<AuthNotice, { text: string; error?: boolean }> = {
   verified: { text: "Your email is confirmed. Sign in to continue." },
@@ -45,6 +50,11 @@ export default function AuthForm({
   oauthQuery?: string;
   notice?: AuthNotice;
 }) {
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    clientHydrated,
+    serverHydrated,
+  );
   const appPath = useAppPath();
   const router = useRouter();
   const signup = mode === "signup";
@@ -207,7 +217,7 @@ export default function AuthForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form id="auth-form" onSubmit={submit}>
+          <form id="auth-form" method="post" onSubmit={submit}>
             <FieldGroup>
               {notice && (
                 <Alert
@@ -231,7 +241,7 @@ export default function AuthForm({
                     autoComplete="name"
                     maxLength={120}
                     value={name}
-                    disabled={busy}
+                    disabled={!hydrated || busy}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your name…"
                   />
@@ -248,7 +258,7 @@ export default function AuthForm({
                   spellCheck={false}
                   maxLength={254}
                   value={email}
-                  disabled={busy}
+                  disabled={!hydrated || busy}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com…"
                 />
@@ -274,7 +284,7 @@ export default function AuthForm({
                   maxLength={128}
                   autoComplete={signup ? "new-password" : "current-password"}
                   value={password}
-                  disabled={busy}
+                  disabled={!hydrated || busy}
                   onChange={(e) => setPassword(e.target.value)}
                 />
                 {signup && (
@@ -302,7 +312,7 @@ export default function AuthForm({
                       mismatch ? "confirmation-error" : undefined
                     }
                     value={confirmation}
-                    disabled={busy}
+                    disabled={!hydrated || busy}
                     onChange={(e) => setConfirmation(e.target.value)}
                   />
                   {mismatch && (
@@ -319,7 +329,7 @@ export default function AuthForm({
               <Button
                 type="submit"
                 size="lg"
-                disabled={busy}
+                disabled={!hydrated || busy}
                 className="w-full"
               >
                 {busy && <Spinner data-icon="inline-start" />}

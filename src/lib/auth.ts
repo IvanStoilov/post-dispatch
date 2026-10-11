@@ -86,11 +86,14 @@ function makeAuth() {
       sendOnSignIn: true,
       autoSignInAfterVerification: true,
       expiresIn: 24 * 60 * 60,
-      sendVerificationEmail: async ({ user, url }) =>
-        sendMail(
+      sendVerificationEmail: async ({ user, url }) => {
+        logger.info("auth.email.verification.sent", { userId: user.id });
+
+        return await sendMail(
           verificationEmail({ to: user.email, name: user.name, url }),
           "email_verification",
-        ),
+        );
+      },
     },
     advanced: { backgroundTasks: { handler: runInBackground } },
     trustedOrigins: [appOrigin()],

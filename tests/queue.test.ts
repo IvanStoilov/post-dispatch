@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFile } from "node:fs/promises";
 import { createQueue, queueDriver } from "../src/lib/queue";
 
 function localEnvironment() {
@@ -95,7 +96,7 @@ test("production selects Vercel and refuses accidental local delivery", () => {
   }
 });
 
-test("hosted callbacks authenticate before invoking any handler or queue API", async () => {
+test("callbacks outside Vercel cannot invoke any handler or queue API", async () => {
   const restore = localEnvironment();
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => {
@@ -114,7 +115,9 @@ test("hosted callbacks authenticate before invoking any handler or queue API", a
       (
         await callback(
           new Request("http://localhost", {
-            headers: { "x-postdispatch-queue-secret": "wrong" },
+            headers: {
+              "x-postdispatch-queue-secret": "private-callback-secret",
+            },
           }),
         )
       ).status,
@@ -124,4 +127,93 @@ test("hosted callbacks authenticate before invoking any handler or queue API", a
     globalThis.fetch = originalFetch;
     restore();
   }
+});
+
+test("private Vercel deliveries run without the old custom callback header", async () => {
+  const original = { ...process.env };
+  const originalFetch = globalThis.fetch;
+  Object.assign(process.env, {
+    NODE_ENV: "production",
+    VERCEL: "1",
+    QUEUE_DRIVER: "vercel",
+    VERCEL_REGION: "iad1",
+    VERCEL_DEPLOYMENT_ID: "dpl_queue_test",
+    VERCEL_OIDC_TOKEN: [
+      Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString(
+        "base64url",
+      ),
+      Buffer.from(
+        JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+      ).toString("base64url"),
+      "test-signature",
+    ].join("."),
+  });
+  delete process.env.CRON_SECRET;
+  const calls: { url: string; method: string | undefined; headers: Headers }[] =
+    [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({
+      url: String(url),
+      method: init?.method,
+      headers: new Headers(init?.headers),
+    });
+    return Response.json({ messageId: "message-test" });
+  };
+  try {
+    let delivered = 0;
+    const queue = createQueue<{ jobId: string }>(
+      "publishing",
+      async (payload) => {
+        assert.deepEqual(payload, { jobId: "job-test" });
+        delivered++;
+      },
+    );
+    const sent = await queue.send({ jobId: "job-test" }, { delaySeconds: 3 });
+    assert.equal(sent.messageId, "message-test");
+    assert.equal(calls[0].headers.has("x-postdispatch-queue-secret"), false);
+    assert.equal(calls[0].headers.get("Vqs-Delay-Seconds"), "3");
+    const request = new Request(
+      "https://deployment.vercel.app/api/queues/publishing",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "ce-type": "com.vercel.queue.v2beta",
+          "ce-vqsqueuename": "publishing",
+          "ce-vqsconsumergroup": "publishing-worker",
+          "ce-vqsmessageid": "message-test",
+          "ce-vqsreceipthandle": "receipt-test",
+          "ce-vqsregion": "iad1",
+        },
+        body: JSON.stringify({ jobId: "job-test" }),
+      },
+    );
+    const response = await queue.handleCallback()(request);
+    assert.equal(response.status, 200);
+    assert.equal(delivered, 1);
+    assert.ok(
+      calls.some(
+        (call) =>
+          call.method === "DELETE" && call.url.endsWith("/lease/receipt-test"),
+      ),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env = original;
+  }
+});
+
+test("publishing consumer retains Vercel's private queue trigger", async () => {
+  const deployment = JSON.parse(
+    await readFile(new URL("../vercel.json", import.meta.url), "utf8"),
+  );
+  const triggers =
+    deployment.functions["src/app/api/queues/publishing/route.ts"]
+      .experimentalTriggers;
+  assert.ok(
+    triggers.some(
+      (trigger: { type: string; topic: string }) =>
+        trigger.type === "queue/v2beta" && trigger.topic === "publishing",
+    ),
+  );
 });

@@ -255,7 +255,7 @@ The shared `brand` identity in `src/lib/brand.ts` defines **Ramblo**, the **ramb
 
 Reusable exports in `public/brand` include outlined SVG wordmarks (`logo.svg`, `logo-on-dark.svg`), transparent PNG wordmarks, a compact SVG/PNG mark, and a 1200×630 social card. Favicons and the Apple icon are generated from the same mark. Run `pnpm brand:generate` to regenerate assets; the generator reads the app's CSS colors and the licensed font source in `scripts/assets`. It uses the font parser bundled with the pinned Next.js version. The exported SVGs contain paths and need no installed font.
 
-Saved credential encryption prefixes/AAD, connector handshake contexts/cookies, OAuth plugin ID, queue delivery headers, and the storage CORS rule ID retain their existing private protocol identifiers. These are not public branding; changing them during a rename could invalidate stored secrets, in-flight connections or queued deliveries. The selected-project browser preference migrates to `ramblo-project` when the workspace opens. Existing OAuth resource display names update to Ramblo without replacing IDs, grants or scopes.
+Saved credential encryption prefixes/AAD, connector handshake contexts/cookies, OAuth plugin ID, and the storage CORS rule ID retain their existing private protocol identifiers. These are not public branding; changing them during a rename could invalidate stored secrets, in-flight connections or queued deliveries. The selected-project browser preference migrates to `ramblo-project` when the workspace opens. Existing OAuth resource display names update to Ramblo without replacing IDs, grants or scopes.
 
 Before production rollout, update Vercel `MAIL_FROM="Ramblo <hello@ramblo.io>"` and `MAIL_REPLY_TO=hello@ramblo.io`, verify `ramblo.io` as a sending domain with the chosen email provider, and make sure `hello@ramblo.io` receives support/privacy mail. Update public names/logos, privacy/terms/data-deletion URLs and app-domain callbacks in Meta and LinkedIn dashboards. Existing old-domain bookmarks can be redirected via the old deployment/domain configuration once the new domains are live. These external service settings are separate from this code change.
 
@@ -319,9 +319,10 @@ The job row is also a durable outbox. Dispatch is reserved in Postgres before
 sending; a crash between commit and enqueue, an expired message, or an abandoned
 worker is recovered by `/api/cron/publishing`. Overlapping deliveries cannot publish
 through another worker's lease. Configure a random **CRON_SECRET** in Vercel;
-recovery fails closed without it. Queue delivery carries the same secret in an internal header, checked before
-the SDK processes any payload. Missing/invalid secrets cannot trigger publishing;
-the SDK handles queue leases and acknowledgements after that check.
+recovery fails closed without it. The `queue/v2beta` trigger makes the queue consumer
+private to Vercel’s queue infrastructure; the SDK parses deliveries and handles
+leases and acknowledgements. Queue API request headers are not callback headers.
+The adapter refuses HTTP callback execution outside a Vercel runtime.
 
 `vercel.json` registers the `publishing` queue consumer and a daily recovery sweep
 at 04:00 UTC, compatible with Hobby cron limits. Normal delivery and delayed
