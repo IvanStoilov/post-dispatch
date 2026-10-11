@@ -56,9 +56,7 @@ export async function resolveMcpProject(userId: string, projectId?: string) {
       if (projectId) return getOwnedProject(userId, projectId);
       const projects = await listProjects(userId);
       if (!projects.length)
-        throw new Error(
-          "No projects found. Create a project in PostDispatch first.",
-        );
+        throw new Error("No projects found. Create a project in Ramblo first.");
       if (projects.length !== 1)
         throw new Error(
           "projectId is required when your account has multiple projects. Call list_projects and pass the intended project's ID.",

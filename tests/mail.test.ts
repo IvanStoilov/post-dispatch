@@ -50,8 +50,8 @@ test("templates escape user input and keep the link in both parts", async () => 
 });
 
 test("parseAddress handles named and bare addresses", () => {
-  assert.deepEqual(parseAddress('"Post Dispatch" <hi@example.com>'), {
-    name: "Post Dispatch",
+  assert.deepEqual(parseAddress('"Ramblo Team" <hi@example.com>'), {
+    name: "Ramblo Team",
     email: "hi@example.com",
   });
   assert.deepEqual(parseAddress("hi@example.com"), { email: "hi@example.com" });
@@ -76,7 +76,7 @@ test("Resend request shape", async (t) => {
   t.after(restore);
   process.env.MAIL_PROVIDER = "resend";
   process.env.RESEND_API_KEY = "re_test";
-  process.env.MAIL_FROM = "PostDispatch <hi@example.com>";
+  process.env.MAIL_FROM = "Ramblo <hi@example.com>";
   process.env.MAIL_REPLY_TO = "support@example.com";
   const calls = captureFetch(Response.json({ id: "msg_1" }));
   await sendMail(message, "email_verification");
@@ -87,7 +87,7 @@ test("Resend request shape", async (t) => {
   );
   const body = JSON.parse(String(calls[0].init.body));
   assert.deepEqual(body.to, ["ana@example.test"]);
-  assert.equal(body.from, "PostDispatch <hi@example.com>");
+  assert.equal(body.from, "Ramblo <hi@example.com>");
   assert.equal(body.reply_to, "support@example.com");
   assert.equal(body.text, message.text);
   captureFetch(
@@ -104,7 +104,7 @@ test("SendGrid request shape", async (t) => {
   t.after(restore);
   process.env.MAIL_PROVIDER = "sendgrid";
   process.env.SENDGRID_API_KEY = "SG.test";
-  process.env.MAIL_FROM = "PostDispatch <hi@example.com>";
+  process.env.MAIL_FROM = "Ramblo <hi@example.com>";
   delete process.env.MAIL_REPLY_TO;
   const calls = captureFetch(
     new Response(null, { status: 202, headers: { "X-Message-Id": "sg_1" } }),
@@ -113,7 +113,7 @@ test("SendGrid request shape", async (t) => {
   assert.equal(calls[0].url, "https://api.sendgrid.com/v3/mail/send");
   const body = JSON.parse(String(calls[0].init.body));
   assert.deepEqual(body.from, {
-    name: "PostDispatch",
+    name: "Ramblo",
     email: "hi@example.com",
   });
   assert.deepEqual(body.personalizations, [

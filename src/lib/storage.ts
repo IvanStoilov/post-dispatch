@@ -107,7 +107,7 @@ export async function downloadImage(
           signal: AbortSignal.timeout(remaining),
           headers: {
             Accept: "image/*,video/mp4",
-            "User-Agent": "PostDispatch/1.0",
+            "User-Agent": "Ramblo/1.0",
           },
           lookup: (_host, options, callback) => {
             if (options.all) callback(null, [chosen]);

@@ -48,7 +48,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         <Separator />
         <div className="mx-auto flex max-w-6xl flex-col gap-5 px-5 py-8 text-sm sm:px-8 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-1">
-            <p className="font-semibold">PostDispatch</p>
+            <p className="font-semibold">{site.name}</p>
+            <p className="text-muted-foreground">Walk. Talk. Post.</p>
             <p className="text-muted-foreground">
               Operated by {site.operator}, {site.country}.
             </p>

@@ -81,9 +81,12 @@ export function connectorConfig(provider: Provider) {
 function key() {
   if (!config.BETTER_AUTH_SECRET)
     throw new ConnectorError("BETTER_AUTH_SECRET is required");
-  return createHash("sha256")
-    .update(`postdispatch-meta:${config.BETTER_AUTH_SECRET}`)
-    .digest();
+  return (
+    createHash("sha256")
+      // Preserve the context so in-flight connector handshakes survive the rebrand.
+      .update(`postdispatch-meta:${config.BETTER_AUTH_SECRET}`)
+      .digest()
+  );
 }
 function seal(value: Pending) {
   const iv = randomBytes(12);

@@ -149,7 +149,7 @@ export default function AuthForm({
               confirmation link to <strong>{sentTo}</strong>. Open it to
               {oauthQuery
                 ? " finish connecting your assistant."
-                : " start using PostDispatch."}
+                : " start using Ramblo."}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -338,9 +338,7 @@ export default function AuthForm({
           </form>
         </CardContent>
         <CardFooter className="justify-center gap-1.5">
-          <span>
-            {signup ? "Already have an account?" : "New to PostDispatch?"}
-          </span>
+          <span>{signup ? "Already have an account?" : "New to Ramblo?"}</span>
           <Button variant="link" asChild>
             <Link
               href={

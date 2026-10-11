@@ -1,3 +1,4 @@
+import { brand } from "./brand";
 import process from "node:process";
 import { z } from "zod";
 
@@ -134,7 +135,7 @@ function environmentValue(key: string, environment: Environment) {
     return production || environment.VERCEL === "1" ? "vercel" : "local";
   if (key === "MAIL_PROVIDER") return production ? undefined : "console";
   if (key === "MAIL_FROM")
-    return production ? undefined : "PostDispatch <noreply@localhost>";
+    return production ? undefined : `${brand.name} <${brand.email}>`;
   return undefined;
 }
 export class ConfigError extends Error {

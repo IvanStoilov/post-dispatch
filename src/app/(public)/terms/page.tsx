@@ -7,9 +7,9 @@ import {
 } from "@/components/public/site-shell";
 import { site } from "@/lib/public-site";
 export const metadata: Metadata = {
-  title: "Terms of service | PostDispatch",
+  title: "Terms of service | Ramblo",
   description:
-    "The terms for using PostDispatch to receive drafts and publish approved social posts.",
+    "The terms for using Ramblo to receive drafts and publish approved social posts.",
   alternates: { canonical: "/terms" },
 };
 export default function TermsPage() {
@@ -21,16 +21,16 @@ export default function TermsPage() {
     >
       <PageIntro
         title="Terms of service"
-        description="The agreement for using PostDispatch, operated by Growth Optimize SL in Spain."
+        description="The agreement for using Ramblo, operated by Growth Optimize SL in Spain."
       />
       <PolicyDate />
       <DocumentSection id="agreement" title="Your agreement with us">
         <p>
-          These terms govern your use of PostDispatch, provided by{" "}
-          {site.operator} ({site.taxId}), at {site.address}. By creating an
-          account or using the service, you agree to these terms. You must have
-          legal capacity to enter this agreement and authority to act for any
-          business or social account you connect.
+          These terms govern your use of Ramblo, provided by {site.operator} (
+          {site.taxId}), at {site.address}. By creating an account or using the
+          service, you agree to these terms. You must have legal capacity to
+          enter this agreement and authority to act for any business or social
+          account you connect.
         </p>
         <p>
           Contact us at{" "}
@@ -46,7 +46,7 @@ export default function TermsPage() {
       </DocumentSection>
       <DocumentSection id="service" title="What the service does">
         <p>
-          PostDispatch stores drafts, media, projects, and account connections.
+          Ramblo stores drafts, media, projects, and account connections.
           Authorized assistants can submit and read drafts through MCP.
           Publishing is initiated by you in the dashboard. Daily AI generation
           requires a separate scheduled workflow; connecting an assistant alone
@@ -70,9 +70,9 @@ export default function TermsPage() {
         </p>
         <p>
           Only connect social accounts you own or are authorized to manage. A
-          connection authorizes PostDispatch to use the granted permissions for
-          the project’s features. You can disconnect accounts and revoke
-          assistant grants in settings.
+          connection authorizes Ramblo to use the granted permissions for the
+          project’s features. You can disconnect accounts and revoke assistant
+          grants in settings.
         </p>
       </DocumentSection>
       <DocumentSection id="content" title="Your content and approval">
@@ -91,9 +91,9 @@ export default function TermsPage() {
         </p>
         <p>
           Clicking Publish instructs us to send the post to the selected
-          networks. Deleting the PostDispatch record does not delete a post
-          already published elsewhere. A failed or interrupted delivery can have
-          an uncertain outcome; check the destination before retrying to avoid
+          networks. Deleting the Ramblo record does not delete a post already
+          published elsewhere. A failed or interrupted delivery can have an
+          uncertain outcome; check the destination before retrying to avoid
           duplicates.
         </p>
       </DocumentSection>
@@ -121,7 +121,7 @@ export default function TermsPage() {
           content decisions can prevent publishing or require reconnection.
         </p>
         <p>
-          PostDispatch is an independent service and is not endorsed by Meta,
+          Ramblo is an independent service and is not endorsed by Meta,
           LinkedIn, OpenAI, or Anthropic. We do not guarantee uninterrupted
           access, publication acceptance, or a particular audience reach.
         </p>
@@ -134,7 +134,7 @@ export default function TermsPage() {
             support
           </Link>
           . Also disable external scheduled workflows, because deleting or
-          disconnecting a PostDispatch connection does not switch off a separate
+          disconnecting a Ramblo connection does not switch off a separate
           automation service.
         </p>
         <p>

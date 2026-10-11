@@ -1,27 +1,42 @@
+import { brand } from "@/lib/brand";
 import type { Metadata, Viewport } from "next";
 import { siteOrigin } from "@/lib/public-site";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(siteOrigin()),
-  title: "PostDispatch — AI drafts, human approval",
+  title: `${brand.name} — ${brand.tagline}`,
   alternates: { canonical: "/" },
   openGraph: {
-    title: "PostDispatch — AI drafts, human approval",
+    title: `${brand.name} — ${brand.tagline}`,
     description:
       "Receive AI drafts, review your content, and publish to Facebook, Instagram, and LinkedIn.",
     type: "website",
-    siteName: "PostDispatch",
+    siteName: brand.name,
     locale: "en_GB",
+    images: [
+      {
+        url: "/brand/social-card.png",
+        width: 1200,
+        height: 630,
+        alt: `${brand.name} — ${brand.tagline}`,
+      },
+    ],
   },
   twitter: {
-    card: "summary",
-    title: "PostDispatch — AI drafts, human approval",
-    description: "Your AI drafts. Your final say.",
+    card: "summary_large_image",
+    title: `${brand.name} — ${brand.tagline}`,
+    description: brand.description,
+    images: ["/brand/social-card.png"],
   },
-  description: "AI drafts. You approve. PostDispatch publishes.",
+  description: brand.description,
 };
-export const viewport: Viewport = { themeColor: "#f5f7fa" };
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf8f2" },
+    { media: "(prefers-color-scheme: dark)", color: "#17221c" },
+  ],
+};
 export default function RootLayout({
   children,
 }: {

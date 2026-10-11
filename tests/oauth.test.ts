@@ -143,7 +143,7 @@ test(
       const registration = await checked(
         await getAuth().handler(
           req("/api/auth/oauth2/register", "POST", {
-            client_name: "PostDispatch OAuth test",
+            client_name: "Ramblo OAuth test",
             redirect_uris: ["https://client.example.test/callback"],
             token_endpoint_auth_method: "none",
             grant_types: ["authorization_code", "refresh_token"],
@@ -200,7 +200,7 @@ test(
                 new Headers({ cookie: a.cookie }),
               )
             ).clientName,
-            "PostDispatch OAuth test",
+            "Ramblo OAuth test",
           );
           const tampered = new URLSearchParams(signed);
           tampered.set("resource", otherResource);

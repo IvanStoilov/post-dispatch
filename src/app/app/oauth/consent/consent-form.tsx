@@ -48,11 +48,11 @@ export default function ConsentForm({
       <Card>
         <CardHeader>
           <CardTitle>
-            <h1>Connect your PostDispatch account?</h1>
+            <h1>Connect your Ramblo account?</h1>
           </CardTitle>
           <CardDescription>
             {clientName} is requesting access to all your current and future
-            PostDispatch projects.
+            Ramblo projects.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -76,8 +76,8 @@ export default function ConsentForm({
           <Alert>
             <ShieldCheck aria-hidden="true" />
             <AlertDescription>
-              Publishing requires your approval in PostDispatch. This connection
-              can read and create drafts across your projects.
+              Publishing requires your approval in Ramblo. This connection can
+              read and create drafts across your projects.
             </AlertDescription>
           </Alert>
           <p className="break-words text-xs leading-relaxed text-muted-foreground">

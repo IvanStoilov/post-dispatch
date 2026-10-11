@@ -1,81 +1,142 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/manrope";
 
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url(./fonts/dm-sans-latin-ext.woff2) format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url(./fonts/dm-sans-latin.woff2) format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
+/* Ramblo design tokens — Tailwind 4 and shadcn/ui. */
 @custom-variant dark (&:is(.dark *));
-
-/* Tailwind 4's CSS-first configuration: the shared PostDispatch design tokens. */
 @theme inline {
-  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-card-foreground: var(--foreground);
+  --color-popover-foreground: var(--foreground);
+  --color-secondary-foreground: var(--foreground);
+  --color-accent-foreground: var(--foreground);
+  --color-brand-forest: #283d32;
+  --color-brand-ivory: #faf8f2;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--card);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-brand-apricot: var(--brand-apricot);
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-info: var(--info);
+  --color-info-subtle: var(--info-subtle);
+  --color-error-subtle: var(--error-subtle);
+  --color-sidebar: var(--card);
+  --color-sidebar-foreground: var(--foreground);
   --color-sidebar-primary: var(--primary);
   --color-sidebar-primary-foreground: var(--primary-foreground);
-  --color-sidebar-accent: var(--accent);
-  --color-sidebar-accent-foreground: var(--accent-foreground);
+  --color-sidebar-accent: var(--secondary);
+  --color-sidebar-accent-foreground: var(--foreground);
   --color-sidebar-border: var(--border);
   --color-sidebar-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --text-hero: clamp(2.5rem, 6vw, 4.75rem);
-  --text-hero--line-height: 1.06;
-  --text-hero--letter-spacing: -0.055em;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 2rem;
+  --shadow-card: var(--shadow-card-token);
+  --shadow-popover: var(--shadow-popover-token);
   --text-display: clamp(2rem, 4vw, 3.5rem);
-  --text-display--line-height: 1.08;
+  --text-display--line-height: 1;
   --text-display--letter-spacing: -0.055em;
-  --text-page: 1.875rem;
-  --text-page--line-height: 1.2;
-  --text-page--letter-spacing: -0.04em;
+  --text-hero: clamp(2.5rem, 5vw, 4.5rem);
+  --text-hero--line-height: 1.05;
+  --text-hero--letter-spacing: -0.045em;
+  --text-page: 2rem;
+  --text-page--line-height: 1.15;
+  --text-page--letter-spacing: -0.035em;
 }
-
 :root {
   color-scheme: light;
-  --background: #f5f7fa;
-  --foreground: #172b36;
+  --background: #faf8f2;
+  --foreground: #283d32;
   --card: #ffffff;
-  --card-foreground: #172b36;
-  --popover: #ffffff;
-  --popover-foreground: #172b36;
-  --primary: #087f73;
+  --primary: #b84f36;
+  --primary-hover: #a1422c;
   --primary-foreground: #ffffff;
-  --secondary: #e7f3f1;
-  --secondary-foreground: #116359;
-  --muted: #eef2f5;
-  --muted-foreground: #637480;
-  --accent: #e7f3f1;
-  --accent-foreground: #116359;
-  --destructive: #b73445;
-  --border: #dfe6eb;
-  --input: #d5dfe5;
-  --ring: #087f73;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #172b36;
-  --radius: 0.625rem;
+  --secondary: #e9eee6;
+  --muted: #f0efe8;
+  --muted-foreground: #647067;
+  --accent: #e9eee6;
+  --brand-apricot: #ffd4a3;
+  --destructive: #a82f35;
+  --border: #dedcd3;
+  --input: #879086;
+  --ring: #b84f36;
+  --success: #246044;
+  --success-subtle: #e7efe8;
+  --warning: #805414;
+  --warning-subtle: #fff0d6;
+  --info: #315a80;
+  --info-subtle: #e8f0f8;
+  --error-subtle: #fce9e7;
+  --radius: 0.75rem;
+  --shadow-card-token: 0 2px 8px rgb(40 61 50 / 0.04);
+  --shadow-popover-token: 0 12px 40px rgb(40 61 50 / 0.12);
 }
-
+.dark {
+  color-scheme: dark;
+  --background: #17221c;
+  --foreground: #faf8f2;
+  --card: #202e25;
+  --primary: #f2aa89;
+  --primary-hover: #ffc1a3;
+  --primary-foreground: #2a211d;
+  --secondary: #304236;
+  --muted: #29392e;
+  --muted-foreground: #b8c2b6;
+  --accent: #304236;
+  --destructive: #ffb1ae;
+  --border: #405448;
+  --input: #788d7c;
+  --ring: #f2aa89;
+  --success: #b2d8bb;
+  --success-subtle: #263e2f;
+  --warning: #f2d198;
+  --warning-subtle: #44361f;
+  --info: #aecde7;
+  --info-subtle: #243b4b;
+  --error-subtle: #48292b;
+  --shadow-card-token: none;
+  --shadow-popover-token: 0 12px 40px rgb(0 0 0 / 0.24);
+}
 @layer base {
   * {
     @apply border-border outline-ring/50;

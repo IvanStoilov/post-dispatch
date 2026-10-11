@@ -17,6 +17,7 @@ async function main() {
     rules = [];
   }
   // Preserve any existing rules belonging to other applications.
+  // Existing rule ID must stay stable to update its allowed origins in place.
   const ID = "PostDispatchUploads";
   const old = rules.find((rule) => rule.ID === ID);
   const origins = [...new Set([...(old?.AllowedOrigins || []), origin])];

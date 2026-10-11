@@ -1,11 +1,12 @@
 {
-  "name": "post-dispatch",
+  "name": "ramblo",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 8200",
     "build": "next build",
     "start": "next start -p 8200",
+    "brand:generate": "tsx scripts/generate-brand.ts",
     "email:dev": "email dev --dir src/emails --port 8300",
     "lint": "eslint",
     "env:check": "tsx scripts/check-config.ts",
@@ -24,7 +25,6 @@
     "@aws-sdk/s3-request-presigner": "^3.1146.0",
     "@better-auth/drizzle-adapter": "^1.7.7",
     "@better-auth/oauth-provider": "1.7.7",
-    "@fontsource-variable/manrope": "^5.3.0",
     "@modelcontextprotocol/sdk": "^1.32.0",
     "@next/env": "^16.3.8",
     "@vercel/queue": "^0.8.0",

@@ -1,7 +1,8 @@
+import { brand } from "./brand";
 import { config } from "./config";
 import { loggedOperation } from "./logger";
 import { randomUUID } from "node:crypto";
-import { and, arrayContains, eq } from "drizzle-orm";
+import { and, arrayContains, eq, ne } from "drizzle-orm";
 import { getDb } from "../db";
 import {
   oauthResources,
@@ -26,12 +27,16 @@ export async function ensureAccountResource() {
       .values({
         id: randomUUID(),
         identifier: accountResource(),
-        name: "PostDispatch account",
+        name: `${brand.name} account`,
         allowedScopes: [...MCP_SCOPES, "offline_access"],
         createdAt: new Date(),
         updatedAt: new Date(),
       })
-      .onConflictDoNothing({ target: oauthResources.identifier });
+      .onConflictDoUpdate({
+        target: oauthResources.identifier,
+        set: { name: `${brand.name} account` },
+        setWhere: ne(oauthResources.name, `${brand.name} account`),
+      });
   });
 }
 export async function protectedResourceMetadata() {
@@ -47,7 +52,7 @@ export async function protectedResourceMetadata() {
             authorization_servers: [appOrigin() + "/api/auth"],
             scopes_supported: [...MCP_SCOPES, "offline_access"],
             bearer_methods_supported: ["header"],
-            resource_name: "PostDispatch account",
+            resource_name: `${brand.name} account`,
           },
           { headers: { "Cache-Control": "no-store" } },
         );

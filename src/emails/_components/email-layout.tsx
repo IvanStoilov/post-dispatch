@@ -1,3 +1,4 @@
+import { brand } from "../../lib/brand";
 import { appOrigin } from "../../lib/origins";
 import {
   Body,
@@ -23,13 +24,14 @@ const config: TailwindConfig = {
   presets: [pixelBasedPreset],
   theme: {
     extend: {
+      fontFamily: { sans: ["DM Sans", "Arial", "sans-serif"] },
       colors: {
-        background: "#f5f7fa",
-        foreground: "#172b36",
-        primary: "#087f73",
+        background: "#faf8f2",
+        foreground: "#283d32",
+        primary: "#b84f36",
         "primary-foreground": "#ffffff",
-        muted: "#637480",
-        border: "#dfe6eb",
+        muted: "#647067",
+        border: "#dedcd3",
       },
     },
   },
@@ -61,9 +63,9 @@ export function EmailLayout({
           <Container className="max-w-[480px] rounded-[12px] bg-white p-8">
             <Img
               src={`${appUrl()}/brand/logo.png`}
-              alt="PostDispatch"
-              width="124"
-              height="24"
+              alt={brand.wordmark}
+              width="160"
+              height="48"
             />
             <Heading className="mt-8 mb-3 text-[22px] leading-[1.3] font-semibold">
               {heading}
@@ -72,7 +74,7 @@ export function EmailLayout({
             <Section className="my-6">
               <Button
                 href={url}
-                className="rounded-[8px] bg-primary px-5 py-3 text-[15px] font-semibold text-primary-foreground"
+                className="rounded-[12px] bg-primary px-5 py-3 text-[15px] font-semibold text-primary-foreground"
               >
                 {action}
               </Button>
@@ -87,6 +89,12 @@ export function EmailLayout({
             <Hr className="my-4 border-border" />
             <Text className="m-0 text-[13px] leading-[1.6] text-muted">
               {footer}
+            </Text>
+            <Text className="mt-4 mb-0 text-[13px] text-muted">
+              {brand.tagline}{" "}
+              <Link href={`mailto:${brand.email}`} className="text-foreground">
+                {brand.email}
+              </Link>
             </Text>
           </Container>
         </Body>

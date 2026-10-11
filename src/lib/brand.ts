@@ -1,3 +1,13 @@
-// The arrow is the negative space inside the P's bowl.
+export const brand = {
+  name: "Ramblo",
+  wordmark: "ramblo.",
+  tagline: "Walk. Talk. Post.",
+  domain: "ramblo.io",
+  email: "hello@ramblo.io",
+  description:
+    "Turn ideas from ChatGPT and Claude into social posts. Review every draft, then publish to your connected accounts.",
+} as const;
+
+// A compact R drawn as a wandering line, finished with a publishing dot.
 export const brandMarkPath =
-  "M17 14H32C44 14 51 20 51 29C51 38 44 44 32 44H26V51H17V14ZM26 25V33H34V37L43 29L34 21V25H26Z";
+  "M19 45V29C19 22 23 18 29 18C36 18 40 23 40 29C40 35 35 38 28 38H25L41 46";

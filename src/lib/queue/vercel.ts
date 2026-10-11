@@ -7,6 +7,7 @@ import {
 import { internalRequestAuthorized } from "../internal-auth";
 import type { QueueHandler } from "./index";
 
+// Keep the existing header name so pending messages survive the rebrand.
 // Provider-specific authentication and APIs stay inside this adapter.
 // v2 push delivery includes the payload, so authenticate BEFORE the SDK handler
 // runs; checking its acknowledgement receipt after business effects is too late.

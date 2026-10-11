@@ -121,7 +121,7 @@ export default function AssistantSettings({
               <blockquote className="rounded-lg bg-muted p-4 text-sm leading-relaxed">
                 Create a Facebook draft for the project
                 {project?.name || "my project"} about our latest update and send
-                it to the PostDispatch MCP.
+                it to the Ramblo MCP.
               </blockquote>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 Remote assistants need a public HTTPS endpoint. Call

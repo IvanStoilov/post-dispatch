@@ -210,6 +210,7 @@ export default function Dashboard({
         const requested =
           preferred ||
           new URLSearchParams(window.location.search).get("projectId") ||
+          localStorage.getItem("ramblo-project") ||
           localStorage.getItem("postdispatch-project");
         const selected = all.find((p) => p.id === requested) || all[0];
         if (!selected) throw new Error("Create a project to begin");
@@ -228,7 +229,8 @@ export default function Dashboard({
         if (sequence !== requestSequence.current) return;
         setProjects(all);
         setProjectId(selected.id);
-        localStorage.setItem("postdispatch-project", selected.id);
+        localStorage.setItem("ramblo-project", selected.id);
+        localStorage.removeItem("postdispatch-project");
         setOrigin(window.location.origin);
         setPosts(data);
         setConnections(config);
@@ -627,6 +629,7 @@ export default function Dashboard({
               aria-label="Sign out"
               onClick={async () => {
                 await authClient.signOut();
+                localStorage.removeItem("ramblo-project");
                 localStorage.removeItem("postdispatch-project");
                 router.replace(appPath("/signin"));
                 router.refresh();
@@ -908,7 +911,7 @@ export default function Dashboard({
             <AlertDialogTitle>Delete this post?</AlertDialogTitle>
             <AlertDialogDescription>
               “{deleteConfirm?.title}” and its stored media will be permanently
-              removed from PostDispatch. Posts already published on Facebook or
+              removed from Ramblo. Posts already published on Facebook or
               Instagram remain there.
             </AlertDialogDescription>
           </AlertDialogHeader>

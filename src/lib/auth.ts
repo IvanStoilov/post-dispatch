@@ -1,3 +1,4 @@
+import { brand } from "./brand";
 import { config } from "./config";
 import { logger } from "./logger";
 import { after } from "next/server";
@@ -35,7 +36,7 @@ function makeAuth() {
   if (!config.BETTER_AUTH_SECRET)
     throw new Error("BETTER_AUTH_SECRET is required");
   return betterAuth({
-    appName: "PostDispatch",
+    appName: brand.name,
     logger: {
       level: "debug",
       log: (level, message) =>

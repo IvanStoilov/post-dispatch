@@ -7,9 +7,9 @@ import {
 } from "@/components/public/site-shell";
 import { site } from "@/lib/public-site";
 export const metadata: Metadata = {
-  title: "Privacy policy | PostDispatch",
+  title: "Privacy policy | Ramblo",
   description:
-    "How PostDispatch handles your account, drafts, media, and connected social accounts.",
+    "How Ramblo handles your account, drafts, media, and connected social accounts.",
   alternates: { canonical: "/privacy" },
 };
 export default function PrivacyPage() {
@@ -21,12 +21,12 @@ export default function PrivacyPage() {
     >
       <PageIntro
         title="Privacy policy"
-        description="How your information is used when you create, review, and publish with PostDispatch."
+        description="How your information is used when you create, review, and publish with Ramblo."
       />
       <PolicyDate />
-      <DocumentSection id="controller" title="Who operates PostDispatch">
+      <DocumentSection id="controller" title="Who operates Ramblo">
         <p>
-          {site.operator}, based in {site.country}, operates PostDispatch and is
+          {site.operator}, based in {site.country}, operates Ramblo and is
           responsible for personal data used to manage your account and provide
           the service. Our registered address is {site.address}. Our tax ID is{" "}
           {site.taxId}.
@@ -97,11 +97,10 @@ export default function PrivacyPage() {
       </DocumentSection>
       <DocumentSection id="sharing" title="Who receives your information">
         <p>
-          Our infrastructure providers process information to operate
-          PostDispatch: Vercel hosts the application, and Neon provides the
-          configured database and private object storage. Their services can
-          also process technical logs and maintain backups under their own
-          contractual terms.
+          Our infrastructure providers process information to operate Ramblo:
+          Vercel hosts the application, and Neon provides the configured
+          database and private object storage. Their services can also process
+          technical logs and maintain backups under their own contractual terms.
         </p>
         <p>
           When you publish, the selected network—Meta for Facebook and
@@ -114,8 +113,8 @@ export default function PrivacyPage() {
           from all your current and future projects exposed by the tools you
           authorize, including drafts and their media references. ChatGPT,
           Claude, and any automation or AI provider you choose have their own
-          terms and privacy practices. PostDispatch receives submitted drafts;
-          it does not run an AI model to generate them itself.
+          terms and privacy practices. Ramblo receives submitted drafts; it does
+          not run an AI model to generate them itself.
         </p>
         <p>
           Providers may process information outside Spain or the European
@@ -135,9 +134,9 @@ export default function PrivacyPage() {
         <p>
           Account and project records are kept while you use the service, until
           you delete the relevant content or request account deletion. Deleting
-          a post removes its PostDispatch record and associated stored media. If
-          media removal fails, contact support so we can investigate. This does
-          not delete posts already published on social networks.
+          a post removes its Ramblo record and associated stored media. If media
+          removal fails, contact support so we can investigate. This does not
+          delete posts already published on social networks.
         </p>
         <p>
           Logs, support records, and provider backups may remain after active
@@ -169,7 +168,7 @@ export default function PrivacyPage() {
           Send requests to{" "}
           <a
             className="document-link"
-            href={`mailto:${site.email}?subject=PostDispatch%20privacy%20request`}
+            href={`mailto:${site.email}?subject=Ramblo%20privacy%20request`}
           >
             {site.email}
           </a>

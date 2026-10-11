@@ -23,11 +23,11 @@ import { appPageUrl } from "@/lib/origins";
 const faq = [
   [
     "Does the AI publish for me?",
-    "Your assistant creates drafts. You review the text and media, then click Publish in PostDispatch. Assistants cannot publish through our MCP tools.",
+    "Your assistant creates drafts. You review the text and media, then click Publish in Ramblo. Assistants cannot publish through our MCP tools.",
   ],
   [
     "Can I receive a new draft every day?",
-    "Yes, with an external scheduled AI workflow connected to your project. PostDispatch receives the drafts; daily generation is configured in your automation tool. The setup guide explains how.",
+    "Yes, with an external scheduled AI workflow connected to your project. Ramblo receives the drafts; daily generation is configured in your automation tool. The setup guide explains how.",
   ],
   [
     "Which accounts can I connect?",
@@ -45,9 +45,11 @@ export function Landing() {
         <div className="flex flex-col items-start gap-7">
           <Badge variant="secondary">AI drafts. Human approval.</Badge>
           <h1 className="text-hero font-semibold">
-            Your AI drafts.
+            Walk.
             <br />
-            Your final say.
+            Talk.
+            <br />
+            <span className="text-primary">Post.</span>
           </h1>
           <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">
             Turn ideas from ChatGPT and Claude into social posts. Keep every
@@ -190,8 +192,8 @@ export function Landing() {
             </h2>
             <p className="max-w-lg leading-7 text-muted-foreground">
               Use a scheduled AI workflow to prepare a fresh draft each day.
-              PostDispatch keeps it ready for your review, alongside posts you
-              create yourself.
+              Ramblo keeps it ready for your review, alongside posts you create
+              yourself.
             </p>
             <Button variant="outline" className="w-fit" asChild>
               <Link href="/guide#daily-drafts">

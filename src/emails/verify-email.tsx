@@ -4,15 +4,15 @@ export type VerifyEmailProps = { name: string; url: string };
 export default function VerifyEmail({ name, url }: VerifyEmailProps) {
   return (
     <EmailLayout
-      preview="Confirm your email to finish setting up PostDispatch."
+      preview="Confirm your email to finish setting up Ramblo."
       heading="Confirm your email"
       action="Confirm email"
       url={url}
-      footer="This link expires in 24 hours. If you didn’t create a PostDispatch account, you can ignore this email."
+      footer="This link expires in 24 hours. If you didn’t create a Ramblo account, you can ignore this email."
     >
       <Paragraph>
         {greeting(name)} confirm this is your email address to finish setting up
-        your PostDispatch account.
+        your Ramblo account.
       </Paragraph>
     </EmailLayout>
   );

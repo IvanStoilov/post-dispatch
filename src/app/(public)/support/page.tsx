@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/card";
 import { site } from "@/lib/public-site";
 export const metadata: Metadata = {
-  title: "Support | PostDispatch",
+  title: "Support | Ramblo",
   description:
-    "Get help with your PostDispatch project, assistant connections, and publishing.",
+    "Get help with your Ramblo project, assistant connections, and publishing.",
   alternates: { canonical: "/support" },
 };
 export default function SupportPage() {
@@ -47,7 +47,7 @@ export default function SupportPage() {
           </CardContent>
           <CardFooter>
             <Button asChild>
-              <a href={`mailto:${site.email}?subject=PostDispatch%20support`}>
+              <a href={`mailto:${site.email}?subject=Ramblo%20support`}>
                 <Mail data-icon="inline-start" aria-hidden="true" />
                 Email the team
               </a>
@@ -91,15 +91,15 @@ export default function SupportPage() {
       <DocumentSection id="delivery" title="If a publication is interrupted">
         <p>
           Check the selected social accounts before submitting again. One
-          network may have accepted a post even if another failed. PostDispatch
-          keeps delivery results per channel; uncertain deliveries require
-          review to avoid duplicate posts.
+          network may have accepted a post even if another failed. Ramblo keeps
+          delivery results per channel; uncertain deliveries require review to
+          avoid duplicate posts.
         </p>
       </DocumentSection>
       <DocumentSection id="privacy" title="Privacy and account requests">
         <p>
           For access, correction, or deletion requests, use the same email
-          address with “PostDispatch privacy request” in the subject. See the{" "}
+          address with “Ramblo privacy request” in the subject. See the{" "}
           <Link className="document-link" href="/privacy">
             privacy policy
           </Link>{" "}

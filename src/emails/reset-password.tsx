@@ -4,7 +4,7 @@ export type ResetPasswordProps = { name: string; url: string };
 export default function ResetPassword({ name, url }: ResetPasswordProps) {
   return (
     <EmailLayout
-      preview="Use this link to choose a new PostDispatch password."
+      preview="Use this link to choose a new Ramblo password."
       heading="Reset your password"
       action="Choose a new password"
       url={url}
@@ -12,7 +12,7 @@ export default function ResetPassword({ name, url }: ResetPasswordProps) {
     >
       <Paragraph>
         {greeting(name)} we received a request to reset the password for your
-        PostDispatch account.
+        Ramblo account.
       </Paragraph>
     </EmailLayout>
   );

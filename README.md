@@ -1,12 +1,14 @@
-# PostDispatch
+# Ramblo
 
-AI drafts. You approve. PostDispatch publishes.
+**Walk. Talk. Post.**
+
+Turn ideas from ChatGPT and Claude into social posts. Review every draft, then publish to your connected accounts.
 
 A Next.js local MVP for a personal publishing desk: persistent draft inbox, ordered image galleries or single-video posts, editing, channel filters, search, human approval, Meta publishing, and an authenticated Streamable HTTP MCP endpoint.
 
 ## Frontend design
 
-The frontend uses shadcn/ui (Radix Nova) and Tailwind CSS 4. Shared colors, radii, and typography live in the CSS-first `@theme inline` configuration in `src/app/globals.css`. Use semantic utilities such as `bg-primary`, `text-muted-foreground`, `font-sans`, and `text-page` when extending the UI. Manrope is bundled locally through Fontsource.
+The frontend uses shadcn/ui (Radix Nova) and Tailwind CSS 4. Shared colors, radii, and typography live in the CSS-first `@theme inline` configuration in `src/app/globals.css`. Use semantic utilities such as `bg-primary`, `text-muted-foreground`, `font-sans`, and `text-page` when extending the UI. DM Sans is self-hosted in `src/app/fonts` with its SIL Open Font License in `public/brand/font-license.txt`.
 
 Components are source files in `src/components/ui`; add new ones with `pnpm dlx shadcn@latest add <component>`. The installed design skills are in `.agents/skills`.
 
@@ -37,7 +39,7 @@ Mail goes through `src/lib/mail`, which hides the provider behind one `sendMail(
 | `sendgrid`      | `SENDGRID_API_KEY` | Verify the sender identity or domain. Click tracking is disabled per message.                                                  |
 | `console`       | —                  | Development only: prints emails, including links, to the server output. The default outside production; refused in production. |
 
-`MAIL_FROM` (for example `PostDispatch <hello@yourdomain.com>`) is required in production; `MAIL_REPLY_TO` is optional. To add another provider, implement `MailProvider` in `src/lib/mail/providers/` and register it in `src/lib/mail/index.ts`. Emails are sent after the response, and failures are logged as `mail.failed` with the reason.
+`MAIL_FROM` (for example `Ramblo <hello@yourdomain.com>`) is required in production; `MAIL_REPLY_TO` is optional. To add another provider, implement `MailProvider` in `src/lib/mail/providers/` and register it in `src/lib/mail/index.ts`. Emails are sent after the response, and failures are logged as `mail.failed` with the reason.
 
 Templates are [React Email](https://react.email) components in `src/emails` (shared layout and brand colors in `src/emails/_components`). `src/lib/mail/templates.tsx` renders each one to HTML plus a plain-text version. Preview them at http://localhost:8300 with `pnpm email:dev`, which shows each template with its `PreviewProps` and checks client compatibility. The logo uses the application origin (`APPLICATION_URL` in Vercel production, resolved `APP_URL` elsewhere), which must be publicly reachable to appear in delivered emails.
 
@@ -83,7 +85,7 @@ Remote clients need a reachable HTTPS endpoint. Both account bearer tokens and O
 1. Use `APPLICATION_URL=https://app.ramblo.io` and `PUBLIC_URL=https://www.ramblo.io` in Vercel production, with a stable `BETTER_AUTH_SECRET`. Local/preview deployments derive their origin from `APP_URL`/`VERCEL_URL`. Redeploy after adding these changes and environment settings. Apply migrations with `pnpm db:migrate` against the deployment database.
 2. Copy the account endpoint from MCP integration.
 3. In ChatGPT Plugins, add a custom MCP server, paste the endpoint, and select OAuth. Choose dynamic client registration (DCR), leaving Client ID and Client Secret blank. CIMD is not enabled by this implementation.
-4. Sign in to PostDispatch and approve access to your account’s current and future projects, then install/select the connection in your chat.
+4. Sign in to Ramblo and approve access to your account’s current and future projects, then install/select the connection in your chat.
 
 OAuth uses Better Auth's provider, S256 PKCE, exact registered redirect URI matching, single-use codes, and signed consent queries. Tokens have the exact account MCP resource as audience. Every MCP call checks token activity/expiry, scopes, and current project ownership. Password signup/signin preserves the OAuth continuation. Opaque access tokens are stored as hashes and expire after 15 minutes; rotating refresh tokens last up to 30 days and require `offline_access`. Public clients use `token_endpoint_auth_method: none`; confidential DCR clients are also supported by the provider. No custom OAuth client secrets are required for ChatGPT's DCR flow. Registration alone never grants account access.
 
@@ -99,7 +101,7 @@ Set these server environment variables, then restart/redeploy:
 
 - `FACEBOOK_APP_ID` and `FACEBOOK_APP_SECRET`: the Meta app's Facebook credentials.
 - `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET`: the **Instagram App ID and secret** from the app's Instagram Login setup, which may differ from its Facebook app credentials.
-- `APP_URL`: the exact public HTTPS origin (for example `https://postdispatch.example`).
+- `APP_URL`: the exact public HTTPS origin (for example `https://app.ramblo.io`).
 
 Register these exact valid OAuth redirect URIs in the respective Meta login settings:
 
@@ -189,7 +191,7 @@ pnpm db:studio     # Browse the database locally
 
 Drizzle Kit loads `.env*` using Next's environment loader, matching the application's environment precedence. Migrations are committed in `drizzle/` and are applied explicitly, not during requests or builds. The database URL example is commented out so copying `.env.example` into `.env.local` does not override your configured `.env` value.
 
-Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing requires draft status; deletion is available for drafts, published posts, and posts needing review, but is blocked while publishing. Deleting removes the PostDispatch record and its private image, with a confirmation in the dashboard. Posts on the connected social networks are not deleted. Each channel's result is persisted separately; network calls happen outside the transaction. Publishing now uses durable per-channel jobs and conservative reconciliation; see Durable publishing below.
+Publishing claims a draft in a short database transaction with a row lock. This prevents duplicate submissions across server processes. Editing requires draft status; deletion is available for drafts, published posts, and posts needing review, but is blocked while publishing. Deleting removes the Ramblo record and its private image, with a confirmation in the dashboard. Posts on the connected social networks are not deleted. Each channel's result is persisted separately; network calls happen outside the transaction. Publishing now uses durable per-channel jobs and conservative reconciliation; see Durable publishing below.
 
 Set `APP_URL` to the exact externally accessible origin. Use HTTPS for remote access and configure BETTER_AUTH_SECRET. Each account has a bearer token; MCP can create drafts but cannot publish posts. Origin/host checks guard the dashboard mutations and MCP. No secrets are returned to the browser. This MVP has no social login or scheduler.
 
@@ -233,11 +235,11 @@ Tests mock LinkedIn's network calls and cover OAuth state/session/project isolat
 
 Anonymous visitors see the landing page at `/`; signed-in users keep their publishing workspace. `/guide`, `/privacy`, `/terms`, `/support`, `/legal`, and `/data-deletion` are public, with links from the landing page, authentication screens, and dashboard. Dashboard APIs remain protected. `APP_URL` supplies canonical and sitemap URLs, so set it to the deployed origin before building.
 
-Public company details are centralized in `src/lib/public-site.ts`: Growth Optimize SL, Spain, hello@growthlens.io, registered address and tax ID. Optional `COMPANY_REGISTERED_ADDRESS` and `COMPANY_TAX_ID` override the supplied defaults. The Commercial Registry is Registro Mercantil de Barcelona; `COMPANY_REGISTRY_DETAILS` optionally overrides this supplied default.
+Public company details are centralized in `src/lib/public-site.ts`: Growth Optimize SL, Spain, hello@ramblo.io, registered address and tax ID. Optional `COMPANY_REGISTERED_ADDRESS` and `COMPANY_TAX_ID` override the supplied defaults. The Commercial Registry is Registro Mercantil de Barcelona; `COMPANY_REGISTRY_DETAILS` optionally overrides this supplied default.
 
 The policies describe the current service, including human approval, private media, manual account-deletion requests, and external providers. Before launch, have the operator review the policy text against its actual processor agreements, hosting regions, international transfer arrangements, and log/backup retention. Configure the published `/privacy`, `/terms`, and `/data-deletion` URLs in the social-network app dashboards where requested.
 
-Connecting ChatGPT or Claude enables on-demand drafts; it does not install a daily schedule. `/guide` includes a reusable brand prompt and an external n8n example: Schedule Trigger → AI Agent with an MCP Client Tool → draft in PostDispatch → human review. Use a client supporting Streamable HTTP and a account bearer credential. Configure the timezone, test manually, and activate the workflow in the scheduling service. The guide does not deploy a scheduler, and the n8n example has not been tested in a live n8n instance.
+Connecting ChatGPT or Claude enables on-demand drafts; it does not install a daily schedule. `/guide` includes a reusable brand prompt and an external n8n example: Schedule Trigger → AI Agent with an MCP Client Tool → draft in Ramblo → human review. Use a client supporting Streamable HTTP and a account bearer credential. Configure the timezone, test manually, and activate the workflow in the scheduling service. The guide does not deploy a scheduler, and the n8n example has not been tested in a live n8n instance.
 
 ## Account-level MCP
 
@@ -249,7 +251,14 @@ Private uploads remain bound to the selected project. `create_upload_token` retu
 
 ## Brand assets
 
-The PostDispatch mark combines a P with a dispatch arrow in its negative space. The shared `Brand` component uses the mark with the app's Manrope wordmark and theme colors. Reusable exports are in `public/brand/`: `logo.svg`, `logo-on-dark.svg`, `logo.png`, `mark.svg`, and `mark.png`. SVG wordmarks embed the bundled Manrope font so they do not require a remote font. PNGs have transparent backgrounds.
+The shared `brand` identity in `src/lib/brand.ts` defines **Ramblo**, the **ramblo.** wordmark, **Walk. Talk. Post.** tagline and `hello@ramblo.io`. Warm ivory, forest ink, terracotta, sage and apricot tokens live in `src/app/globals.css`, including a dark palette and semantic status colors. Typography is self-hosted DM Sans. The compact R mark uses a wandering line finished by a dot. The brand specifications are in `docs/brand-identity.md`.
+
+Reusable exports in `public/brand` include outlined SVG wordmarks (`logo.svg`, `logo-on-dark.svg`), transparent PNG wordmarks, a compact SVG/PNG mark, and a 1200×630 social card. Favicons and the Apple icon are generated from the same mark. Run `pnpm brand:generate` to regenerate assets; the generator reads the app's CSS colors and the licensed font source in `scripts/assets`. It uses the font parser bundled with the pinned Next.js version. The exported SVGs contain paths and need no installed font.
+
+Saved credential encryption prefixes/AAD, connector handshake contexts/cookies, OAuth plugin ID, queue delivery headers, and the storage CORS rule ID retain their existing private protocol identifiers. These are not public branding; changing them during a rename could invalidate stored secrets, in-flight connections or queued deliveries. The selected-project browser preference migrates to `ramblo-project` when the workspace opens. Existing OAuth resource display names update to Ramblo without replacing IDs, grants or scopes.
+
+Before production rollout, update Vercel `MAIL_FROM="Ramblo <hello@ramblo.io>"` and `MAIL_REPLY_TO=hello@ramblo.io`, verify `ramblo.io` as a sending domain with the chosen email provider, and make sure `hello@ramblo.io` receives support/privacy mail. Update public names/logos, privacy/terms/data-deletion URLs and app-domain callbacks in Meta and LinkedIn dashboards. Existing old-domain bookmarks can be redirected via the old deployment/domain configuration once the new domains are live. These external service settings are separate from this code change.
+
 
 Next.js discovers `src/app/favicon.ico` (16/32/48 pixels), `icon.svg`, and `apple-icon.png` (180 pixels) automatically. To regenerate exports from the shared mark geometry and Tailwind theme colors, run `node --import tsx scripts/generate-brand.ts` from the project root.
 

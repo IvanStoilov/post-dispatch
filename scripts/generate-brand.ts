@@ -1,90 +1,113 @@
 import { config as appConfig, setFontconfigFile } from "../src/lib/config";
+import { createRequire } from "node:module";
+import { brand, brandMarkPath } from "../src/lib/brand";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import sharp from "sharp";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { brandMarkPath } from "../src/lib/brand";
 
 async function generateBrand() {
-  // Keep font generation self-contained when the host has no Fontconfig setup.
+  const fontPath = "scripts/assets/dm-sans.ttf";
   if (!appConfig.FONTCONFIG_FILE) {
-    const cache = join(tmpdir(), "postdispatch-brand-font-cache");
-    const config = join(tmpdir(), "postdispatch-brand-fontconfig.xml");
+    const cache = join(tmpdir(), "ramblo-brand-font-cache");
+    const fontconfig = join(tmpdir(), "ramblo-brand-fontconfig.xml");
     await mkdir(cache, { recursive: true });
-    const fontDir = resolve("node_modules/@fontsource-variable/manrope/files");
-    const xml = (value: string) =>
+    const escape = (value: string) =>
       value.replaceAll("&", "&amp;").replaceAll("<", "&lt;");
     await writeFile(
-      config,
-      `<?xml version="1.0"?><fontconfig><dir>${xml(fontDir)}</dir><cachedir>${xml(cache)}</cachedir></fontconfig>`,
+      fontconfig,
+      `<?xml version="1.0"?><fontconfig><dir>${escape(resolve("scripts/assets"))}</dir><cachedir>${escape(cache)}</cachedir></fontconfig>`,
     );
-    setFontconfigFile(config);
+    setFontconfigFile(fontconfig);
   }
   const css = await readFile("src/app/globals.css", "utf8");
   const color = (name: string) => {
-    const match = css.match(new RegExp(`--${name}:\\s*(#[a-fA-F0-9]{6});`));
-    if (!match) throw new Error(`Missing brand color: ${name}`);
-    return match[1];
+    const value = css.match(
+      new RegExp(`--${name}:\\s*(#[a-fA-F0-9]{6});`),
+    )?.[1];
+    if (!value) throw new Error(`Missing brand color: ${name}`);
+    return value;
   };
-  const teal = color("primary"),
-    ink = color("foreground"),
-    white = color("primary-foreground");
-  const fontPath =
-    "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2";
-  const font = (await readFile(fontPath)).toString("base64");
-  const fontLicense = await readFile(
-    "node_modules/@fontsource-variable/manrope/LICENSE",
-    "utf8",
-  );
-  const mark = `<rect width="64" height="64" rx="16" fill="${teal}"/><path d="${brandMarkPath}" fill="${white}" fill-rule="evenodd"/>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><title>PostDispatch</title>${mark}</svg>`;
-  const wordmark = (textColor: string) =>
-    `<svg xmlns="http://www.w3.org/2000/svg" width="496" height="96" viewBox="0 0 496 96"><title>PostDispatch</title><metadata><![CDATA[${fontLicense}]]></metadata><style>@font-face{font-family:PostDispatchManrope;src:url(data:font/woff2;base64,${font}) format('woff2');font-weight:200 800}text{font-family:PostDispatchManrope,sans-serif;font-weight:650;letter-spacing:-1.6px}</style><g transform="translate(8 8) scale(1.25)">${mark}</g><text x="108" y="65" font-size="52" fill="${textColor}">PostDispatch</text></svg>`;
+  const ink = color("foreground"),
+    ivory = color("background"),
+    primary = color("primary"),
+    apricot = color("brand-apricot");
+  // Use the font parser bundled with our pinned Next.js version for portable,
+  // outlined SVG wordmarks; exported logos do not depend on an installed font.
+  type Font = {
+    unitsPerEm: number;
+    getVariation: (settings: { wght: number }) => Font;
+    layout: (text: string) => {
+      glyphs: { path: { toSVG: () => string } }[];
+      positions: { xAdvance: number; xOffset: number; yOffset: number }[];
+    };
+  };
+  const readFont = createRequire(import.meta.url)(
+    "next/dist/compiled/@next/font/dist/fontkit",
+  ).default as (buffer: Buffer) => Font;
+  const font = readFont(await readFile(fontPath)).getVariation({ wght: 800 });
+  const outlineWordmark = (textColor: string, dotColor: string) => {
+    const run = font.layout(brand.wordmark),
+      scale = 80 / font.unitsPerEm;
+    let x = 10;
+    return run.glyphs
+      .map((glyph, index) => {
+        const position = run.positions[index];
+        const path = `<path d="${glyph.path.toSVG()}" fill="${index === run.glyphs.length - 1 ? dotColor : textColor}" transform="translate(${x + position.xOffset * scale} ${74 - position.yOffset * scale}) scale(${scale} ${-scale})"/>`;
+        x += position.xAdvance * scale - 4.8;
+        return path;
+      })
+      .join("");
+  };
+  const license = await readFile("public/brand/font-license.txt", "utf8");
+  const mark = `<rect width="64" height="64" rx="16" fill="${ink}"/><path d="${brandMarkPath}" fill="none" stroke="${ivory}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="43" cy="47" r="4" fill="${apricot}"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><title>${brand.name}</title>${mark}</svg>`;
+  const wordmark = (textColor: string, dotColor: string) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="96" viewBox="0 0 320 96" role="img" aria-label="${brand.wordmark}"><title>${brand.name}</title><metadata><![CDATA[${license}]]></metadata>${outlineWordmark(textColor, dotColor)}</svg>`;
   await mkdir("public/brand", { recursive: true });
-  await writeFile("public/brand/font-license.txt", fontLicense);
   await writeFile("public/brand/mark.svg", svg);
-  await writeFile("public/brand/logo.svg", wordmark(ink));
-  await writeFile("public/brand/logo-on-dark.svg", wordmark(white));
+  await writeFile("public/brand/logo.svg", wordmark(ink, primary));
+  await writeFile("public/brand/logo-on-dark.svg", wordmark(ivory, apricot));
   await writeFile("src/app/icon.svg", svg);
   await sharp(Buffer.from(svg))
     .resize(512, 512)
     .png()
     .toFile("public/brand/mark.png");
-  // Raster wordmark uses the same bundled font, without a remote font dependency.
-  const text = await sharp({
-    text: {
-      text:
-        '<span foreground="' + ink + '" weight="semibold">PostDispatch</span>',
-      font: "Manrope 104",
-      fontfile: fontPath,
-      rgba: true,
-    },
-  })
-    .png()
-    .toBuffer();
-  const textMeta = await sharp(text).metadata();
-  const logo = await sharp({
-    create: {
-      width: 992,
-      height: 192,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    },
-  })
-    .composite([
-      {
-        input: await sharp(Buffer.from(svg)).resize(160, 160).png().toBuffer(),
-        left: 16,
-        top: 16,
-      },
-      { input: text, left: 216, top: Math.round((192 - textMeta.height!) / 2) },
-    ])
-    .png()
-    .toBuffer();
-  await writeFile("public/brand/logo.png", logo);
+  const textImage = async (text: string, size: number) =>
+    sharp({
+      text: { text, font: `DM Sans ${size}`, fontfile: fontPath, rgba: true },
+    })
+      .png()
+      .toBuffer();
+  const logo = async (textColor: string, dotColor: string, output: string) => {
+    const text = await sharp(
+      await textImage(
+        `<span foreground="${textColor}" weight="ultrabold">ramblo<span foreground="${dotColor}">.</span></span>`,
+        160,
+      ),
+    )
+      .resize({ width: 600, height: 172, fit: "inside" })
+      .png()
+      .toBuffer();
+    const metadata = await sharp(text).metadata();
+    await sharp({
+      create: { width: 640, height: 192, channels: 4, background: "#00000000" },
+    })
+      .composite([
+        {
+          input: text,
+          left: 20,
+          top: Math.round((192 - metadata.height!) / 2),
+        },
+      ])
+      .png()
+      .toFile(output);
+  };
+  await logo(ink, primary, "public/brand/logo.png");
+  await logo(ivory, apricot, "public/brand/logo-on-dark.png");
   await sharp(Buffer.from(svg))
     .resize(180, 180)
-    .flatten({ background: teal })
+    .flatten({ background: ink })
     .png()
     .toFile("src/app/apple-icon.png");
   const images = await Promise.all(
@@ -108,8 +131,35 @@ async function generateBrand() {
     offset += image.length;
   });
   await writeFile("src/app/favicon.ico", Buffer.concat([header, ...images]));
+  const heading = await textImage(
+    `<span foreground="${ivory}" weight="ultrabold">ramblo<span foreground="${apricot}">.</span></span>`,
+    140,
+  );
+  const tagline = await textImage(
+    `<span foreground="${ivory}">${brand.tagline}</span>`,
+    46,
+  );
+  const caption = await textImage(
+    `<span foreground="${apricot}">AI drafts. Your approval.</span>`,
+    24,
+  );
+  await sharp({
+    create: { width: 1200, height: 630, channels: 4, background: ink },
+  })
+    .composite([
+      { input: heading, left: 80, top: 100 },
+      { input: tagline, left: 84, top: 330 },
+      { input: caption, left: 84, top: 470 },
+      {
+        input: await sharp(Buffer.from(svg)).resize(128, 128).png().toBuffer(),
+        left: 992,
+        top: 84,
+      },
+    ])
+    .png()
+    .toFile("public/brand/social-card.png");
   console.log(
-    "Created logo, mark, SVG favicon, 16/32/48px ICO, and 180px Apple icon.",
+    "Generated Ramblo logos, compact mark, icons, favicon and social card.",
   );
 }
 void generateBrand().catch((error) => {

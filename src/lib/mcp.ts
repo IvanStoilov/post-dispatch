@@ -1,3 +1,4 @@
+import { brand } from "./brand";
 import { appPageUrl } from "./origins";
 import { loggedOperation, logger, withLogContext } from "./logger";
 import { platforms } from "./types";
@@ -86,10 +87,10 @@ export async function handleAccountMcp(req: Request) {
       }
     }
     const server = new McpServer(
-      { name: "post-dispatch", version: "0.5.0" },
+      { name: brand.name.toLowerCase(), version: "0.5.0" },
       {
         instructions:
-          "You are connected to a PostDispatch account. Call list_projects to discover project IDs and available channels. If there is exactly one project, tools select it automatically when projectId is omitted. If there are multiple projects, every project-specific tool requires projectId. Confirm the intended project with the user when unclear; never choose the first project. Each call checks ownership. Create drafts for human approval; do not publish. For ChatGPT files use create_draft_from_files. Use assets arrays for up to 10 images or one video.",
+          "You are connected to a Ramblo account. Call list_projects to discover project IDs and available channels. If there is exactly one project, tools select it automatically when projectId is omitted. If there are multiple projects, every project-specific tool requires projectId. Confirm the intended project with the user when unclear; never choose the first project. Each call checks ownership. Create drafts for human approval; do not publish. For ChatGPT files use create_draft_from_files. Use assets arrays for up to 10 images or one video.",
       },
     );
     server.registerTool(

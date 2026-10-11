@@ -1,6 +1,8 @@
 import { config } from "./config";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
+// This persisted encryption format predates Ramblo; changing its prefix/AAD
+// would make existing connector tokens unreadable. It is not public branding.
 export const CREDENTIAL_PREFIX = "pdcred:v1:";
 export type CredentialField = "access_token" | "refresh_token";
 

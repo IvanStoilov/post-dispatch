@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, ArrowRight } from "lucide-react";
 export const metadata: Metadata = {
-  title: "Setup and daily AI drafts | PostDispatch",
+  title: "Setup and daily AI drafts | Ramblo",
   description:
     "Connect ChatGPT or Claude, submit your first draft, and configure an external workflow for daily AI generation.",
   alternates: { canonical: "/guide" },
@@ -92,13 +92,13 @@ export default function GuidePage() {
                 Access and menu names depend on your plan and workspace.
               </li>
               <li>
-                Add PostDispatch using the account endpoint and choose OAuth.
-                Use automatic/dynamic client registration; no PostDispatch
-                client ID or secret is needed.
+                Add Ramblo using the account endpoint and choose OAuth. Use
+                automatic/dynamic client registration; no Ramblo client ID or
+                secret is needed.
               </li>
               <li>
-                Sign in to PostDispatch, approve access to your account’s
-                projects, and enable the connection in your conversation.
+                Sign in to Ramblo, approve access to your account’s projects,
+                and enable the connection in your conversation.
               </li>
             </ol>
           </section>
@@ -115,8 +115,8 @@ export default function GuidePage() {
                 choice.
               </li>
               <li>
-                Complete the PostDispatch sign-in and consent flow, then enable
-                the connector in your conversation.
+                Complete the Ramblo sign-in and consent flow, then enable the
+                connector in your conversation.
               </li>
             </ol>
           </section>
@@ -124,8 +124,8 @@ export default function GuidePage() {
         <p>
           If your client supports bearer authentication instead, generate a
           account token in MCP integration and save it in the client’s secure
-          credentials. Do not paste tokens into chat prompts. PostDispatch does
-          not yet have a public directory listing, so setup currently uses the
+          credentials. Do not paste tokens into chat prompts. Ramblo does not
+          yet have a public directory listing, so setup currently uses the
           endpoint.
         </p>
       </DocumentSection>
@@ -144,9 +144,9 @@ export default function GuidePage() {
           accepts up to 10 images or one video.
         </p>
         <p>
-          Open your PostDispatch inbox, edit the caption and media, check the
-          selected channels, and click Publish when ready. The assistant cannot
-          publish through MCP.
+          Open your Ramblo inbox, edit the caption and media, check the selected
+          channels, and click Publish when ready. The assistant cannot publish
+          through MCP.
         </p>
       </DocumentSection>
       <DocumentSection
@@ -157,10 +157,10 @@ export default function GuidePage() {
           <Clock aria-hidden="true" />
           <AlertTitle>The schedule lives in your automation tool</AlertTitle>
           <AlertDescription>
-            Connecting ChatGPT or Claude does not create a daily job.
-            PostDispatch receives drafts; it does not currently run a scheduler
-            or an AI model. Use an external scheduled workflow that can call a
-            remote MCP server.
+            Connecting ChatGPT or Claude does not create a daily job. Ramblo
+            receives drafts; it does not currently run a scheduler or an AI
+            model. Use an external scheduled workflow that can call a remote MCP
+            server.
           </AlertDescription>
         </Alert>
         <div className="flex flex-wrap gap-2">
@@ -168,7 +168,7 @@ export default function GuidePage() {
           <span aria-hidden="true">→</span>
           <Badge variant="secondary">AI agent</Badge>
           <span aria-hidden="true">→</span>
-          <Badge variant="secondary">PostDispatch draft</Badge>
+          <Badge variant="secondary">Ramblo draft</Badge>
           <span aria-hidden="true">→</span>
           <Badge variant="outline">Your approval</Badge>
         </div>
@@ -189,9 +189,9 @@ export default function GuidePage() {
           </li>
           <li>
             Attach an MCP Client Tool to the agent. Use a version that supports
-            Streamable HTTP, enter your PostDispatch account endpoint, and store
-            its account token as a Bearer Auth credential. The token value goes
-            in the credential, not the prompt. If a transport selector is
+            Streamable HTTP, enter your Ramblo account endpoint, and store its
+            account token as a Bearer Auth credential. The token value goes in
+            the credential, not the prompt. If a transport selector is
             available, choose Streamable HTTP.
           </li>
           <li>
@@ -219,7 +219,7 @@ export default function GuidePage() {
           If a run stops after submitting a draft, check list_posts before
           rerunning. Do not automatically retry draft creation after an
           uncertain outcome. Pause the workflow in n8n to stop generation;
-          rotate the PostDispatch token if its credentials need revoking.
+          rotate the Ramblo token if its credentials need revoking.
         </p>
         <p>
           Reference documentation:{" "}
@@ -236,8 +236,8 @@ export default function GuidePage() {
           >
             MCP Client Tool
           </a>
-          . This is a configuration guide, not a workflow that PostDispatch
-          installs or runs for you.
+          . This is a configuration guide, not a workflow that Ramblo installs
+          or runs for you.
         </p>
       </DocumentSection>
       <DocumentSection id="troubleshooting" title="Common fixes">
@@ -253,7 +253,7 @@ export default function GuidePage() {
             ],
             [
               "Daily drafts are not arriving",
-              "Check that the external workflow is active, its timezone is correct, the model credentials work, and its execution log shows a successful draft creation. A PostDispatch connection alone is not a schedule.",
+              "Check that the external workflow is active, its timezone is correct, the model credentials work, and its execution log shows a successful draft creation. A Ramblo connection alone is not a schedule.",
             ],
             [
               "A channel requires reconnection",

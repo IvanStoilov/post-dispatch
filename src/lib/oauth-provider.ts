@@ -45,6 +45,7 @@ export function oauthPlugins() {
   return [
     oauthProvider(opts),
     {
+      // Internal plugin ID stays stable across the brand rename.
       id: "postdispatch-oauth-resource",
       endpoints: {
         verifyMcpOAuthToken: createAuthEndpoint(

@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { PageIntro } from "@/components/public/site-shell";
 import { site } from "@/lib/public-site";
 export const metadata: Metadata = {
-  title: "Company details | PostDispatch",
+  title: "Company details | Ramblo",
   description:
-    "Legal and contact information for Growth Optimize SL, the operator of PostDispatch.",
+    "Legal and contact information for Growth Optimize SL, the operator of Ramblo.",
   alternates: { canonical: "/legal" },
 };
 export default function LegalPage() {
@@ -23,7 +23,7 @@ export default function LegalPage() {
     >
       <PageIntro
         title="Company details"
-        description="PostDispatch is operated by Growth Optimize SL."
+        description="Ramblo is operated by Growth Optimize SL."
       />
       <dl className="flex flex-col divide-y">
         {details.map(([label, value]) => (

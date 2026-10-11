@@ -1,3 +1,4 @@
+import { brand } from "../brand";
 import { render } from "react-email";
 import type { ReactElement } from "react";
 import ResetPassword from "../../emails/reset-password";
@@ -24,7 +25,7 @@ export function verificationEmail(input: {
 }) {
   return message(
     input.to,
-    "Confirm your email for PostDispatch",
+    `Confirm your email for ${brand.name}`,
     <VerifyEmail name={input.name} url={input.url} />,
   );
 }
@@ -35,7 +36,7 @@ export function passwordResetEmail(input: {
 }) {
   return message(
     input.to,
-    "Reset your PostDispatch password",
+    `Reset your ${brand.name} password`,
     <ResetPassword name={input.name} url={input.url} />,
   );
 }

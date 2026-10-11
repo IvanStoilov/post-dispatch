@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, createCipheriv } from "node:crypto";
 import { loadEnvConfig } from "@next/env";
 import { Pool } from "pg";
 import { eq } from "drizzle-orm";
@@ -27,6 +27,27 @@ test("credentials use authenticated randomized encryption and fail closed", () =
   const original = process.env.CREDENTIALS_ENCRYPTION_KEY;
   process.env.CREDENTIALS_ENCRYPTION_KEY = randomBytes(32).toString("hex");
   try {
+    // Construct a record independently using the pre-rebrand persisted format.
+    // Changing branding must never make saved connector credentials unreadable.
+    const key = Buffer.from(process.env.CREDENTIALS_ENCRYPTION_KEY, "hex");
+    const iv = Buffer.alloc(12, 1);
+    const legacyCipher = createCipheriv("aes-256-gcm", key, iv);
+    legacyCipher.setAAD(
+      Buffer.from("postdispatch:project_connectors:access_token:v1"),
+    );
+    const encryptedBytes = Buffer.concat([
+      legacyCipher.update("existing-social-token", "utf8"),
+      legacyCipher.final(),
+    ]);
+    const existingRecord =
+      "pdcred:v1:" +
+      Buffer.concat([iv, legacyCipher.getAuthTag(), encryptedBytes]).toString(
+        "base64url",
+      );
+    assert.equal(
+      decryptCredential(existingRecord, "access_token"),
+      "existing-social-token",
+    );
     for (const value of ["", "social-token", "unicode-🔒", "a".repeat(4096)]) {
       const one = encryptCredential(value, "access_token");
       const two = encryptCredential(value, "access_token");
