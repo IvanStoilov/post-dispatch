@@ -1,4 +1,5 @@
 "use client";
+import { useAppPath } from "@/components/app-navigation";
 import { platforms, channelLabels } from "@/lib/connectors/catalog";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -105,6 +106,7 @@ function WorkspaceNavigation({
   published: number;
   onNavigate: (view: View) => void;
 }) {
+  const appPath = useAppPath();
   const { setOpenMobile } = useSidebar();
   return (
     <SidebarMenu>
@@ -113,7 +115,9 @@ function WorkspaceNavigation({
           <SidebarMenuButton asChild isActive={view === name} size="lg">
             <Link
               aria-current={view === name ? "page" : undefined}
-              href={`/?${new URLSearchParams({ view: name, projectId })}`}
+              href={appPath(
+                `/?${new URLSearchParams({ view: name, projectId })}`,
+              )}
               onClick={(event) => {
                 if (
                   event.metaKey ||
@@ -146,6 +150,7 @@ export default function Dashboard({
 }: {
   user: { name: string; email: string };
 }) {
+  const appPath = useAppPath();
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState("");
@@ -196,7 +201,7 @@ export default function Dashboard({
       try {
         const response = await fetch("/api/projects", { cache: "no-store" });
         if (response.status === 401) {
-          router.replace("/signin");
+          router.replace(appPath("/signin"));
           router.refresh();
           return;
         }
@@ -236,7 +241,7 @@ export default function Dashboard({
         if (sequence === requestSequence.current) setLoading(false);
       }
     },
-    [projectId, router],
+    [projectId, router, appPath],
   );
   useEffect(() => {
     const initial = setTimeout(() => void refresh(projectId), 0);
@@ -444,7 +449,7 @@ export default function Dashboard({
     setSearch("");
     setFilter("all");
     const query = new URLSearchParams({ view: next, projectId: id });
-    window.history.pushState(null, "", `/?${query}`);
+    window.history.pushState(null, "", appPath(`/?${query}`));
   }
   useEffect(() => {
     function restoreView() {
@@ -467,14 +472,14 @@ export default function Dashboard({
     setFilter(value);
     const query = new URLSearchParams(window.location.search);
     query.set("channel", value);
-    window.history.replaceState(null, "", `/?${query}`);
+    window.history.replaceState(null, "", appPath(`/?${query}`));
   }
   function updateSearch(value: string) {
     setSearch(value);
     const query = new URLSearchParams(window.location.search);
     if (value) query.set("search", value);
     else query.delete("search");
-    window.history.replaceState(null, "", `/?${query}`);
+    window.history.replaceState(null, "", appPath(`/?${query}`));
   }
   async function revoke(clientId: string) {
     setBusy(true);
@@ -535,7 +540,7 @@ export default function Dashboard({
                 switchProject(id);
                 const query = new URLSearchParams(window.location.search);
                 query.set("projectId", id);
-                window.history.replaceState(null, "", `/?${query}`);
+                window.history.replaceState(null, "", appPath(`/?${query}`));
               }}
             >
               <SelectTrigger
@@ -623,7 +628,7 @@ export default function Dashboard({
               onClick={async () => {
                 await authClient.signOut();
                 localStorage.removeItem("postdispatch-project");
-                router.replace("/signin");
+                router.replace(appPath("/signin"));
                 router.refresh();
               }}
             >

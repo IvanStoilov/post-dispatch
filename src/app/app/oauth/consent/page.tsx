@@ -1,3 +1,4 @@
+import { appPageUrl } from "@/lib/origins";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
@@ -25,7 +26,7 @@ export default async function Page({
       query.append(k, value);
   const h = await headers();
   const session = await getAuth().api.getSession({ headers: h });
-  if (!session) redirect(`/signin?${query}`);
+  if (!session) redirect(appPageUrl(`/signin?${query}`));
   let context: Awaited<ReturnType<typeof oauthConsentContext>> | undefined;
   let error = "Invalid connection request";
   try {
@@ -51,7 +52,7 @@ export default async function Page({
           </CardContent>
           <CardFooter>
             <Button asChild>
-              <Link href="/">Back to workspace</Link>
+              <Link href={appPageUrl()}>Back to workspace</Link>
             </Button>
           </CardFooter>
         </Card>

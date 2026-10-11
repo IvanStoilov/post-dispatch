@@ -1,4 +1,5 @@
-import { config } from "./config";
+import { appOrigin } from "./origins";
+export { appOrigin } from "./origins";
 import { loggedOperation, logger } from "./logger";
 import { createHash, randomBytes } from "node:crypto";
 import { and, count, eq, gt, lte, sql } from "drizzle-orm";
@@ -32,9 +33,6 @@ function hashToken(token: string) {
 }
 function minutesFromNow(minutes: number) {
   return sql.raw(`now() + interval '${minutes} minutes'`);
-}
-export function appOrigin() {
-  return config.APP_URL;
 }
 export function uploadEndpoint(projectId: string) {
   return `${appOrigin()}/api/mcp/uploads?projectId=${projectId}`;

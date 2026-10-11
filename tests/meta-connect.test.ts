@@ -1,3 +1,4 @@
+import { appPagePath } from "../src/lib/origins";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
@@ -248,7 +249,7 @@ test(
           assert.equal(response.status, 303);
           assert.equal(
             new URL(response.headers.get("Location")!).pathname,
-            "/connections/facebook",
+            appPagePath("/connections/facebook"),
           );
           await assert.rejects(
             callbackConnection(req(callback, flow.cookie), "facebook"),

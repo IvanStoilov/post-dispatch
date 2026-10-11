@@ -22,12 +22,12 @@ export default function NotFound() {
             <h1>This page isn’t here</h1>
           </EmptyTitle>
           <EmptyDescription>
-            Head back to your workspace to find your projects and posts.
+            Head back to the homepage to find what you need.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button asChild>
-            <Link href="/">Back to workspace</Link>
+            <Link href="/">Back to homepage</Link>
           </Button>
         </EmptyContent>
       </Empty>

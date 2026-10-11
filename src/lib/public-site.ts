@@ -1,4 +1,5 @@
 import { config } from "./config";
+import { publicOrigin } from "./origins";
 export const site = {
   name: "PostDispatch",
   operator: "Growth Optimize SL",
@@ -9,4 +10,4 @@ export const site = {
   registry: config.COMPANY_REGISTRY_DETAILS,
   updated: "2026-10-07",
 };
-export const siteOrigin = () => config.APP_URL;
+export const siteOrigin = publicOrigin;

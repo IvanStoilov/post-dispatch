@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ResetPasswordForm } from "../password-forms";
+import { ResetPasswordForm } from "../../password-forms";
 export const metadata: Metadata = { title: "Choose a new password" };
 // Better Auth redirects here with ?token=… or, for a bad link, ?error=INVALID_TOKEN.
 export default async function Page({

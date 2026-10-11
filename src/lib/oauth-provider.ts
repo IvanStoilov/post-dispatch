@@ -1,4 +1,5 @@
-import { config } from "./config";
+import { appOrigin, appPagePath } from "./origins";
+export { appOrigin } from "./origins";
 import {
   oauthProvider,
   getOAuthProviderApi,
@@ -8,9 +9,6 @@ import { createAuthEndpoint, APIError } from "better-auth/api";
 import { z } from "zod";
 
 export const MCP_SCOPES = ["posts:read", "posts:write"] as const;
-export function appOrigin() {
-  return config.APP_URL;
-}
 export function accountResource() {
   return `${appOrigin()}/api/mcp`;
 }
@@ -20,8 +18,8 @@ export function validateAccountResource(resource: string) {
 export function oauthPlugins() {
   const opts: OAuthOptions<string[]> = {
     disableJwtPlugin: true,
-    loginPage: "/signin",
-    consentPage: "/oauth/consent",
+    loginPage: appPagePath("/signin"),
+    consentPage: appPagePath("/oauth/consent"),
     scopes: [...MCP_SCOPES, "offline_access"],
     grantTypes: ["authorization_code", "refresh_token"],
     allowDynamicClientRegistration: true,

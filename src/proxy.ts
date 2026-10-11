@@ -1,20 +1,27 @@
 import { config as appConfig } from "./lib/config";
+import { appOrigin, publicOrigin, isCleanAppHost } from "./lib/origins";
+import { applicationPath } from "./lib/route-paths";
 import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { publicPages, publicAssets } from "@/lib/public-routes";
 import { getSessionCookie } from "better-auth/cookies";
+
 export function proxy(req: NextRequest) {
-  // Internal delivery authenticates with CRON_SECRET before processing;
-  // the Queue SDK subsequently handles its message lease and receipt. Vercel may use the deployment hostname.
-  if (
-    ["/api/queues/publishing", "/api/cron/publishing"].includes(
-      req.nextUrl.pathname,
-    )
-  )
-    return NextResponse.next();
-  const expected = new URL(appConfig.APP_URL);
-  const origin = req.headers.get("origin");
-  if (req.headers.get("host") !== expected.host) {
+  const path = req.nextUrl.pathname;
+  const host = req.headers.get("host");
+  const application = new URL(appOrigin());
+  const marketing = new URL(appConfig.PUBLIC_URL);
+  const deployment = new URL(appConfig.APP_URL);
+  const cleanHost = isCleanAppHost(host);
+  const publicHost =
+    host === marketing.host && marketing.host !== application.host;
+  const allowedHosts = new Set([
+    application.host,
+    marketing.host,
+    deployment.host,
+    new URL(appConfig.APPLICATION_URL).host,
+  ]);
+  if (!host || !allowedHosts.has(host)) {
     logger.warn("http.proxy.denied", {
       reason: "invalid_host",
       method: req.method,
@@ -24,46 +31,112 @@ export function proxy(req: NextRequest) {
       { status: 403 },
     );
   }
+  // Queue/cron handlers authenticate independently; Vercel uses the deployment host.
+  if (
+    !publicHost &&
+    ["/api/queues/publishing", "/api/cron/publishing"].includes(path)
+  )
+    return NextResponse.next();
+
+  const expectedOrigin = publicHost
+    ? marketing.origin
+    : cleanHost
+      ? appConfig.APPLICATION_URL
+      : host === application.host
+        ? application.origin
+        : deployment.origin;
   const oauthProtocol = [
     "/api/auth/oauth2/token",
     "/api/auth/oauth2/register",
     "/api/auth/oauth2/revoke",
     "/api/auth/oauth2/introspect",
-  ].includes(req.nextUrl.pathname);
-  if (origin && origin !== expected.origin && !oauthProtocol) {
+  ].includes(path);
+  const origin = req.headers.get("origin");
+  if (origin && origin !== expectedOrigin && !oauthProtocol) {
     logger.warn("http.proxy.denied", {
       reason: "invalid_origin",
       method: req.method,
     });
     return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
   }
-  const path = req.nextUrl.pathname;
-  if (
-    publicPages.some((p) => p === path) ||
-    publicAssets.some((p) => path === p) ||
-    path.startsWith("/api/auth/") ||
-    path.startsWith("/.well-known/") ||
-    path === "/signin" ||
-    path === "/signup" ||
-    path === "/forgot-password" ||
-    path === "/reset-password" ||
-    path === "/api/mcp" ||
-    path.startsWith("/api/mcp/")
-  )
+  const api = path === "/api" || path.startsWith("/api/");
+  const protocol = path.startsWith("/.well-known/");
+  const asset = publicAssets.some((p) => p === path);
+  const prefixed = path === "/app" || path.startsWith("/app/");
+  const publicPage = publicPages.some((p) => p === path);
+  const redirect = (pathname: string, targetOrigin: string) => {
+    const target = new URL(pathname, targetOrigin);
+    target.search = req.nextUrl.search;
+    return NextResponse.redirect(target);
+  };
+
+  if (publicHost) {
+    if (api) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (
+      prefixed ||
+      protocol ||
+      ["/signin", "/signup", "/forgot-password", "/reset-password"].includes(
+        path,
+      )
+    ) {
+      if (!["GET", "HEAD"].includes(req.method))
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return redirect(
+        prefixed ? path.slice(4) || "/" : path,
+        appConfig.APPLICATION_URL,
+      );
+    }
     return NextResponse.next();
-  if (!getSessionCookie(req)) {
+  }
+  if (cleanHost && prefixed)
+    return redirect(path.slice(4) || "/", appConfig.APPLICATION_URL);
+  if (cleanHost && publicPage && path !== "/")
+    return redirect(path, publicOrigin());
+  if (asset) return NextResponse.next();
+
+  // Production aliases canonicalize browser app pages; previews remain self-contained.
+  if (!cleanHost && prefixed && appConfig.VERCEL_ENV === "production")
+    return redirect(path.slice(4) || "/", application.origin);
+
+  const applicationPage = (cleanHost && !api && !protocol) || prefixed;
+  const pagePath = cleanHost ? path : path.slice(4) || "/";
+  const openPage = [
+    "/signin",
+    "/signup",
+    "/forgot-password",
+    "/reset-password",
+  ].includes(pagePath);
+  const openApi =
+    path.startsWith("/api/auth/") ||
+    path === "/api/mcp" ||
+    path.startsWith("/api/mcp/");
+  if (
+    ((applicationPage && !openPage) || (api && !openApi)) &&
+    !getSessionCookie(req)
+  ) {
     logger.debug("http.proxy.signin.required", {
       method: req.method,
-      isApi: path.startsWith("/api/"),
+      isApi: api,
     });
-    if (path.startsWith("/api/"))
+    if (api)
       return NextResponse.json(
         { error: "Sign in to continue" },
         { status: 401 },
       );
-    return NextResponse.redirect(new URL("/signin", req.url));
+    return redirect(applicationPath("/signin", cleanHost), expectedOrigin);
   }
+  if (cleanHost && applicationPage) {
+    const target = req.nextUrl.clone();
+    target.pathname = applicationPath(path);
+    return appResponse(NextResponse.rewrite(target));
+  }
+  if (applicationPage || api || protocol)
+    return appResponse(NextResponse.next());
   return NextResponse.next();
+}
+function appResponse(response: NextResponse) {
+  response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return response;
 }
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],

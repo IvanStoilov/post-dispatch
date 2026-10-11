@@ -1,5 +1,6 @@
 "use client";
-import { LinkedIn } from "@/components/channel-icons";
+import { useAppPath } from "@/components/app-navigation";
+import { Facebook } from "@/components/channel-icons";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ConnectionShell } from "@/components/connection-shell";
@@ -24,7 +25,8 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 
-export default function SelectLinkedInPage() {
+export default function SelectFacebookPage() {
+  const appPath = useAppPath();
   const [pages, setPages] = useState<{ id: string; name: string }[]>([]);
   const [project, setProject] = useState("");
   const [selected, setSelected] = useState("");
@@ -32,7 +34,7 @@ export default function SelectLinkedInPage() {
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let active = true;
-    void fetch("/api/connectors/linkedin/accounts", { cache: "no-store" })
+    void fetch("/api/meta/facebook/pages", { cache: "no-store" })
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok)
@@ -55,7 +57,7 @@ export default function SelectLinkedInPage() {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/connectors/linkedin/accounts", {
+      const response = await fetch("/api/meta/facebook/pages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pageId: selected }),
@@ -76,27 +78,24 @@ export default function SelectLinkedInPage() {
           <CardHeader>
             <CardTitle>
               <h1 className="flex items-center gap-2">
-                <LinkedIn className="size-5" aria-hidden="true" />
-                Connect a LinkedIn account
+                <Facebook className="size-5" aria-hidden="true" />
+                Connect a Facebook Page
               </h1>
             </CardTitle>
             <CardDescription>
-              Select the profile or company Page to publish to from{" "}
-              {project || "your project"}.
+              Select the Page to publish to from {project || "your project"}.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="linkedin-page">
-                  LinkedIn account
-                </FieldLabel>
+                <FieldLabel htmlFor="facebook-page">Facebook Page</FieldLabel>
                 <Select
                   value={selected}
                   disabled={busy || !pages.length}
                   onValueChange={setSelected}
                 >
-                  <SelectTrigger id="linkedin-page" className="w-full">
+                  <SelectTrigger id="facebook-page" className="w-full">
                     <SelectValue placeholder="Select a Page…" />
                   </SelectTrigger>
                   <SelectContent>
@@ -119,11 +118,11 @@ export default function SelectLinkedInPage() {
           </CardContent>
           <CardFooter className="flex-wrap justify-between gap-3">
             <Button variant="ghost" asChild>
-              <Link href="/?view=Connections">Cancel</Link>
+              <Link href={appPath("/?view=Connections")}>Cancel</Link>
             </Button>
             <Button type="submit" disabled={busy || !selected}>
               {busy && <Spinner data-icon="inline-start" />}
-              {busy ? "Connecting…" : "Connect selected account"}
+              {busy ? "Connecting…" : "Connect selected Page"}
             </Button>
           </CardFooter>
         </Card>

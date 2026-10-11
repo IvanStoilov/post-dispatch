@@ -1,3 +1,4 @@
+import { appPageUrl } from "./origins";
 import { config } from "./config";
 import { loggedOperation } from "./logger";
 import { platforms } from "./types";
@@ -199,7 +200,7 @@ function sameOrigin(req: Request) {
 function redirect(path: string) {
   return new Response(null, {
     status: 303,
-    headers: { Location: new URL(path, appOrigin()).toString() },
+    headers: { Location: appPageUrl(path) },
   });
 }
 // Dedicated OAuth requests also use redacted Winston logs. Codes and client

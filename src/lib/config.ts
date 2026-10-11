@@ -41,6 +41,9 @@ export const configSchema = z.object({
     originUrl.optional(),
   ),
   APP_URL: originUrl.default("http://localhost:8200"),
+  APPLICATION_URL: originUrl.default("https://app.ramblo.io"),
+  PUBLIC_URL: originUrl.default("https://www.ramblo.io"),
+  VERCEL_ENV: z.enum(["development", "preview", "production"]).optional(),
   DATABASE_URL: z
     .url()
     .refine(

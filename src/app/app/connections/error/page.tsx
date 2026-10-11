@@ -1,3 +1,4 @@
+import { appPageUrl } from "@/lib/origins";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 import { ConnectionShell } from "@/components/connection-shell";
@@ -35,7 +36,9 @@ export default function ConnectionError() {
         </CardContent>
         <CardFooter>
           <Button asChild>
-            <Link href="/?connection=failed">Return to Connections</Link>
+            <Link href={appPageUrl("/?connection=failed")}>
+              Return to Connections
+            </Link>
           </Button>
         </CardFooter>
       </Card>

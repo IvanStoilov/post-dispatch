@@ -1,3 +1,4 @@
+import { appPageUrl } from "@/lib/origins";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { PageIntro, DocumentSection } from "@/components/public/site-shell";
@@ -55,7 +56,7 @@ export default function GuidePage() {
       </nav>
       <DocumentSection id="workspace" title="1. Set up your project">
         <p>
-          <Link className="document-link" href="/signup">
+          <Link className="document-link" href={appPageUrl("/signup")}>
             Create an account
           </Link>
           , then name your project for the brand you’re working on. Use a

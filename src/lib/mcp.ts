@@ -1,3 +1,4 @@
+import { appPageUrl } from "./origins";
 import { loggedOperation, logger, withLogContext } from "./logger";
 import { platforms } from "./types";
 import { isConnected } from "./projects";
@@ -15,7 +16,7 @@ import {
   completeDirectUpload,
   directUploadSchema,
 } from "./direct-uploads";
-import { appOrigin, createUploadToken } from "./uploads";
+import { createUploadToken } from "./uploads";
 const projectFields = {
   projectId: z
     .uuid()
@@ -188,7 +189,7 @@ export async function handleAccountMcp(req: Request) {
         );
         const result = {
           ...post,
-          reviewUrl: `${appOrigin()}/?projectId=${project.id}`,
+          reviewUrl: appPageUrl(`/?projectId=${project.id}`),
           ...(post.platforms.includes("instagram") &&
           !post.assets.length &&
           !post.imageUrl

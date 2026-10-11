@@ -1,8 +1,9 @@
+import { appPageUrl } from "@/lib/origins";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
-import AuthForm from "../auth-form";
-import { parseAuthQuery } from "../auth-query";
+import AuthForm from "../../auth-form";
+import { parseAuthQuery } from "../../auth-query";
 export default async function Page({
   searchParams,
 }: {
@@ -13,6 +14,6 @@ export default async function Page({
     !oauthQuery &&
     (await getAuth().api.getSession({ headers: await headers() }))
   )
-    redirect("/");
-  return <AuthForm mode="signin" oauthQuery={oauthQuery} notice={notice} />;
+    redirect(appPageUrl());
+  return <AuthForm mode="signup" oauthQuery={oauthQuery} notice={notice} />;
 }

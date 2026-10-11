@@ -1,3 +1,4 @@
+import { appPagePath } from "../src/lib/origins";
 import { DELETE as disconnectGrant } from "../src/app/api/mcp-settings/oauth/route";
 import { rotateAccountToken } from "../src/lib/mcp-account";
 import test from "node:test";
@@ -190,7 +191,7 @@ test(
       await t.test(
         "consent validates the signed account resource",
         async () => {
-          assert.equal(consentUrl.pathname, "/oauth/consent");
+          assert.equal(consentUrl.pathname, appPagePath("/oauth/consent"));
           assert.equal(
             (
               await oauthConsentContext(
@@ -502,7 +503,7 @@ test(
         async () => {
           const q = query();
           const login = new URL(await authorize(q, ""), origin);
-          assert.equal(login.pathname, "/signin");
+          assert.equal(login.pathname, appPagePath("/signin"));
           const r = await getAuth().handler(
             req(
               "/api/auth/sign-in/email",
@@ -516,7 +517,10 @@ test(
             ),
           );
           const resumed = await checked(r);
-          assert.equal(new URL(resumed.url, origin).pathname, "/oauth/consent");
+          assert.equal(
+            new URL(resumed.url, origin).pathname,
+            appPagePath("/oauth/consent"),
+          );
         },
       );
       await t.test("authorization code replay is rejected", async () => {

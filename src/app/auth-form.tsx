@@ -1,4 +1,5 @@
 "use client";
+import { useAppPath } from "@/components/app-navigation";
 import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -44,6 +45,7 @@ export default function AuthForm({
   oauthQuery?: string;
   notice?: AuthNotice;
 }) {
+  const appPath = useAppPath();
   const router = useRouter();
   const signup = mode === "signup";
   const [name, setName] = useState("");
@@ -66,7 +68,9 @@ export default function AuthForm({
     }
     setBusy(true);
     // Where the confirmation link lands; /signin forwards signed-in users on.
-    const callbackURL = `/signin?${oauthQuery ? `${oauthQuery}&` : ""}verified=1`;
+    const callbackURL = appPath(
+      `/signin?${oauthQuery ? `${oauthQuery}&` : ""}verified=1`,
+    );
     try {
       const result = signup
         ? await authClient.signUp.email({
@@ -109,7 +113,7 @@ export default function AuthForm({
         window.location.assign(result.data.url);
         return;
       }
-      router.replace("/");
+      router.replace(appPath());
       router.refresh();
     } catch {
       setError("Could not connect. Please try again.");
@@ -121,7 +125,9 @@ export default function AuthForm({
     setError("");
     const result = await authClient.sendVerificationEmail({
       email: sentTo,
-      callbackURL: `/signin?${oauthQuery ? `${oauthQuery}&` : ""}verified=1`,
+      callbackURL: appPath(
+        `/signin?${oauthQuery ? `${oauthQuery}&` : ""}verified=1`,
+      ),
     });
     setBusy(false);
     if (result.error)
@@ -252,7 +258,7 @@ export default function AuthForm({
                   <FieldLabel htmlFor="password">Password</FieldLabel>
                   {!signup && (
                     <Link
-                      href="/forgot-password"
+                      href={appPath("/forgot-password")}
                       className="text-sm text-muted-foreground underline-offset-4 hover:underline"
                     >
                       Forgot password?
@@ -338,7 +344,7 @@ export default function AuthForm({
           <Button variant="link" asChild>
             <Link
               href={
-                (signup ? "/signin" : "/signup") +
+                appPath(signup ? "/signin" : "/signup") +
                 (oauthQuery ? `?${oauthQuery}` : "")
               }
             >

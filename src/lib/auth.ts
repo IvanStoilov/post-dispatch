@@ -41,7 +41,7 @@ function makeAuth() {
       log: (level, message) =>
         logger.log(level, "auth.library", { reason: message }),
     },
-    baseURL: config.APP_URL,
+    baseURL: appOrigin(),
     secret: config.BETTER_AUTH_SECRET,
     database: drizzleAdapter(getDb(), {
       provider: "pg",
@@ -92,7 +92,7 @@ function makeAuth() {
         ),
     },
     advanced: { backgroundTasks: { handler: runInBackground } },
-    trustedOrigins: [config.APP_URL],
+    trustedOrigins: [appOrigin()],
     rateLimit: { enabled: true },
     databaseHooks: {
       user: {

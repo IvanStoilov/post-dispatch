@@ -21,11 +21,11 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Open http://localhost:8200/signup to create an account, or /signin to sign in. DATABASE_URL is required for storage. After signing in, no Meta tokens are needed to create, edit, and browse drafts. Create/select a project and configure its channels in Connections. Generate or replace your account MCP token in MCP integration. No demo content is preloaded.
+Open http://localhost:8200/app/signup to create an account, or /app/signin to sign in. The public site is at http://localhost:8200/. DATABASE_URL is required for storage. After signing in, no Meta tokens are needed to create, edit, and browse drafts. Create/select a project and configure its channels in Connections. Generate or replace your account MCP token in MCP integration. No demo content is preloaded.
 
 ## Authentication and ownership
 
-Better Auth uses email/password authentication through its Drizzle adapter. Signup/signin are at `/signup` and `/signin`; auth endpoints are under `/api/auth`. New accounts must confirm their email before signing in: signup sends a confirmation link (valid 24 hours), and signing in unconfirmed re-sends it. The link signs the user in. Accounts that existed before verification was introduced are marked verified by migration 0013. Forgotten passwords are reset at `/forgot-password`; reset links are single-use, expire after 1 hour, and sign out every other session. Social providers are not configured.
+Better Auth uses email/password authentication through its Drizzle adapter. Signup/signin are at `/app/signup` and `/app/signin` locally and in previews, or `/signup` and `/signin` on the production app domain; auth endpoints are under `/api/auth`. New accounts must confirm their email before signing in: signup sends a confirmation link (valid 24 hours), and signing in unconfirmed re-sends it. The link signs the user in. Accounts that existed before verification was introduced are marked verified by migration 0013. Forgotten passwords are reset at `/app/forgot-password` locally/in previews (`/forgot-password` on the app domain); reset links are single-use, expire after 1 hour, and sign out every other session. Social providers are not configured.
 
 ### Email
 
@@ -39,7 +39,7 @@ Mail goes through `src/lib/mail`, which hides the provider behind one `sendMail(
 
 `MAIL_FROM` (for example `PostDispatch <hello@yourdomain.com>`) is required in production; `MAIL_REPLY_TO` is optional. To add another provider, implement `MailProvider` in `src/lib/mail/providers/` and register it in `src/lib/mail/index.ts`. Emails are sent after the response, and failures are logged as `mail.failed` with the reason.
 
-Templates are [React Email](https://react.email) components in `src/emails` (shared layout and brand colors in `src/emails/_components`). `src/lib/mail/templates.tsx` renders each one to HTML plus a plain-text version. Preview them at http://localhost:8300 with `pnpm email:dev`, which shows each template with its `PreviewProps` and checks client compatibility. The logo is loaded from `APP_URL`, so it only appears in real emails once `APP_URL` is a publicly reachable domain.
+Templates are [React Email](https://react.email) components in `src/emails` (shared layout and brand colors in `src/emails/_components`). `src/lib/mail/templates.tsx` renders each one to HTML plus a plain-text version. Preview them at http://localhost:8300 with `pnpm email:dev`, which shows each template with its `PreviewProps` and checks client compatibility. The logo uses the application origin (`APPLICATION_URL` in Vercel production, resolved `APP_URL` elsewhere), which must be publicly reachable to appear in delivered emails.
 
 The auth schema consists of `users`, `sessions`, `accounts`, and `verifications`. Better Auth hashes passwords in credential accounts, stores sessions in Postgres, and sets its session cookies. `BETTER_AUTH_SECRET` must remain private and stable across deployments.
 
@@ -80,14 +80,14 @@ Remote clients need a reachable HTTPS endpoint. Both account bearer tokens and O
 
 ### ChatGPT / OAuth
 
-1. Set `APP_URL` to your canonical production HTTPS origin in Vercel (no trailing path), with a stable `BETTER_AUTH_SECRET`. Redeploy after adding these changes and environment settings. Apply migrations with `pnpm db:migrate` against the deployment database.
+1. Use `APPLICATION_URL=https://app.ramblo.io` and `PUBLIC_URL=https://www.ramblo.io` in Vercel production, with a stable `BETTER_AUTH_SECRET`. Local/preview deployments derive their origin from `APP_URL`/`VERCEL_URL`. Redeploy after adding these changes and environment settings. Apply migrations with `pnpm db:migrate` against the deployment database.
 2. Copy the account endpoint from MCP integration.
 3. In ChatGPT Plugins, add a custom MCP server, paste the endpoint, and select OAuth. Choose dynamic client registration (DCR), leaving Client ID and Client Secret blank. CIMD is not enabled by this implementation.
 4. Sign in to PostDispatch and approve access to your account’s current and future projects, then install/select the connection in your chat.
 
 OAuth uses Better Auth's provider, S256 PKCE, exact registered redirect URI matching, single-use codes, and signed consent queries. Tokens have the exact account MCP resource as audience. Every MCP call checks token activity/expiry, scopes, and current project ownership. Password signup/signin preserves the OAuth continuation. Opaque access tokens are stored as hashes and expire after 15 minutes; rotating refresh tokens last up to 30 days and require `offline_access`. Public clients use `token_endpoint_auth_method: none`; confidential DCR clients are also supported by the provider. No custom OAuth client secrets are required for ChatGPT's DCR flow. Registration alone never grants account access.
 
-Public discovery is at `/.well-known/oauth-authorization-server/api/auth` and `/.well-known/oauth-protected-resource/api/mcp`. The issuer is `<APP_URL>/api/auth`. Registration, authorization, token and revocation endpoints are under `/api/auth/oauth2/*`. OAuth scopes are `posts:read`, `posts:write`, and optional `offline_access`. The MCP integration screen lists approved clients with a Disconnect button; this revokes that user's account OAuth grants for that client and leaves bearer tokens intact. Publishing/delete-post tools are never exposed through MCP.
+Public discovery is at `/.well-known/oauth-authorization-server/api/auth` and `/.well-known/oauth-protected-resource/api/mcp`. The issuer is `<application origin>/api/auth` (`https://app.ramblo.io/api/auth` in production). Registration, authorization, token and revocation endpoints are under `/api/auth/oauth2/*`. OAuth scopes are `posts:read`, `posts:write`, and optional `offline_access`. The MCP integration screen lists approved clients with a Disconnect button; this revokes that user's account OAuth grants for that client and leaves bearer tokens intact. Publishing/delete-post tools are never exposed through MCP.
 
 OAuth tables live in Drizzle alongside the existing auth tables. Credentials stay in Postgres across Vercel invocations; no in-memory authorization-code or token store is used. Daily generation requires a separate scheduled AI workflow; MCP is the delivery interface, not a scheduler.
 
@@ -359,3 +359,22 @@ Application settings are declared in `src/lib/config.ts` and consumed as `config
 Zod validates every setting on access. Empty/whitespace-only values mean unset; defaults, URL normalization, email validation, API version formats and typed booleans live in one place. Optional integrations stay optional until used; `requireConfig("RESEND_API_KEY")` handles required feature credentials. Configuration errors name the invalid fields and rules without including their values. Logger redaction reads raw secrets centrally so malformed credentials remain protected.
 
 Run `pnpm env:check` to validate **all declared settings** after loading `.env*` with the same precedence as Next. This checks syntax, not database connectivity, provider credentials or integration readiness. CLI tools can load environment files after imports because config getters read current values rather than capturing them at module initialization. Test fixtures may continue to set `process.env` directly; application code reads it only inside `config.ts`.
+
+
+## Public and app domains
+
+Application pages live in `src/app/app` at `/app`, `/app/signin`, `/app/connections/...` and `/app/oauth/consent`. Public pages live in `src/app/(public)` at `/`, `/guide`, `/privacy`, etc. APIs and MCP remain under `/api`, without the `/app` prefix.
+
+| Environment | Public site | Application |
+| --- | --- | --- |
+| Production | `https://www.ramblo.io/` | `https://app.ramblo.io/` |
+| Vercel preview | `https://<deployment>.vercel.app/` | `https://<deployment>.vercel.app/app` |
+| Local | `http://localhost:8200/` | `http://localhost:8200/app` |
+
+Attach **both** `www.ramblo.io` and `app.ramblo.io` to the same Vercel project and apply the DNS records Vercel provides. On the app domain, Proxy rewrites clean page URLs to `/app` internally; `/signin` serves `/app/signin`, for example. Public pages opened on the app domain redirect to the public site. On local/preview hosts both sections are available without extra DNS, and public links stay in that environment. Application pages are marked `noindex`.
+
+`APPLICATION_URL` defaults to `https://app.ramblo.io` and `PUBLIC_URL` defaults to `https://www.ramblo.io`. In Vercel production (`VERCEL_ENV=production`), generated links use these custom domains. Local development and previews use the resolved `APP_URL` (`VERCEL_URL` first, then `APP_URL`). The `origins.ts` server helpers and application navigation context handle the page prefix; API URLs always use the origin without it. Origins are validated in `config.ts` and must not contain paths.
+
+Production social callback URLs remain `https://app.ramblo.io/api/meta/<provider>/callback` and `https://app.ramblo.io/api/connectors/linkedin/callback`; register them with each provider. MCP clients connect to `https://app.ramblo.io/api/mcp`. Preview callbacks use the preview origin with the same API paths (providers must allow that exact redirect URL; a stable staging domain can simplify provider testing). Email verification/password reset returns, connector completion redirects, OAuth consent and MCP review links use the correct page paths for the environment.
+
+Rerun `pnpm storage:cors` in the production environment to authorize direct browser uploads from the app domain. Existing sessions are scoped to their original hostname, so users sign in again on the new app domain. The public production domain serves no application APIs.

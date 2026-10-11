@@ -1,3 +1,4 @@
+import { appPagePath } from "../src/lib/origins";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -57,7 +58,7 @@ test(
           name: "Mail test",
           email,
           password,
-          callbackURL: "/signin?verified=1",
+          callbackURL: appPagePath("/signin?verified=1"),
         }),
       );
       assert.equal(signup.status, 200);
@@ -90,7 +91,10 @@ test(
       await t.test("the link verifies the email and signs in", async () => {
         const response = await auth.handler(request(firstLink));
         assert.equal(response.status, 302);
-        assert.equal(response.headers.get("location"), "/signin?verified=1");
+        assert.equal(
+          response.headers.get("location"),
+          appPagePath("/signin?verified=1"),
+        );
         session = cookies(response);
         assert.ok(session);
         const [user] = await getDb()
@@ -107,7 +111,7 @@ test(
           const response = await auth.handler(
             request("/api/auth/request-password-reset", "POST", "", {
               email: randomUUID() + "@example.test",
-              redirectTo: "/reset-password",
+              redirectTo: appPagePath("/reset-password"),
             }),
           );
           assert.equal(response.status, 200);
@@ -123,7 +127,7 @@ test(
           const requested = await auth.handler(
             request("/api/auth/request-password-reset", "POST", "", {
               email,
-              redirectTo: "/reset-password",
+              redirectTo: appPagePath("/reset-password"),
             }),
           );
           assert.equal(requested.status, 200);
@@ -131,7 +135,7 @@ test(
           const landing = await auth.handler(request(link));
           assert.equal(landing.status, 302);
           const target = new URL(landing.headers.get("location")!, origin);
-          assert.equal(target.pathname, "/reset-password");
+          assert.equal(target.pathname, appPagePath("/reset-password"));
           const token = target.searchParams.get("token")!;
           assert.ok(token);
           const reset = () =>

@@ -1,4 +1,4 @@
-import { config as appConfig } from "../../lib/config";
+import { appOrigin } from "../../lib/origins";
 import {
   Body,
   Button,
@@ -35,7 +35,7 @@ const config: TailwindConfig = {
   },
 };
 function appUrl() {
-  return appConfig.APP_URL;
+  return appOrigin();
 }
 export function EmailLayout({
   preview,

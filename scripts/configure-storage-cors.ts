@@ -1,10 +1,10 @@
-import { config } from "../src/lib/config";
+import { appOrigin } from "../src/lib/origins";
 import { loadEnvConfig } from "@next/env";
 import { GetBucketCorsCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
 import { bucket, storage } from "../src/lib/storage";
 loadEnvConfig(process.cwd());
 async function main() {
-  const origin = new URL(config.APP_URL).origin;
+  const origin = new URL(appOrigin()).origin;
   const Bucket = await bucket();
   let rules: import("@aws-sdk/client-s3").CORSRule[];
   try {

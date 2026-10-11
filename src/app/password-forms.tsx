@@ -1,4 +1,5 @@
 "use client";
+import { useAppPath } from "@/components/app-navigation";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -26,15 +27,17 @@ import { AlertCircle, ArrowRight, MailCheck } from "lucide-react";
 import { AuthShell } from "./auth-shell";
 
 function BackToSignIn() {
+  const appPath = useAppPath();
   return (
     <CardFooter className="justify-center">
       <Button variant="link" asChild>
-        <Link href="/signin">Back to sign in</Link>
+        <Link href={appPath("/signin")}>Back to sign in</Link>
       </Button>
     </CardFooter>
   );
 }
 export function ForgotPasswordForm() {
+  const appPath = useAppPath();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
@@ -46,7 +49,7 @@ export function ForgotPasswordForm() {
     try {
       const result = await authClient.requestPasswordReset({
         email: email.trim(),
-        redirectTo: "/reset-password",
+        redirectTo: appPath("/reset-password"),
       });
       if (result.error)
         setError(result.error.message || "Could not send the email.");
@@ -123,6 +126,7 @@ export function ForgotPasswordForm() {
   );
 }
 export function ResetPasswordForm({ token }: { token?: string }) {
+  const appPath = useAppPath();
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -152,7 +156,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
         setBusy(false);
         return;
       }
-      router.replace("/signin?reset=1");
+      router.replace(appPath("/signin?reset=1"));
     } catch {
       setError("Could not connect. Please try again.");
       setBusy(false);
@@ -231,7 +235,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
             </form>
           ) : (
             <Button asChild size="lg" className="w-full">
-              <Link href="/forgot-password">Request a new link</Link>
+              <Link href={appPath("/forgot-password")}>Request a new link</Link>
             </Button>
           )}
         </CardContent>

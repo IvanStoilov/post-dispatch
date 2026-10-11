@@ -3,6 +3,7 @@ import { Brand } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { site } from "@/lib/public-site";
+import { appPageUrl } from "@/lib/origins";
 export function SiteShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col bg-card">
@@ -25,16 +26,19 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             <Link className="public-link" href="/support">
               Support
             </Link>
-            <Link className="public-link ml-auto md:hidden" href="/signin">
+            <Link
+              className="public-link ml-auto md:hidden"
+              href={appPageUrl("/signin")}
+            >
               Sign in
             </Link>
           </nav>
           <div className="ml-auto flex items-center gap-2 md:ml-4">
             <Button variant="ghost" asChild className="hidden md:inline-flex">
-              <Link href="/signin">Sign in</Link>
+              <Link href={appPageUrl("/signin")}>Sign in</Link>
             </Button>
             <Button asChild>
-              <Link href="/signup">Get started</Link>
+              <Link href={appPageUrl("/signup")}>Get started</Link>
             </Button>
           </div>
         </div>
