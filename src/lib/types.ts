@@ -20,6 +20,22 @@ export type ConnectionSummary = {
   configured: boolean;
   expiresAt: string | null;
 };
+export type Publication = {
+  id: string;
+  postId: string | null;
+  projectId: string;
+  platform: Platform;
+  accountId: string | null;
+  remotePostId: string;
+  permalink: string | null;
+  caption: string;
+  mediaKind: string;
+  publishedAt: string;
+  status: "published" | "deleted" | "unavailable";
+  metrics: Record<string, number>;
+  refreshedAt: string | null;
+};
+
 export type Post = {
   id: string;
   projectId: string;
@@ -32,6 +48,7 @@ export type Post = {
   status: "draft" | "publishing" | "published" | "needs_review";
   createdAt: string;
   results: Partial<Record<Platform, string>>;
+  publications?: Publication[];
   error?: string;
   deliveries?: {
     platform: Platform;

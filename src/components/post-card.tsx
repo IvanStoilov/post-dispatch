@@ -1,4 +1,5 @@
 "use client";
+import { PublicationPanel } from "./publication-panel";
 import { channelLabels } from "@/lib/connectors/catalog";
 import { channelIcons } from "./channel-catalog";
 import {
@@ -119,6 +120,13 @@ export function PostCard({
                 </p>
               ))}
             </div>
+          )}
+          {!!post.publications?.length && (
+            <PublicationPanel
+              projectId={post.projectId}
+              postId={post.id}
+              initial={post.publications}
+            />
           )}
           {post.error && (
             <Alert variant="destructive">

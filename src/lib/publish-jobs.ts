@@ -3,7 +3,12 @@ import { randomUUID } from "node:crypto";
 import { asc, and, eq, inArray, lte, or, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
-import { posts, publishJobs, type PublishJob } from "../db/schema";
+import {
+  posts,
+  publishJobs,
+  postPublications,
+  type PublishJob,
+} from "../db/schema";
 import { hydrate, toPost } from "./store";
 import { getProject, isConnected } from "./projects";
 import { connectors } from "./connectors/registry";
@@ -164,6 +169,33 @@ async function finishJob(
       .where(ownedLease(job.id, token))
       .returning();
     if (!updated.length) throw new Error("Publishing job lease was lost");
+    if (status === "published" && remoteId) {
+      const assets = job.snapshot.assets;
+      await tx
+        .insert(postPublications)
+        .values({
+          projectId: job.projectId,
+          postId: job.postId,
+          platform: job.platform,
+          accountId: job.accountId,
+          remotePostId: remoteId,
+          caption: job.snapshot.post.caption,
+          mediaKind: assets.some((a) => a.kind === "VIDEO")
+            ? "VIDEO"
+            : assets.length > 1
+              ? "CAROUSEL"
+              : assets.length || job.snapshot.externalUrl
+                ? "IMAGE"
+                : "TEXT",
+          publishedAt: now(),
+          permalink:
+            job.platform === "linkedin"
+              ? `https://www.linkedin.com/feed/update/${encodeURIComponent(remoteId)}/`
+              : null,
+        })
+        .onConflictDoNothing();
+    }
+
     const jobs = await tx
       .select()
       .from(publishJobs)

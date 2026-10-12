@@ -3,6 +3,7 @@ import { logger, logContext, redact } from "./logger";
 
 type MetaResult = {
   id?: string;
+  post_id?: string;
   status_code?: string;
   status?: string;
   error?: { message?: string; [key: string]: unknown };
@@ -13,11 +14,12 @@ export async function metaRequest(
   token: string,
   signal: AbortSignal,
   fields?: Record<string, string>,
+  method?: "GET" | "POST" | "DELETE",
 ) {
   const details = {
     ...logContext(),
     requestId: randomUUID(),
-    method: fields ? "POST" : "GET",
+    method: method ?? (fields ? "POST" : "GET"),
     url,
   };
   const debug = (event: string, data: Record<string, unknown>) =>
@@ -26,7 +28,12 @@ export async function metaRequest(
       redact({ ...details, ...data }, [token]) as Record<string, unknown>,
     );
   debug("meta.request", {
-    fields: fields ?? Object.fromEntries(new URL(url).searchParams),
+    fields: fields
+      ? {
+          ...fields,
+          ...(fields.message !== undefined ? { message: "[REDACTED]" } : {}),
+        }
+      : Object.fromEntries(new URL(url).searchParams),
   });
   const started = performance.now();
   let phase = "fetch";

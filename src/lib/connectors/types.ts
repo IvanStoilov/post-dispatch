@@ -24,6 +24,23 @@ export type PublishContext = {
   signal: AbortSignal;
 };
 export type ConnectorAdapter = {
+  publications?: PublicationAdapter;
   publish: (context: PublishContext) => Promise<string>;
   capabilities: { text: boolean; images: number; video: boolean };
+};
+
+export type PublicationContext = {
+  connection: ConnectorRow;
+  publication: import("../types").Publication;
+  signal: AbortSignal;
+};
+export type PublicationDetails = {
+  permalink?: string;
+  caption?: string;
+  metrics?: Record<string, number>;
+};
+export type PublicationAdapter = {
+  get?: (context: PublicationContext) => Promise<PublicationDetails>;
+  update?: (context: PublicationContext, caption: string) => Promise<void>;
+  delete?: (context: PublicationContext) => Promise<void>;
 };

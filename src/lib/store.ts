@@ -3,7 +3,13 @@ import { platforms } from "./types";
 import { and, asc, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
-import { posts, postAssets, publishJobs, type PostRow } from "../db/schema";
+import {
+  posts,
+  postAssets,
+  publishJobs,
+  postPublications,
+  type PostRow,
+} from "../db/schema";
 import type { Platform, Post, StoredAsset } from "./types";
 import {
   imageFileSchema,
@@ -74,6 +80,7 @@ type MediaPost = PostRow & {
   imageKey: string | null;
   imageBucket: string | null;
   deliveries?: Post["deliveries"];
+  publications?: Post["publications"];
 };
 export function storedAssets(row: { assets: StoredAsset[] }): StoredAsset[] {
   return row.assets;
@@ -108,6 +115,15 @@ export async function hydrate(
           rows.map((row) => row.id),
         ),
       );
+    const publications = await db
+      .select()
+      .from(postPublications)
+      .where(
+        inArray(
+          postPublications.postId,
+          rows.map((row) => row.id),
+        ),
+      );
     const grouped = new Map<string, StoredAsset[]>();
     for (const asset of media) {
       const items = grouped.get(asset.postId) || [];
@@ -125,6 +141,13 @@ export async function hydrate(
       const first = assets[0]?.kind === "IMAGE" ? assets[0] : undefined;
       return {
         ...row,
+        publications: publications
+          .filter((p) => p.postId === row.id)
+          .map((p) => ({
+            ...p,
+            publishedAt: p.publishedAt.toISOString(),
+            refreshedAt: p.refreshedAt?.toISOString() ?? null,
+          })),
         deliveries: deliveries
           .filter((j) => j.postId === row.id)
           .map(({ postId, ...safe }) => {

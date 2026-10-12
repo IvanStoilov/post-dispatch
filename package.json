@@ -12,6 +12,7 @@
     "env:check": "tsx scripts/check-config.ts",
     "format": "prettier --write src README.md",
     "test": "tsx --test tests/*.test.ts",
+    "publications:backfill": "tsx scripts/backfill-publications.ts",
     "jobs:work": "tsx scripts/publishing-worker.ts",
     "credentials:encrypt": "tsx scripts/encrypt-credentials.ts",
     "db:generate": "drizzle-kit generate",

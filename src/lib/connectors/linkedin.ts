@@ -41,6 +41,7 @@ export async function linkedinRequest<T>(
   token: string,
   signal: AbortSignal,
   body?: unknown,
+  options?: { method?: "GET" | "POST" | "DELETE"; restliMethod?: string },
 ) {
   return withLogSecrets([token], () =>
     loggedOperation("lib.connectors.linkedin.linkedinRequest", {}, async () => {
@@ -49,19 +50,22 @@ export async function linkedinRequest<T>(
         ...logContext(),
         provider: "linkedin",
         path,
-        method: body ? "POST" : "GET",
+        method: options?.method ?? (body ? "POST" : "GET"),
       };
       logger.debug(
         "connector.request",
         redact({ ...details, body }, [token]) as Record<string, unknown>,
       );
       const response = await fetch(url, {
-        method: body ? "POST" : "GET",
+        method: options?.method ?? (body ? "POST" : "GET"),
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
           "LinkedIn-Version": config.LINKEDIN_API_VERSION,
           "X-Restli-Protocol-Version": "2.0.0",
+          ...(options?.restliMethod
+            ? { "X-RestLi-Method": options.restliMethod }
+            : {}),
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
         cache: "no-store",

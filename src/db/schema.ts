@@ -621,3 +621,62 @@ export const publishJobs = pgTable(
   ],
 );
 export type PublishJob = typeof publishJobs.$inferSelect;
+
+export const publicationStatus = pgEnum("publication_status", [
+  "published",
+  "deleted",
+  "unavailable",
+]);
+export const postPublications = pgTable(
+  "post_publications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // Keep remote references when a user removes the local draft and its media.
+    postId: uuid("post_id").references(() => posts.id, {
+      onDelete: "set null",
+    }),
+    platform: platformEnum("platform").notNull(),
+    // NULL only for legacy results whose original destination was not recorded.
+    accountId: text("account_id"),
+    remotePostId: text("remote_post_id").notNull(),
+    permalink: text("permalink"),
+    caption: text("caption").notNull().default(""),
+    mediaKind: varchar("media_kind", { length: 16 })
+      .notNull()
+      .default("UNKNOWN"),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
+    status: publicationStatus("status").notNull().default("published"),
+    metrics: jsonb("metrics")
+      .$type<Record<string, number>>()
+      .notNull()
+      .default({}),
+    refreshedAt: timestamp("refreshed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("post_publications_remote_idx").on(
+      t.projectId,
+      t.platform,
+      t.remotePostId,
+    ),
+    index("post_publications_post_idx").on(t.postId),
+    index("post_publications_project_idx").on(
+      t.projectId,
+      t.publishedAt.desc(),
+    ),
+    check(
+      "post_publications_remote_valid",
+      sql`length(trim(${t.remotePostId})) > 0`,
+    ),
+    check(
+      "post_publications_kind_valid",
+      sql`${t.mediaKind} IN ('TEXT', 'IMAGE', 'CAROUSEL', 'VIDEO', 'UNKNOWN')`,
+    ),
+  ],
+);
+export type PublicationRow = typeof postPublications.$inferSelect;

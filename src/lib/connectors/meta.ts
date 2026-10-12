@@ -23,7 +23,8 @@ async function graph(
   if (!response.ok || data.error)
     throw new Error(data.error?.message || "Meta rejected the request");
   if (!data.id) throw new Error("Meta did not return a post ID");
-  return data.id as string;
+  // Published Facebook photos return both the media object and Page post ID.
+  return data.post_id || (data.id as string);
 }
 // Video and carousel containers are asynchronous. Do not publish until Meta
 // confirms readiness; each check is at least one minute apart as recommended.

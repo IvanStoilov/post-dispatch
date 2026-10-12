@@ -388,3 +388,38 @@ Attach **both** `www.ramblo.io` and `app.ramblo.io` to the same Vercel project a
 Production social callback URLs remain `https://app.ramblo.io/api/meta/<provider>/callback` and `https://app.ramblo.io/api/connectors/linkedin/callback`; register them with each provider. MCP clients connect to `https://app.ramblo.io/api/mcp`. Preview callbacks use the preview origin with the same API paths (providers must allow that exact redirect URL; a stable staging domain can simplify provider testing). Email verification/password reset returns, connector completion redirects, OAuth consent and MCP review links use the correct page paths for the environment.
 
 Rerun `pnpm storage:cors` in the production environment to authorize direct browser uploads from the app domain. Existing sessions are scoped to their original hostname, so users sign in again on the new app domain. The public production domain serves no application APIs.
+
+
+### Permanent published copies
+
+`post_publications` stores one reference per published network post: original
+account, remote ID, permalink, publication time, caption, media kind, status and
+cached engagement counts. Successful jobs commit this record together with their
+result. Jobs remain execution history; publication records remain available after
+removing a local draft (`post_id` becomes NULL). Deleting a project/account removes
+its local publication records, without deleting remote posts.
+
+Run `pnpm db:migrate` before deploying this version. Migration 0014 backfills
+successful jobs and older `posts.results`. Legacy results without a recorded
+account remain read-only: the app never substitutes the current connector as the
+historical account. Run `pnpm publications:backfill` after deployment to catch any
+posts completed by the previous deployment during rollout; repeated runs are safe.
+
+Open **Published copies** on a post, or **All published copies** in the Published
+view (including references whose local draft was removed). Refresh fetches native
+links and basic Facebook reactions/comments or Instagram likes/comments. Counts
+are snapshots with a refresh timestamp, not impressions/reach or historical analytics.
+Facebook text/carousel captions and LinkedIn commentary can be edited; Facebook
+and LinkedIn copies can be deleted with explicit confirmation. Instagram edits and
+deletions use the native app. LinkedIn stats use the native post link because the
+current connector does not request restricted read/analytics permissions. Every
+management action checks project ownership and the original publishing account.
+Provider confirmations are required before recording an edit or deletion; failed
+or uncertain requests leave the reference intact. No network mutations are retried
+automatically.
+
+Authenticated endpoints: `GET /api/publications?projectId=...` (optional `postId`),
+`POST /api/publications/:id?projectId=...` to refresh,
+`PATCH` with `{ "caption": "..." }` to update only that copy, and `DELETE` to remove
+only that copy from the network. Provider adapters implement optional publication
+operations so unsupported networks fail before making API calls.

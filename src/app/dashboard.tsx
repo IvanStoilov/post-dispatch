@@ -1,4 +1,5 @@
 "use client";
+import { PublicationPanel } from "@/components/publication-panel";
 import { useAppPath } from "@/components/app-navigation";
 import { platforms, channelLabels } from "@/lib/connectors/catalog";
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -670,6 +671,12 @@ export default function Dashboard({
                 {headings[view][1]}
               </p>
             </div>
+            {view === "Published" && project && (
+              <PublicationPanel
+                projectId={project.id}
+                label="All published copies"
+              />
+            )}
             <Button
               size="lg"
               disabled={loading || busy || !project}
@@ -911,8 +918,8 @@ export default function Dashboard({
             <AlertDialogTitle>Delete this post?</AlertDialogTitle>
             <AlertDialogDescription>
               “{deleteConfirm?.title}” and its stored media will be permanently
-              removed from Ramblo. Posts already published on Facebook or
-              Instagram remain there.
+              removed from Ramblo. Published copies on social networks remain
+              there, and their references are preserved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -11,6 +11,8 @@ export type LogContext = {
   projectId?: string;
   postId?: string;
   jobId?: string;
+  publicationId?: string;
+  action?: string;
   provider?: string;
   tool?: string;
 };
