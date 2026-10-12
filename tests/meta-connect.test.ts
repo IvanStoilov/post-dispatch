@@ -78,17 +78,27 @@ test(
     const pendingIds: string[] = [];
     try {
       async function signup() {
+        const email = `meta-${randomUUID()}@example.test`;
+        const password = `Password-${randomUUID()}`;
         const response = await getAuth().handler(
           req("/api/auth/sign-up/email", "", {
             name: "Meta test",
-            email: `meta-${randomUUID()}@example.test`,
-            password: `Password-${randomUUID()}`,
+            email,
+            password,
           }),
         );
         assert.equal(response.status, 200);
         const user = (await response.json()).user;
         created.push(user.id);
-        return { id: user.id, cookie: cookie(response) };
+        await getDb()
+          .update(users)
+          .set({ emailVerified: true })
+          .where(eq(users.id, user.id));
+        const signin = await getAuth().handler(
+          req("/api/auth/sign-in/email", "", { email, password }),
+        );
+        assert.equal(signin.status, 200);
+        return { id: user.id, cookie: cookie(signin) };
       }
       const a = await signup(),
         b = await signup();
@@ -290,6 +300,11 @@ test(
           assert.ok(!(await result.text()).includes("page-secret"));
           const project = await getProject(first.project.id);
           assert.equal(project.facebookPageId, "page-two");
+          assert.equal(
+            project.connections.find((c) => c.provider === "facebook")
+              ?.accountName,
+            "Second Page",
+          );
           assert.equal(project.facebookPageToken, "page-secret-two");
           assert.equal(
             (await getProject(second.project.id)).facebookPageId,

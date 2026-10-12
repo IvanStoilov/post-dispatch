@@ -411,7 +411,7 @@ export default function ProjectSettings({
                 <CardFooter className="justify-between gap-3">
                   <span className="truncate text-xs text-muted-foreground">
                     {configured
-                      ? `Account ${connection?.accountName || connection?.accountId || (facebook ? project.facebookPageId : project.instagramAccountId)}`
+                      ? `Connected to ${connection?.accountName || connection?.accountId || (facebook ? project.facebookPageId : project.instagramAccountId)}`
                       : "Connect an account to start publishing"}
                   </span>
                   {configured && (

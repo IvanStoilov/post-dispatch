@@ -534,11 +534,14 @@ export async function selectPage(req: Request) {
     if (!page)
       throw new ConnectorError("Select a Page from the authorized list.");
     await pending(req, "facebook", "select", true);
-    const project = await getOwnedProject(value.userId, value.projectId);
-    await updateProject(value.userId, value.projectId, {
-      name: project.name,
-      facebookPageId: page.id,
-      facebookPageToken: page.access_token,
+    await saveConnector(value.userId, value.projectId, {
+      provider: "facebook",
+      accountId: page.id,
+      accountName: page.name,
+      accessToken: page.access_token,
+      refreshToken: null,
+      expiresAt: null,
+      metadata: {},
     });
     return withCookie(
       Response.json({
