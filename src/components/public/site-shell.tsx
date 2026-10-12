@@ -1,78 +1,118 @@
 import Link from "next/link";
-import { Brand } from "@/components/brand";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Logo } from "@/components/brand";
+import { brand } from "@/lib/brand";
 import { site } from "@/lib/public-site";
 import { appPageUrl } from "@/lib/origins";
+
+const pill =
+  "inline-flex items-center rounded-full font-semibold transition-colors duration-150";
+// Section links point at the homepage so they also work from other pages.
+const productLinks = [
+  ["/#how", "How it works"],
+  ["/#networks", "Networks"],
+  ["/#agents", "Agents"],
+] as const;
 export function SiteShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-svh flex-col bg-card">
+    <div className="flex min-h-svh flex-col bg-background text-foreground">
       <a
         href="#main-content"
-        className="sr-only fixed top-3 left-3 rounded-lg bg-primary p-3 text-primary-foreground focus:not-sr-only focus:z-50"
+        className="sr-only fixed top-3 left-3 rounded-full bg-primary px-5 py-3 font-semibold text-primary-foreground focus:not-sr-only focus:z-50"
       >
         Skip to content
       </a>
       <header className="border-b">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-5 py-5 sm:px-8">
-          <Brand />
-          <nav
-            aria-label="Main navigation"
-            className="order-last flex w-full items-center gap-6 text-sm md:order-none md:ml-auto md:w-auto"
-          >
-            <Link className="public-link" href="/guide">
-              How it works
-            </Link>
-            <Link className="public-link" href="/support">
-              Support
+        <nav
+          aria-label="Main"
+          className="mx-auto flex max-w-[1200px] items-center justify-between gap-6 px-[clamp(16px,4vw,40px)] py-4"
+        >
+          <Link href="/" aria-label={`${brand.name} home`} className="flex">
+            <Logo className="h-9" />
+          </Link>
+          <div className="hidden gap-8 text-[15px] font-medium min-[761px]:flex">
+            {productLinks.map(([href, label]) => (
+              <Link
+                key={href}
+                href={href}
+                className="text-muted-foreground no-underline hover:text-foreground"
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              href={appPageUrl("/signin")}
+              className="hidden px-3 py-2.5 text-[15px] font-semibold text-foreground no-underline hover:text-muted-foreground min-[761px]:inline"
+            >
+              Log in
             </Link>
             <Link
-              className="public-link ml-auto md:hidden"
-              href={appPageUrl("/signin")}
+              href={appPageUrl("/signup")}
+              className={`${pill} min-h-11 bg-primary px-5 text-[15px] text-primary-foreground no-underline hover:bg-primary-hover`}
             >
-              Sign in
+              Get started
             </Link>
-          </nav>
-          <div className="ml-auto flex items-center gap-2 md:ml-4">
-            <Button variant="ghost" asChild className="hidden md:inline-flex">
-              <Link href={appPageUrl("/signin")}>Sign in</Link>
-            </Button>
-            <Button asChild>
-              <Link href={appPageUrl("/signup")}>Get started</Link>
-            </Button>
           </div>
-        </div>
+        </nav>
       </header>
       {children}
-      <footer className="mt-auto">
-        <Separator />
-        <div className="mx-auto flex max-w-6xl flex-col gap-5 px-5 py-8 text-sm sm:px-8 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-1">
-            <p className="font-semibold">{site.name}</p>
-            <p className="text-muted-foreground">Walk. Talk. Post.</p>
-            <p className="text-muted-foreground">
-              Operated by {site.operator}, {site.country}.
-            </p>
+      <footer className="mt-auto border-t">
+        <div className="mx-auto flex max-w-[1200px] flex-wrap justify-between gap-10 px-[clamp(16px,4vw,40px)] pt-12 pb-8">
+          <div className="flex flex-[1_1_240px] flex-col gap-3">
+            <Logo className="h-8 self-start" />
+            <span className="text-[15px] text-muted-foreground">
+              {brand.tagline}
+            </span>
           </div>
-          <nav
-            aria-label="Footer navigation"
-            className="flex flex-wrap gap-x-5 gap-y-3"
-          >
-            <Link className="public-link" href="/privacy">
-              Privacy
-            </Link>
-            <Link className="public-link" href="/terms">
-              Terms
-            </Link>
-            <Link className="public-link" href="/legal">
-              Company details
-            </Link>
-            <Link className="public-link" href="/support">
-              Contact
-            </Link>
-          </nav>
+          <div className="flex flex-wrap gap-x-16 gap-y-8 text-body-s">
+            <FooterColumn
+              title="Product"
+              links={[...productLinks, [appPageUrl("/signin"), "Log in"]]}
+            />
+            <FooterColumn
+              title="Company"
+              links={[
+                ["/legal", "About"],
+                ["/support", "Contact"],
+              ]}
+            />
+            <FooterColumn
+              title="Legal"
+              links={[
+                ["/privacy", "Privacy"],
+                ["/terms", "Terms"],
+              ]}
+            />
+          </div>
         </div>
+        <p className="mx-auto max-w-[1200px] px-[clamp(16px,4vw,40px)] pb-8 text-[13px] leading-[18px] text-subtle-foreground">
+          © {new Date().getFullYear()} {brand.name} · {brand.domain} · Operated
+          by {site.operator}, {site.country}
+        </p>
       </footer>
+    </div>
+  );
+}
+function FooterColumn({
+  title,
+  links,
+}: {
+  title: string;
+  links: readonly (readonly [string, string])[];
+}) {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <b className="text-body-s font-semibold">{title}</b>
+      {links.map(([href, label]) => (
+        <Link
+          key={label}
+          href={href}
+          className="text-muted-foreground no-underline hover:text-foreground"
+        >
+          {label}
+        </Link>
+      ))}
     </div>
   );
 }
@@ -85,7 +125,7 @@ export function PageIntro({
 }) {
   return (
     <header className="flex flex-col gap-4">
-      <h1 className="text-display font-semibold">{title}</h1>
+      <h1 className="display-m">{title}</h1>
       <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">
         {description}
       </p>
@@ -103,7 +143,7 @@ export function DocumentSection({
 }) {
   return (
     <section id={id} className="flex scroll-mt-8 flex-col gap-4">
-      <h2 className="text-page font-semibold">{title}</h2>
+      <h2 className="heading-l">{title}</h2>
       <div className="flex flex-col gap-4 text-base leading-7 text-muted-foreground">
         {children}
       </div>

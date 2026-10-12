@@ -51,7 +51,7 @@ export default function AssistantPage() {
   return (
     <>
       <div>
-        <h1 className="text-page font-semibold">Connect your assistant</h1>
+        <h1 className="display-m">Connect your assistant</h1>
         <p className="text-sm text-muted-foreground">
           Connect once and send drafts to any of your projects.
         </p>

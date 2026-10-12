@@ -8,7 +8,7 @@ A Next.js local MVP for a personal publishing desk: persistent draft inbox, orde
 
 ## Frontend design
 
-The frontend uses shadcn/ui (Radix Nova) and Tailwind CSS 4. Shared colors, radii, and typography live in the CSS-first `@theme inline` configuration in `src/app/globals.css`. Use semantic utilities such as `bg-primary`, `text-muted-foreground`, `font-sans`, and `text-page` when extending the UI. DM Sans is self-hosted in `src/app/fonts` with its SIL Open Font License in `public/brand/font-license.txt`.
+The frontend uses shadcn/ui (Radix Nova) and Tailwind CSS 4. Shared colors, radii, and typography live in the CSS-first `@theme inline` configuration in `src/app/globals.css`. They implement the Ramblo design system (`docs/brand-identity.md`). Use semantic utilities such as `bg-primary`, `text-muted-foreground`, `bg-sunken`, `font-display`, `display-m` and `text-body-s` when extending the UI. Fredoka, Figtree and DM Mono are self-hosted through Fontsource; dark mode follows the system setting.
 
 Components are source files in `src/components/ui`; add new ones with `pnpm dlx shadcn@latest add <component>`. The installed design skills are in `.agents/skills`.
 
@@ -251,16 +251,15 @@ Private uploads remain bound to the selected project. `create_upload_token` retu
 
 ## Brand assets
 
-The shared `brand` identity in `src/lib/brand.ts` defines **Ramblo**, the **ramblo.** wordmark, **Walk. Talk. Post.** tagline and `hello@ramblo.io`. Warm ivory, forest ink, terracotta, sage and apricot tokens live in `src/app/globals.css`, including a dark palette and semantic status colors. Typography is self-hosted DM Sans. The compact R mark uses a wandering line finished by a dot. The brand specifications are in `docs/brand-identity.md`.
+The shared `brand` identity in `src/lib/brand.ts` defines **Ramblo**, the **ramblo.** wordmark, **Walk. Talk. Post.** tagline and `hello@ramblo.io`. Sun, pine and oat tokens with moss, sky and blush accents live in `src/app/globals.css`, including the dark palette and semantic status colors. Fredoka is the display face and Figtree the text face. The symbol is the Ramblo knot. The brand and design system guidance is in `docs/brand-identity.md`.
 
-Reusable exports in `public/brand` include outlined SVG wordmarks (`logo.svg`, `logo-on-dark.svg`), transparent PNG wordmarks, a compact SVG/PNG mark, and a 1200×630 social card. Favicons and the Apple icon are generated from the same mark. Run `pnpm brand:generate` to regenerate assets; the generator reads the app's CSS colors and the licensed font source in `scripts/assets`. It uses the font parser bundled with the pinned Next.js version. The exported SVGs contain paths and need no installed font.
+The sources in `public/brand` are the delivered symbols: `mark.svg` (light grounds), `mark-on-dark.svg` (dark grounds) and `app-icon.svg` (sun tile). `pnpm brand:generate` builds from them the lockups with the outlined Fredoka wordmark (`logo.svg`, `logo-on-dark.svg` and PNG versions for email), `app-icon.png`, the favicons, the Apple icon and the 1200×630 social card. It uses the font parser bundled with the pinned Next.js version and the static Fontsource WOFF files; the exported SVGs contain paths and need no installed font.
 
 Saved credential encryption prefixes/AAD, connector handshake contexts/cookies, OAuth plugin ID, and the storage CORS rule ID retain their existing private protocol identifiers. These are not public branding; changing them during a rename could invalidate stored secrets, in-flight connections or queued deliveries. The selected-project browser preference migrates to `ramblo-project` when the workspace opens. Existing OAuth resource display names update to Ramblo without replacing IDs, grants or scopes.
 
 Before production rollout, update Vercel `MAIL_FROM="Ramblo <hello@ramblo.io>"` and `MAIL_REPLY_TO=hello@ramblo.io`, verify `ramblo.io` as a sending domain with the chosen email provider, and make sure `hello@ramblo.io` receives support/privacy mail. Update public names/logos, privacy/terms/data-deletion URLs and app-domain callbacks in Meta and LinkedIn dashboards. Existing old-domain bookmarks can be redirected via the old deployment/domain configuration once the new domains are live. These external service settings are separate from this code change.
 
-
-Next.js discovers `src/app/favicon.ico` (16/32/48 pixels), `icon.svg`, and `apple-icon.png` (180 pixels) automatically. To regenerate exports from the shared mark geometry and Tailwind theme colors, run `node --import tsx scripts/generate-brand.ts` from the project root.
+Next.js discovers `src/app/favicon.ico` (16/32/48 pixels), `icon.svg`, and `apple-icon.png` (180 pixels) automatically. They come from `public/brand/app-icon.svg`; regenerate them with `pnpm brand:generate`.
 
 ### Queue adapter
 
@@ -370,16 +369,15 @@ Zod validates every setting on access. Empty/whitespace-only values mean unset; 
 
 Run `pnpm env:check` to validate **all declared settings** after loading `.env*` with the same precedence as Next. This checks syntax, not database connectivity, provider credentials or integration readiness. CLI tools can load environment files after imports because config getters read current values rather than capturing them at module initialization. Test fixtures may continue to set `process.env` directly; application code reads it only inside `config.ts`.
 
-
 ## Public and app domains
 
 Application pages live in `src/app/app` at `/app`, `/app/signin`, `/app/connections/...` and `/app/oauth/consent`. Public pages live in `src/app/(public)` at `/`, `/guide`, `/privacy`, etc. APIs and MCP remain under `/api`, without the `/app` prefix.
 
-| Environment | Public site | Application |
-| --- | --- | --- |
-| Production | `https://www.ramblo.io/` | `https://app.ramblo.io/` |
+| Environment    | Public site                        | Application                           |
+| -------------- | ---------------------------------- | ------------------------------------- |
+| Production     | `https://www.ramblo.io/`           | `https://app.ramblo.io/`              |
 | Vercel preview | `https://<deployment>.vercel.app/` | `https://<deployment>.vercel.app/app` |
-| Local | `http://localhost:8200/` | `http://localhost:8200/app` |
+| Local          | `http://localhost:8200/`           | `http://localhost:8200/app`           |
 
 Attach **both** `www.ramblo.io` and `app.ramblo.io` to the same Vercel project and apply the DNS records Vercel provides. On the app domain, Proxy rewrites clean page URLs to `/app` internally; `/signin` serves `/app/signin`, for example. Public pages opened on the app domain redirect to the public site. On local/preview hosts both sections are available without extra DNS, and public links stay in that environment. Application pages are marked `noindex`.
 
@@ -388,7 +386,6 @@ Attach **both** `www.ramblo.io` and `app.ramblo.io` to the same Vercel project a
 Production social callback URLs remain `https://app.ramblo.io/api/meta/<provider>/callback` and `https://app.ramblo.io/api/connectors/linkedin/callback`; register them with each provider. MCP clients connect to `https://app.ramblo.io/api/mcp`. Preview callbacks use the preview origin with the same API paths (providers must allow that exact redirect URL; a stable staging domain can simplify provider testing). Email verification/password reset returns, connector completion redirects, OAuth consent and MCP review links use the correct page paths for the environment.
 
 Rerun `pnpm storage:cors` in the production environment to authorize direct browser uploads from the app domain. Existing sessions are scoped to their original hostname, so users sign in again on the new app domain. The public production domain serves no application APIs.
-
 
 ### Permanent published copies
 
@@ -423,7 +420,6 @@ Authenticated endpoints: `GET /api/publications?projectId=...` (optional `postId
 `PATCH` with `{ "caption": "..." }` to update only that copy, and `DELETE` to remove
 only that copy from the network. Provider adapters implement optional publication
 operations so unsupported networks fail before making API calls.
-
 
 ### Project routes and workspace layout
 

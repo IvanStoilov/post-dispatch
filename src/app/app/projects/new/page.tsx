@@ -15,7 +15,7 @@ export default function NewProject() {
   return (
     <>
       <div>
-        <h1 className="text-page font-semibold">Create a project</h1>
+        <h1 className="display-m">Create a project</h1>
         <p className="text-sm text-muted-foreground">
           Give each brand its own publishing workspace.
         </p>

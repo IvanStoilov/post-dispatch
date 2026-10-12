@@ -62,7 +62,10 @@ export function PostCard({
             <MediaGallery assets={post.assets} title={post.title} />
           ) : (
             <div className="flex aspect-4/3 flex-col justify-between bg-secondary p-7">
-              <FileText className="size-5 text-primary" aria-hidden="true" />
+              <FileText
+                className="size-5 text-muted-foreground"
+                aria-hidden="true"
+              />
               <p className="line-clamp-4 max-w-xs text-2xl font-semibold leading-snug tracking-tight text-secondary-foreground">
                 {post.title}
               </p>

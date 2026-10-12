@@ -66,7 +66,7 @@ export default function ConsentForm({
               .map(([scope, text]) => (
                 <li key={scope} className="flex items-start gap-2">
                   <Check
-                    className="mt-0.5 size-4 shrink-0 text-primary"
+                    className="mt-0.5 size-4 shrink-0 text-success"
                     aria-hidden="true"
                   />
                   {text}

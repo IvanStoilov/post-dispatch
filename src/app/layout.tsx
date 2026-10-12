@@ -2,6 +2,10 @@ import { brand } from "@/lib/brand";
 import type { Metadata, Viewport } from "next";
 import { siteOrigin } from "@/lib/public-site";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import "@fontsource-variable/fredoka/wght.css";
+import "@fontsource-variable/figtree/wght.css";
+import "@fontsource/dm-mono/400.css";
+import "@fontsource/dm-mono/500.css";
 import "./globals.css";
 
 const title = `${process.env.NODE_ENV === "development" ? "[Dev] " : ""}${brand.name} — ${brand.tagline}`;
@@ -36,8 +40,8 @@ export const metadata: Metadata = {
 };
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#faf8f2" },
-    { media: "(prefers-color-scheme: dark)", color: "#17221c" },
+    { media: "(prefers-color-scheme: light)", color: "#FBF7EE" },
+    { media: "(prefers-color-scheme: dark)", color: "#121814" },
   ],
 };
 export default function RootLayout({

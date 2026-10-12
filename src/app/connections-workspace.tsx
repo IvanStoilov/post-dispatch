@@ -9,7 +9,7 @@ export default function ConnectionsPage() {
   return (
     <>
       <div>
-        <h1 className="text-page font-semibold">Projects & channels</h1>
+        <h1 className="display-m">Projects & channels</h1>
         <p className="text-sm text-muted-foreground">
           Choose where this project’s posts go live.
         </p>

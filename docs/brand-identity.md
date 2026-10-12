@@ -1,97 +1,83 @@
-# ramblo.
+# Ramblo brand and design system
 
-**Walk. Talk. Post.**  
-**ramblo.io** · Brand identity
+Ramblo publishes to your social media for you. You talk an idea through with your own AI agent (ChatGPT, Claude or any MCP-capable agent), and Ramblo turns it into posts on LinkedIn, X and the other networks you connect. Posting is the point: the brand is about getting your ideas out and seen, wherever the conversation happened. It should feel warm, sunny, confident and plain-spoken. Tagline: **Walk. Talk. Post.**
 
-## The idea
+Two surfaces use this system:
 
-Ramblo makes space for ideas to become posts. The identity takes its cue from a good ramble: curious, unhurried, and human. Warm color, clear language, and generous space make the publishing workflow feel approachable. Precision in the interface keeps approval and delivery trustworthy.
+- **ramblo.io** (marketing): expressive. Big `display-xl` headlines, large sun-400 blocks, `shadow-sticker`, `radius-xl` image frames.
+- **app.ramblo.io** (product): calm. Mostly `sans` text styles on `surface`, Fredoka only for page and card titles, sun-400 reserved for the single primary action on a view.
 
-The name and tagline express the brand’s direction. They should not imply that voice recording or automatic publishing already exists. Describe the current product honestly: AI-assisted drafts, human review, connected social accounts.
+Both ship in light and dark. Light is the default for ramblo.io; the app follows the system setting.
 
-## Name and wordmark
+## Voice and copy
 
-- Company/product name in prose: **Ramblo**. Domain: **ramblo.io**.
-- Wordmark: **ramblo.**, always lowercase, with the period attached. The period is the signature: the moment an idea becomes a finished thought.
-- Set the wordmark in DM Sans 800, tracking −0.06em. Use Forest on Ivory, Ivory on Forest, or solid black for monochrome reproduction. The period may use Terracotta on light surfaces or Apricot on dark surfaces.
-- Keep clear space equal to the height of the lowercase “o”. Minimum display width: 88px. Below that, use a separately designed compact mark; do not squeeze the wordmark.
-- Keep the tagline in regular sentence-style lettering: **Walk. Talk. Post.** Do not incorporate the domain into the wordmark.
-- The app includes the wordmark and a compact R mark inspired by a wandering line ending in a dot.
+- Write like a person talking: short sentences, plain words, second person. Lead with the post and where it goes: "Your post is ready for LinkedIn and X. Review it before it goes live", never "AI-generated content has been produced".
+- Say "your agent" when the agent is not known. When naming agents, list them alphabetically with equal weight ("ChatGPT, Claude and other MCP agents"). Never use an agent vendor's colors, logos or mascots in Ramblo UI.
+- Name things by what people do: _connect your agent_, _pick where to post_, _review before posting_. Keep "MCP", "server" and "tool" for setup screens and docs, and set technical strings in `code` or `tool`.
+- Sentence case everywhere, including buttons ("Post now", "Connect agent"). The tagline keeps its three capitalized words and periods.
+- The product name in running text is **Ramblo**. The lowercase **ramblo.** with a period is the wordmark only; do not type it in body copy.
+- Emoji: none in UI chrome or headings. People's own posts can contain whatever they like.
+- Errors say what happened and what to do: "LinkedIn disconnected. Reconnect it in Settings to keep posting."
 
-## Palette
+## Color
 
-| Token            | Name       | Hex       | Role                                           |
-| ---------------- | ---------- | --------- | ---------------------------------------------- |
-| background       | Warm Ivory | `#FAF8F2` | Main canvas; generous negative space           |
-| foreground       | Forest Ink | `#283D32` | Text, wordmark, occasional solid brand panels  |
-| primary          | Terracotta | `#B84F36` | Main action, selected state, brand punctuation |
-| brand-apricot    | Apricot    | `#FFD4A3` | Warm highlights; use Forest text               |
-| secondary        | Soft Sage  | `#E9EEE6` | Secondary buttons, gentle emphasis             |
-| card             | Paper      | `#FFFFFF` | Cards, fields, popovers                        |
-| muted-foreground | Stone      | `#647067` | Supporting text                                |
-| border           | Linen      | `#DEDCD3` | Decorative dividers and card edges             |
-| input            | Field edge | `#879086` | Visible input/control boundaries               |
-
-Use approximately 70% Ivory/Paper, 20% Forest/Sage, 10% Terracotta/Apricot in marketing layouts. These are composition guidelines, not UI quotas. Reserve primary actions for Terracotta; a brand panel may use Forest. Avoid orange text on white, beige text on beige, gradients, and using accent colors for every card.
+- **sun-400 is Ramblo.** Use it for the logo, the one primary action per view (`primary` with `on-primary` text) and big marketing blocks. On ramblo.io, sun can cover a whole section; in the app, keep it to roughly one element per screen.
+- Never set sun as text or thin lines on light grounds; it fails contrast. For warning text use `warning` (sun-700 in light).
+- Text is always `text` (pine-900 / cream), `text-muted` or `text-subtle` on `bg`, `surface`, `surface-raised` or `surface-sunken`. Every pair passes 4.5:1 in both themes.
+- **Moss, sky and blush** are the trail accents: illustrations, category chips, platform tags, charts. Fills use the 400 step with pine-900 text on top; text uses the 700 step in light and the 300 step in dark. Do not mix more than two accents in one component.
+- Status colors pair with a word or icon every time: `success` = posted, `info` = scheduled, `warning` = draft, `danger` = failed, `highlight` = new.
+- The `inverse` block (pine-900 in light, cream in dark) is the secondary button and the high-contrast panel. It flips with the theme so it never disappears into the background.
+- Focus: 2px solid `focus-ring` with a 2px offset on every interactive element. It meets 3:1 on every surface, including sun-400.
+- No gradients. Warmth comes from flat sun, oat paper and real photography.
 
 ## Typography
 
-One family: **DM Sans**, self-hosted. Its open-source license is included with the preview. Use variable weights 400–800; use the system monospace stack only for identifiers or technical values.
+- **Fredoka** (`display`, 500–600) is the voice: headlines, page titles, the wordmark. Rounded and friendly; keep it at 24px and up, and never use it for paragraphs or form labels.
+- **Figtree** (`sans`, 400–700) does all reading and UI work: `body` at 16px is the app default, `body-l` at 18px for marketing paragraphs and the post preview.
+- **DM Mono** (`mono`) only for MCP URLs, config snippets and tool names (`code`, `tool`).
+- Keep running text near 65 characters per line. Headlines use `text-wrap: balance`.
+- `overline` is the only uppercase style. Use it at most once per section.
+- On screens under 640px, step display styles down one level (display-xl → display-l → display-m).
 
-| Role               | Desktop / mobile | Weight | Line height | Tracking |
-| ------------------ | ---------------- | ------ | ----------- | -------- |
-| Campaign display   | 112px / 56px     | 700    | 1.00        | −0.055em |
-| Marketing headline | 72px / 40px      | 700    | 1.05        | −0.045em |
-| Page title         | 32px / 28px      | 700    | 1.15        | −0.035em |
-| Section heading    | 24px             | 600    | 1.25        | −0.02em  |
-| Body               | 16px             | 400    | 1.60        | Normal   |
-| UI label / button  | 14px             | 600    | 1.40        | Normal   |
-| Supporting text    | 14px             | 400    | 1.50        | Normal   |
-| Metadata           | 12px             | 500    | 1.40        | Normal   |
+## Spacing, radius and elevation
 
-Limit body copy to approximately 60–70 characters per line. Compact product views may use 14px body text. Keep uppercase for short editorial labels; form labels and actions use sentence case.
+- Spacing is a 4px scale. Card padding is `space-6` (24px) on desktop and `space-4` (16px) on mobile; page gutters are `space-10` and `space-4`.
+- Ramblo is round. Buttons, chips and badges use `radius-pill`; cards and the composer `radius-lg`; inputs `radius-sm`. Avoid sharp corners anywhere a person touches.
+- Elevation is soft in the app: `shadow-sm` for resting cards, `shadow-md` for menus, `shadow-lg` for dialogs. `shadow-sticker` (hard 3px offset) is a marketing-only flourish for sun buttons and sticker-like callouts.
 
-## Shape, space, and movement
+## Motion
 
-- Spacing scale: **4, 8, 12, 16, 24, 32, 48, 64, 96px**. Use 16px between related controls, 24px card padding, 32px between groups, 64–96px between marketing sections.
-- Controls: **12px radius**. Cards: **20px**. Large brand panels: **32px**. Pills are reserved for tags and small statuses.
-- Minimum interactive target: **44×44px**. Button horizontal padding: 20px; control height: 44px.
-- Layout: maximum marketing width 1200px; workspace width 1440px; forms 400px. Gutters: 20px mobile, 32px tablet, 48px desktop.
-- Prefer fine borders over heavy shadows. Subtle card shadow: `0 2px 8px rgb(40 61 50 / 4%)`. Popover shadow: `0 12px 40px rgb(40 61 50 / 12%)`.
-- Icons: Lucide, 1.75px stroke, 18–20px in controls. Always pair unfamiliar icons with labels.
-- Brand motif: a single wandering line, generous curves, and one ending dot. Keep it decorative, sparse, and away from reading surfaces.
-- Motion: 120ms small feedback, 180ms normal transitions, 240ms panels. Animate opacity and small translations; no perpetual movement. Respect reduced-motion preferences.
+- Default to `duration-stroll` with `ease-stroll`: a quick start and a gentle arrival, like a post settling into a feed.
+- `ease-bounce` is for small celebrations only, such as a post going live.
+- Respect `prefers-reduced-motion`: replace movement with a simple fade.
 
-## Status and accessibility
+## Logo
 
-Status colors are semantic, not extra brand accents. Pair color with a word and, where useful, an icon.
+The logo is final. The symbol is the Ramblo knot; the wordmark is lowercase **ramblo.** in Fredoka SemiBold, with the period as part of the mark.
 
-| State                  | Foreground | Background |
-| ---------------------- | ---------- | ---------- |
-| Published / success    | `#246044`  | `#E7EFE8`  |
-| Needs review / warning | `#805414`  | `#FFF0D6`  |
-| Failed / error         | `#A82F35`  | `#FCE9E7`  |
-| Processing / info      | `#315A80`  | `#E8F0F8`  |
+- Light grounds: the pine-900 symbol (`public/brand/mark.svg`) with the wordmark in pine-900 (`public/brand/logo.svg`).
+- Dark grounds: the sun-400 symbol (`public/brand/mark-on-dark.svg`) with the wordmark in cream (`public/brand/logo-on-dark.svg`).
+- Icons (favicon, app icon, Apple touch icon, small "with Ramblo" marks): the sun tile with the pine-900 symbol (`public/brand/app-icon.svg`).
+- Clear space on every side: the height of the "o". Minimum width: 88px for the lockup, 24px for the symbol.
+- Do not recolor the logo into accent colors, add gradients or outlines, or set the wordmark in another font.
 
-Measured text contrast: Forest/Ivory **10.96:1**, Stone/Ivory **4.88:1**, White/Terracotta **4.99:1**. All listed light status pairs exceed 5.7:1. Field edge/Paper is **3.30:1**; Linen is a decorative border and must not be the only boundary for an input. Focus uses a 2px ring with a 3px offset. Underline inline links. Use a separate disabled state and keep error/help messages visible.
+## Iconography
 
-The dark theme uses Forest Charcoal `#17221C`, raised surfaces `#202E25`, Ivory text, and Peach `#F2AA89` for primary actions with dark text `#2A211D`. It is a semantic remap, not an inverted light palette. The paired primary text contrast is **8.16:1**. See the supplied CSS for all semantic tokens.
+- Use Lucide icons at a 2px stroke with round caps and joins, sized 20px in the app and 24px on marketing. The round caps match Fredoka's terminals.
+- Icons take `text` or `text-muted`; on a sun fill they take `on-primary`.
+- Platform icons (LinkedIn, X, Threads, Bluesky, Instagram) use each platform's own official mark in a single color, never redrawn.
 
-Contrast numbers describe the supplied solid-color pairs; they do not certify a future interface. Verify actual components, focus states, imagery, and disabled styles when implementing.
+## Imagery
 
-## Voice
+- Show the outcome: real-looking posts in real feeds (LinkedIn, X, Threads), with the person who wrote them. Product shots show a post card with the Ramblo mark and the networks it went to.
+- Photography of people in everyday places, phone in hand or in pocket. Natural light, a little grain.
+- Frame photos and post mockups with `radius-xl`. A sun-400 or moss-400 block behind or beside them is the house composition.
+- No AI-generated glossy art, robots, brains, sparkles or circuit patterns.
 
-Clear, encouraging, and specific. Prefer “Your draft is ready to review”, “Connect Instagram”, and “Approve & publish”. Explain the next step when something fails. Keep playful language for marketing; publishing errors need direct instructions. Avoid hype, “AI magic”, and language suggesting a post went live before the network confirms it.
+## In code
 
-## Original design kit
-
-- `index.html`: self-contained visual brand board, theme toggle, color copying, typography and component specimens.
-- `tailwind-theme.css`: Tailwind 4 / shadcn token proposal. Integrate deliberately into the existing stylesheet; do not replace the app’s CSS wholesale.
-- `tokens.json`: palette, scales, and measured contrast pairs.
-- `font.css` and `assets/`: DM Sans font files and SIL Open Font License.
-
-Font source: [Google Fonts’ DM Sans repository](https://github.com/google/fonts/tree/main/ofl/dmsans). These tokens and self-hosted fonts are now integrated in Ramblo. App components use Tailwind 4 semantic utilities.
-
-## Contact
-
-Public support, privacy and account-deletion contact: **hello@ramblo.io**. The legal operator remains **Growth Optimize SL**, Spain.
+- Tokens: `src/app/globals.css` maps `design/ramblo-design-system/tokens.json` onto Tailwind and shadcn/ui names: `background` = bg, `card` = surface, `popover` = surface-raised, `muted`/`secondary`/`accent`/`sunken` = surface-sunken, `input` = border-strong, `ring` = focus-ring, plus `primary`, `inverse`, `link`, the status pairs and the full sun, pine, oat, moss, sky and blush palette (`bg-sun-400`, `text-moss-700`, …). Dark mode follows `prefers-color-scheme`.
+- Type: Fredoka, Figtree and DM Mono are self-hosted through Fontsource (imported in `src/app/layout.tsx`). Display styles are utilities named after the tokens (`display-xl`, `display-l`, `display-m`, `heading-l`, `heading-m`) and step down under 640px; text styles are `text-title`, `text-body-l`, `text-body`, `text-body-s`, `text-label`, `text-caption`, `text-overline`, `text-code` and `text-tool`.
+- Shape and depth: `rounded-xs` 6px, `rounded-sm` 10px (inputs), `rounded-md` 14px (menus), `rounded-lg` 20px (cards, dialogs), `rounded-xl` 28px (marketing blocks), `rounded-full` (buttons, chips, badges); `shadow-sm`, `shadow-md`, `shadow-lg`, and `shadow-sticker` for marketing only.
+- Logos and icons: `pnpm brand:generate` rebuilds the lockups, PNG logos, favicons, app icons and the social card from the three source SVGs in `public/brand`.
+- The marketing homepage is `src/components/public/landing.tsx`, built from `design/ramblo-homepage`.

@@ -7,11 +7,11 @@ export default function manifest(): MetadataRoute.Manifest {
     description: brand.description,
     start_url: "/",
     display: "browser",
-    background_color: "#faf8f2",
-    theme_color: "#283d32",
+    background_color: "#FBF7EE",
+    theme_color: "#FFC531",
     icons: [
       {
-        src: "/brand/mark.png",
+        src: "/brand/app-icon.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",

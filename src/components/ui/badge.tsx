@@ -17,7 +17,12 @@ const badgeVariants = cva(
           "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-link underline-offset-4 hover:underline",
+        // Status badges always carry a word or icon: posted, scheduled, draft, failed, new.
+        success: "bg-success-subtle text-success",
+        info: "bg-info-subtle text-info",
+        warning: "bg-warning-subtle text-warning",
+        highlight: "bg-highlight-subtle text-highlight",
       },
     },
     defaultVariants: {

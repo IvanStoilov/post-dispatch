@@ -1,0 +1,174 @@
+{
+  "manifestVersion": 3,
+  "name": "Ramblo",
+  "namespace": "Ramblo",
+  "files": [
+    "assets/Logo-concepts/README.md",
+    "assets/Logos/README.md",
+    "fonts/dm-mono-latin-400-normal.woff2",
+    "fonts/dm-mono-latin-500-normal.woff2",
+    "fonts/figtree-latin-400-normal.woff2",
+    "fonts/figtree-latin-500-normal.woff2",
+    "fonts/figtree-latin-600-normal.woff2",
+    "fonts/figtree-latin-700-normal.woff2",
+    "fonts/fredoka-latin-500-normal.woff2",
+    "fonts/fredoka-latin-600-normal.woff2",
+    "tokens.css"
+  ],
+  "libraries": [],
+  "components": [],
+  "assetGroups": [
+    {
+      "name": "Logos",
+      "order": [
+        "ramblo-wordmark-ink.svg",
+        "ramblo-wordmark-cream.svg"
+      ],
+      "files": [
+        {
+          "path": "assets/Logos/ramblo-wordmark-ink.svg",
+          "id": "bcac20039e0243fd40e82c1f503571eb"
+        },
+        {
+          "path": "assets/Logos/ramblo-wordmark-cream.svg",
+          "id": "51d61f0d5748820e0ad2d2c650d4a423"
+        }
+      ]
+    },
+    {
+      "name": "Logo-concepts",
+      "tile": "s",
+      "order": [
+        "a-send-lockup.svg",
+        "a-send-app-icon.svg",
+        "b-hashtag-lockup.svg",
+        "b-hashtag-app-icon.svg",
+        "c-share-lockup.svg",
+        "c-share-app-icon.svg",
+        "d-publish-lockup.svg",
+        "d-publish-app-icon.svg",
+        "e-broadcast-lockup.svg",
+        "e-broadcast-app-icon.svg"
+      ],
+      "files": [
+        {
+          "path": "assets/Logo-concepts/a-send-lockup.svg",
+          "id": "976b66e2c4c4303f4c86907c2b330668"
+        },
+        {
+          "path": "assets/Logo-concepts/a-send-app-icon.svg",
+          "id": "042009e3eb5119d45cde5db0958f5632"
+        },
+        {
+          "path": "assets/Logo-concepts/b-hashtag-lockup.svg",
+          "id": "4920f1fb52bda0dd33cb73206aad2759"
+        },
+        {
+          "path": "assets/Logo-concepts/b-hashtag-app-icon.svg",
+          "id": "8509886db67250909f5caacab7b10d30"
+        },
+        {
+          "path": "assets/Logo-concepts/c-share-lockup.svg",
+          "id": "8dc280c2a9b6edaf3e7f6fd9fad80061"
+        },
+        {
+          "path": "assets/Logo-concepts/c-share-app-icon.svg",
+          "id": "62698da8457f35cdf8d1118c23170729"
+        },
+        {
+          "path": "assets/Logo-concepts/d-publish-lockup.svg",
+          "id": "5ad43fb24903fe48ba9b8a108cc60599"
+        },
+        {
+          "path": "assets/Logo-concepts/d-publish-app-icon.svg",
+          "id": "25210b8b6ecb8dc77bf6d1309878ac2b"
+        },
+        {
+          "path": "assets/Logo-concepts/e-broadcast-lockup.svg",
+          "id": "6464a61b35470fc93251c57866b1b478"
+        },
+        {
+          "path": "assets/Logo-concepts/e-broadcast-app-icon.svg",
+          "id": "01ae04031f9fd90dddbb41b15e1de0ab"
+        }
+      ]
+    }
+  ],
+  "storage": {
+    "files": {
+      "assets/Logo-concepts/a-send-app-icon.svg": {
+        "store": "blob",
+        "id": "042009e3eb5119d45cde5db0958f5632",
+        "bytes": 528,
+        "type": "image/svg+xml"
+      },
+      "assets/Logo-concepts/a-send-lockup.svg": {
+        "store": "blob",
+        "id": "976b66e2c4c4303f4c86907c2b330668",
+        "bytes": 11249,
+        "type": "image/svg+xml"
+      },
+      "assets/Logo-concepts/b-hashtag-app-icon.svg": {
+        "store": "blob",
+        "id": "8509886db67250909f5caacab7b10d30",
+        "bytes": 846,
+        "type": "image/svg+xml"
+      },
+      "assets/Logo-concepts/b-hashtag-lockup.svg": {
+        "store": "blob",
+        "id": "4920f1fb52bda0dd33cb73206aad2759",
+        "bytes": 11380,
+        "type": "image/svg+xml"
+      },
+      "assets/Logo-concepts/c-share-app-icon.svg": {
+        "store": "blob",
+        "id": "62698da8457f35cdf8d1118c23170729",
+        "bytes": 403,
+        "type": "image/svg+xml"
+      },
+      "assets/Logo-concepts/c-share-lockup.svg": {
+        "store": "blob",
+        "id": "8dc280c2a9b6edaf3e7f6fd9fad80061",
+        "bytes": 11124,
+        "type": "image/svg+xml"
+      },
+      "assets/Logo-concepts/d-publish-app-icon.svg": {
+        "store": "blob",
+        "id": "25210b8b6ecb8dc77bf6d1309878ac2b",
+        "bytes": 560,
+        "type": "image/svg+xml"
+      },
+      "assets/Logo-concepts/d-publish-lockup.svg": {
+        "store": "blob",
+        "id": "5ad43fb24903fe48ba9b8a108cc60599",
+        "bytes": 11094,
+        "type": "image/svg+xml"
+      },
+      "assets/Logo-concepts/e-broadcast-app-icon.svg": {
+        "store": "blob",
+        "id": "01ae04031f9fd90dddbb41b15e1de0ab",
+        "bytes": 988,
+        "type": "image/svg+xml"
+      },
+      "assets/Logo-concepts/e-broadcast-lockup.svg": {
+        "store": "blob",
+        "id": "6464a61b35470fc93251c57866b1b478",
+        "bytes": 11522,
+        "type": "image/svg+xml"
+      },
+      "assets/Logos/ramblo-wordmark-cream.svg": {
+        "store": "blob",
+        "id": "51d61f0d5748820e0ad2d2c650d4a423",
+        "bytes": 10638,
+        "type": "image/svg+xml"
+      },
+      "assets/Logos/ramblo-wordmark-ink.svg": {
+        "store": "blob",
+        "id": "bcac20039e0243fd40e82c1f503571eb",
+        "bytes": 10638,
+        "type": "image/svg+xml"
+      }
+    },
+    "blobBytesUsed": 80970
+  }
+}

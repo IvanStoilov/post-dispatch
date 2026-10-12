@@ -7,7 +7,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         <Brand />
         <div className="mx-auto flex w-full max-w-md flex-col gap-10 py-16">
           <div className="flex flex-col gap-5">
-            <p className="text-display font-semibold">
+            <p className="display-l">
               Your ideas.
               <br />
               Ready for the world.

@@ -24,14 +24,19 @@ const config: TailwindConfig = {
   presets: [pixelBasedPreset],
   theme: {
     extend: {
-      fontFamily: { sans: ["DM Sans", "Arial", "sans-serif"] },
+      // Most email clients lack these fonts; the fallbacks keep it tidy.
+      fontFamily: {
+        sans: ["Figtree", "Helvetica", "Arial", "sans-serif"],
+        display: ["Fredoka", "Nunito", "Helvetica", "Arial", "sans-serif"],
+      },
       colors: {
-        background: "#faf8f2",
-        foreground: "#283d32",
-        primary: "#b84f36",
-        "primary-foreground": "#ffffff",
-        muted: "#647067",
-        border: "#dedcd3",
+        background: "#FBF7EE",
+        foreground: "#1B2620",
+        primary: "#FFC531",
+        "primary-foreground": "#1B2620",
+        muted: "#4A5A50",
+        border: "#E9E1CF",
+        link: "#225C93",
       },
     },
   },
@@ -60,21 +65,21 @@ export function EmailLayout({
         <Head />
         <Preview>{preview}</Preview>
         <Body className="bg-background px-4 py-8 font-sans text-foreground">
-          <Container className="max-w-[480px] rounded-[12px] bg-white p-8">
+          <Container className="max-w-[480px] rounded-[20px] bg-white p-8">
             <Img
               src={`${appUrl()}/brand/logo.png`}
-              alt={brand.wordmark}
-              width="160"
-              height="48"
+              alt={brand.name}
+              width="140"
+              height="32"
             />
-            <Heading className="mt-8 mb-3 text-[22px] leading-[1.3] font-semibold">
+            <Heading className="mt-8 mb-3 font-display text-[24px] leading-[30px] font-semibold">
               {heading}
             </Heading>
             {children}
             <Section className="my-6">
               <Button
                 href={url}
-                className="rounded-[12px] bg-primary px-5 py-3 text-[15px] font-semibold text-primary-foreground"
+                className="rounded-full bg-primary px-6 py-3 text-[16px] font-semibold text-primary-foreground"
               >
                 {action}
               </Button>

@@ -309,7 +309,7 @@ export default function PostsWorkspace({
     <>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-col gap-2">
-          <h1 className="text-page font-semibold">
+          <h1 className="display-m">
             {publishedView ? "Published posts" : "Draft inbox"}
           </h1>
           <p className="text-sm text-muted-foreground">

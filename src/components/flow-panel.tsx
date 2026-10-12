@@ -32,7 +32,7 @@ export function FlowPanel() {
               className="absolute top-10 bottom-0 left-5 w-px bg-border"
             />
           )}
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-card text-primary">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-card text-foreground">
             <Icon className="size-4" aria-hidden="true" />
           </span>
           <div className="flex min-w-0 flex-col gap-1 pt-0.5">

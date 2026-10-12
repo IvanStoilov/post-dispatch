@@ -1,118 +1,129 @@
-import { config as appConfig, setFontconfigFile } from "../src/lib/config";
 import { createRequire } from "node:module";
-import { brand, brandMarkPath } from "../src/lib/brand";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import sharp from "sharp";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { brand } from "../src/lib/brand";
+
+// Sources, committed as delivered by design:
+//   public/brand/mark.svg          symbol for light grounds (pine-900)
+//   public/brand/mark-on-dark.svg  symbol for dark grounds (sun-400)
+//   public/brand/app-icon.svg      sun tile; favicons, app icons, small marks
+// Everything else here is generated from them and the Fredoka wordmark.
+const ink = "#1B2620"; // pine-900
+const cream = "#F4EFE3";
+const sun = "#FFC531"; // sun-400
+
+type Glyph = { path: { toSVG: () => string } };
+type Font = {
+  unitsPerEm: number;
+  layout: (text: string) => {
+    glyphs: Glyph[];
+    positions: { xAdvance: number; xOffset: number; yOffset: number }[];
+    bbox: { minX: number; minY: number; maxX: number; maxY: number };
+  };
+};
+// Next.js bundles fontkit; it reads WOFF (not WOFF2), so outlines come from
+// the static @fontsource packages and logos never depend on installed fonts.
+const readFont = createRequire(__filename)(
+  "next/dist/compiled/@next/font/dist/fontkit",
+).default as (buffer: Buffer) => Font;
+const font = async (file: string) => readFont(await readFile(file));
+
+/** Outlined text as SVG paths. Returns the markup and its visual box. */
+function outline(
+  face: Font,
+  text: string,
+  size: number,
+  x: number,
+  baseline: number,
+  fill: string,
+) {
+  const run = face.layout(text);
+  const scale = size / face.unitsPerEm;
+  let cursor = x;
+  const paths = run.glyphs
+    .map((glyph, index) => {
+      const p = run.positions[index];
+      const d = glyph.path.toSVG();
+      const tx = cursor + p.xOffset * scale;
+      cursor += p.xAdvance * scale;
+      return d
+        ? `<path d="${d}" transform="translate(${tx.toFixed(2)} ${(baseline - p.yOffset * scale).toFixed(2)}) scale(${scale.toFixed(5)} ${(-scale).toFixed(5)})"/>`
+        : "";
+    })
+    .join("");
+  return {
+    svg: `<g fill="${fill}">${paths}</g>`,
+    top: baseline - run.bbox.maxY * scale,
+    bottom: baseline - run.bbox.minY * scale,
+    right: x + run.bbox.maxX * scale,
+  };
+}
+const inner = (svg: string) =>
+  svg.replace(/^[\s\S]*?<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
 
 async function generateBrand() {
-  const fontPath = "scripts/assets/dm-sans.ttf";
-  if (!appConfig.FONTCONFIG_FILE) {
-    const cache = join(tmpdir(), "ramblo-brand-font-cache");
-    const fontconfig = join(tmpdir(), "ramblo-brand-fontconfig.xml");
-    await mkdir(cache, { recursive: true });
-    const escape = (value: string) =>
-      value.replaceAll("&", "&amp;").replaceAll("<", "&lt;");
-    await writeFile(
-      fontconfig,
-      `<?xml version="1.0"?><fontconfig><dir>${escape(resolve("scripts/assets"))}</dir><cachedir>${escape(cache)}</cachedir></fontconfig>`,
+  const fredoka = await font(
+    "node_modules/@fontsource/fredoka/files/fredoka-latin-600-normal.woff",
+  );
+  const figtree = await font(
+    "node_modules/@fontsource/figtree/files/figtree-latin-500-normal.woff",
+  );
+  const mark = inner(await readFile("public/brand/mark.svg", "utf8"));
+  const markOnDark = inner(
+    await readFile("public/brand/mark-on-dark.svg", "utf8"),
+  );
+  const appIcon = await readFile("public/brand/app-icon.svg", "utf8");
+  const license = await readFile(
+    "node_modules/@fontsource/fredoka/LICENSE",
+    "utf8",
+  );
+  await writeFile("public/brand/font-license.txt", license);
+
+  // Lockup: 600-unit symbol, then the wordmark centred on it. The gap is
+  // the wordmark's "o" height, the clear space the brand guide asks for.
+  const lockup = (symbol: string, text: string) => {
+    const size = 520;
+    const probe = outline(fredoka, "o", size, 0, 0, text);
+    const gap = probe.bottom - probe.top;
+    const word = outline(fredoka, brand.wordmark, size, 600 + gap, 0, text);
+    const shift = 300 - (word.top + word.bottom) / 2;
+    const placed = outline(
+      fredoka,
+      brand.wordmark,
+      size,
+      600 + gap,
+      shift,
+      text,
     );
-    setFontconfigFile(fontconfig);
-  }
-  const css = await readFile("src/app/globals.css", "utf8");
-  const color = (name: string) => {
-    const value = css.match(
-      new RegExp(`--${name}:\\s*(#[a-fA-F0-9]{6});`),
-    )?.[1];
-    if (!value) throw new Error(`Missing brand color: ${name}`);
-    return value;
+    const width = Math.ceil(placed.right + 8);
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} 600" width="${width}" height="600" role="img" aria-label="${brand.name}"><title>${brand.name}</title><metadata><![CDATA[Wordmark outlined from Fredoka SemiBold.\n${license}]]></metadata>${symbol}${placed.svg}</svg>`;
   };
-  const ink = color("foreground"),
-    ivory = color("background"),
-    primary = color("primary"),
-    apricot = color("brand-apricot");
-  // Use the font parser bundled with our pinned Next.js version for portable,
-  // outlined SVG wordmarks; exported logos do not depend on an installed font.
-  type Font = {
-    unitsPerEm: number;
-    getVariation: (settings: { wght: number }) => Font;
-    layout: (text: string) => {
-      glyphs: { path: { toSVG: () => string } }[];
-      positions: { xAdvance: number; xOffset: number; yOffset: number }[];
-    };
-  };
-  const readFont = createRequire(import.meta.url)(
-    "next/dist/compiled/@next/font/dist/fontkit",
-  ).default as (buffer: Buffer) => Font;
-  const font = readFont(await readFile(fontPath)).getVariation({ wght: 800 });
-  const outlineWordmark = (textColor: string, dotColor: string) => {
-    const run = font.layout(brand.wordmark),
-      scale = 80 / font.unitsPerEm;
-    let x = 10;
-    return run.glyphs
-      .map((glyph, index) => {
-        const position = run.positions[index];
-        const path = `<path d="${glyph.path.toSVG()}" fill="${index === run.glyphs.length - 1 ? dotColor : textColor}" transform="translate(${x + position.xOffset * scale} ${74 - position.yOffset * scale}) scale(${scale} ${-scale})"/>`;
-        x += position.xAdvance * scale - 4.8;
-        return path;
-      })
-      .join("");
-  };
-  const license = await readFile("public/brand/font-license.txt", "utf8");
-  const mark = `<rect width="64" height="64" rx="16" fill="${ink}"/><path d="${brandMarkPath}" fill="none" stroke="${ivory}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="43" cy="47" r="4" fill="${apricot}"/>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><title>${brand.name}</title>${mark}</svg>`;
-  const wordmark = (textColor: string, dotColor: string) =>
-    `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="96" viewBox="0 0 320 96" role="img" aria-label="${brand.wordmark}"><title>${brand.name}</title><metadata><![CDATA[${license}]]></metadata>${outlineWordmark(textColor, dotColor)}</svg>`;
+  const logo = lockup(mark, ink);
+  const logoOnDark = lockup(markOnDark, cream);
   await mkdir("public/brand", { recursive: true });
-  await writeFile("public/brand/mark.svg", svg);
-  await writeFile("public/brand/logo.svg", wordmark(ink, primary));
-  await writeFile("public/brand/logo-on-dark.svg", wordmark(ivory, apricot));
-  await writeFile("src/app/icon.svg", svg);
-  await sharp(Buffer.from(svg))
+  await writeFile("public/brand/logo.svg", logo);
+  await writeFile("public/brand/logo-on-dark.svg", logoOnDark);
+  // Emails can't rely on SVG; 64px tall at 2x for crisp 32px display.
+  for (const [svg, file] of [
+    [logo, "public/brand/logo.png"],
+    [logoOnDark, "public/brand/logo-on-dark.png"],
+  ])
+    await sharp(Buffer.from(svg)).resize({ height: 128 }).png().toFile(file);
+
+  await writeFile("src/app/icon.svg", appIcon);
+  await sharp(Buffer.from(appIcon))
     .resize(512, 512)
     .png()
-    .toFile("public/brand/mark.png");
-  const textImage = async (text: string, size: number) =>
-    sharp({
-      text: { text, font: `DM Sans ${size}`, fontfile: fontPath, rgba: true },
-    })
-      .png()
-      .toBuffer();
-  const logo = async (textColor: string, dotColor: string, output: string) => {
-    const text = await sharp(
-      await textImage(
-        `<span foreground="${textColor}" weight="ultrabold">ramblo<span foreground="${dotColor}">.</span></span>`,
-        160,
-      ),
-    )
-      .resize({ width: 600, height: 172, fit: "inside" })
-      .png()
-      .toBuffer();
-    const metadata = await sharp(text).metadata();
-    await sharp({
-      create: { width: 640, height: 192, channels: 4, background: "#00000000" },
-    })
-      .composite([
-        {
-          input: text,
-          left: 20,
-          top: Math.round((192 - metadata.height!) / 2),
-        },
-      ])
-      .png()
-      .toFile(output);
-  };
-  await logo(ink, primary, "public/brand/logo.png");
-  await logo(ivory, apricot, "public/brand/logo-on-dark.png");
-  await sharp(Buffer.from(svg))
+    .toFile("public/brand/app-icon.png");
+  // iOS masks its own corners, so the square tile goes full-bleed.
+  await sharp(Buffer.from(appIcon.replace(/rx="[^"]*"/, 'rx="0"')))
     .resize(180, 180)
-    .flatten({ background: ink })
     .png()
     .toFile("src/app/apple-icon.png");
+  const sizes = [16, 32, 48];
   const images = await Promise.all(
-    [16, 32, 48].map((size) =>
-      sharp(Buffer.from(svg)).resize(size, size).png().toBuffer(),
+    sizes.map((size) =>
+      sharp(Buffer.from(appIcon)).resize(size, size).png().toBuffer(),
     ),
   );
   const header = Buffer.alloc(6 + 16 * images.length);
@@ -120,10 +131,9 @@ async function generateBrand() {
   header.writeUInt16LE(images.length, 4);
   let offset = header.length;
   images.forEach((image, index) => {
-    const at = 6 + 16 * index,
-      size = [16, 32, 48][index];
-    header[at] = size;
-    header[at + 1] = size;
+    const at = 6 + 16 * index;
+    header[at] = sizes[index];
+    header[at + 1] = sizes[index];
     header.writeUInt16LE(1, at + 4);
     header.writeUInt16LE(32, at + 6);
     header.writeUInt32LE(image.length, at + 8);
@@ -131,35 +141,23 @@ async function generateBrand() {
     offset += image.length;
   });
   await writeFile("src/app/favicon.ico", Buffer.concat([header, ...images]));
-  const heading = await textImage(
-    `<span foreground="${ivory}" weight="ultrabold">ramblo<span foreground="${apricot}">.</span></span>`,
-    140,
+
+  // Social card: a full sun block, the house marketing composition.
+  const headline = outline(fredoka, brand.tagline, 120, 80, 400, ink);
+  const caption = outline(
+    figtree,
+    "Talk it through. Ramblo posts it.",
+    40,
+    84,
+    500,
+    ink,
   );
-  const tagline = await textImage(
-    `<span foreground="${ivory}">${brand.tagline}</span>`,
-    46,
-  );
-  const caption = await textImage(
-    `<span foreground="${apricot}">AI drafts. Your approval.</span>`,
-    24,
-  );
-  await sharp({
-    create: { width: 1200, height: 630, channels: 4, background: ink },
-  })
-    .composite([
-      { input: heading, left: 80, top: 100 },
-      { input: tagline, left: 84, top: 330 },
-      { input: caption, left: 84, top: 470 },
-      {
-        input: await sharp(Buffer.from(svg)).resize(128, 128).png().toBuffer(),
-        left: 992,
-        top: 84,
-      },
-    ])
-    .png()
-    .toFile("public/brand/social-card.png");
+  const card = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="${sun}"/><g transform="translate(80 80) scale(0.1333)">${inner(logo)}</g>${headline.svg}${caption.svg}</svg>`;
+  await sharp(Buffer.from(card)).png().toFile("public/brand/social-card.png");
+
+  await rm("public/brand/mark.png", { force: true });
   console.log(
-    "Generated Ramblo logos, compact mark, icons, favicon and social card.",
+    "Generated Ramblo lockups, app icons, favicon and social card from public/brand sources.",
   );
 }
 void generateBrand().catch((error) => {

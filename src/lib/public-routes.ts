@@ -16,9 +16,11 @@ export const publicAssets = [
   "/brand/logo.svg",
   "/brand/logo-on-dark.svg",
   "/brand/mark.svg",
+  "/brand/mark-on-dark.svg",
+  "/brand/app-icon.svg",
+  "/brand/app-icon.png",
   "/brand/logo.png",
   "/brand/logo-on-dark.png",
   "/brand/social-card.png",
-  "/brand/mark.png",
   "/brand/font-license.txt",
 ];
