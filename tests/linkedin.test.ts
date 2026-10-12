@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
 import { loadEnvConfig } from "@next/env";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
 import { projects, users, verifications } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
@@ -101,16 +101,26 @@ test(
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
     try {
+      const email = `li-${randomUUID()}@example.test`;
+      const password = `Password-${randomUUID()}`;
       const signup = await getAuth().handler(
         request("/api/auth/sign-up/email", "", {
           name: "LinkedIn test",
-          email: `li-${randomUUID()}@example.test`,
-          password: `Password-${randomUUID()}`,
+          email,
+          password,
         }),
       );
       assert.equal(signup.status, 200);
       userId = (await signup.json()).user.id;
-      const sessionCookie = cookie(signup);
+      await getDb()
+        .update(users)
+        .set({ emailVerified: true })
+        .where(eq(users.id, userId));
+      const signin = await getAuth().handler(
+        request("/api/auth/sign-in/email", "", { email, password }),
+      );
+      assert.equal(signin.status, 200);
+      const sessionCookie = cookie(signin);
       otherId = randomUUID();
       await getDb()
         .insert(users)
@@ -206,7 +216,9 @@ test(
       );
       assert.equal(callback.status, 303);
       assert.ok(
-        callback.headers.get("location")?.endsWith("/connections/linkedin"),
+        callback.headers
+          .get("location")
+          ?.endsWith(`/projects/${first.project.id}/connections/linkedin`),
       );
       await assert.rejects(
         () => callbackConnection(request(callbackPath, flowCookie), "linkedin"),

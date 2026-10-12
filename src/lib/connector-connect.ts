@@ -466,7 +466,9 @@ export async function callbackConnection(req: Request, provider: Provider) {
       const value = await pending(req, provider, "authorize", true);
       if (url.searchParams.has("error"))
         return withCookie(
-          redirect(`/?projectId=${value.projectId}&connection=cancelled`),
+          redirect(
+            `/projects/${value.projectId}/connections?connection=cancelled`,
+          ),
           provider,
         );
       const code = z
@@ -477,7 +479,11 @@ export async function callbackConnection(req: Request, provider: Provider) {
       if (provider === "facebook") {
         const pages = await facebookPages(code);
         const nonce = await savePending({ ...value, phase: "select", pages });
-        return withCookie(redirect("/connections/facebook"), provider, nonce);
+        return withCookie(
+          redirect(`/projects/${value.projectId}/connections/facebook`),
+          provider,
+          nonce,
+        );
       }
       if (provider === "linkedin") {
         const accounts = await linkedinAccounts(
@@ -489,7 +495,11 @@ export async function callbackConnection(req: Request, provider: Provider) {
           phase: "select",
           linkedin: accounts,
         });
-        return withCookie(redirect("/connections/linkedin"), provider, nonce);
+        return withCookie(
+          redirect(`/projects/${value.projectId}/connections/linkedin`),
+          provider,
+          nonce,
+        );
       }
       const account = await instagramAccount(code);
       const project = await getOwnedProject(value.userId, value.projectId);
@@ -500,7 +510,9 @@ export async function callbackConnection(req: Request, provider: Provider) {
         instagramApiHost: "graph.instagram.com",
       });
       return withCookie(
-        redirect(`/?projectId=${value.projectId}&connection=instagram`),
+        redirect(
+          `/projects/${value.projectId}/connections?connection=instagram`,
+        ),
         provider,
       );
     },
@@ -516,6 +528,7 @@ export async function availablePages(req: Request) {
       return Response.json(
         {
           projectName: project.name,
+          projectId: project.id,
           pages: value.pages!.map(({ id, name }) => ({ id, name })),
         },
         { headers: { "Cache-Control": "no-store" } },
@@ -545,7 +558,9 @@ export async function selectPage(req: Request) {
     });
     return withCookie(
       Response.json({
-        url: `/?projectId=${value.projectId}&connection=facebook`,
+        url: appPageUrl(
+          `/projects/${value.projectId}/connections?connection=facebook`,
+        ),
       }),
       "facebook",
     );
@@ -561,6 +576,7 @@ export async function availableLinkedInAccounts(req: Request) {
       return Response.json(
         {
           projectName: project.name,
+          projectId: project.id,
           pages: value.linkedin!.map(({ id, name }) => ({ id, name })),
         },
         { headers: { "Cache-Control": "no-store" } },
@@ -594,7 +610,9 @@ export async function selectLinkedInAccount(req: Request) {
       });
       return withCookie(
         Response.json({
-          url: `/?projectId=${value.projectId}&connection=linkedin`,
+          url: appPageUrl(
+            `/projects/${value.projectId}/connections?connection=linkedin`,
+          ),
         }),
         "linkedin",
       );

@@ -89,7 +89,7 @@ test(
           assert.equal((await call(bearer, "get_project")).value.id, first.id);
           const saved = await call(bearer, "create_draft", draft);
           assert.equal(saved.value.projectId, first.id);
-          assert.ok(saved.value.reviewUrl.includes(`projectId=${first.id}`));
+          assert.ok(saved.value.reviewUrl.includes(`/projects/${first.id}`));
           assert.equal((await call(bearer, "list_posts")).value.length, 1);
           const upload = await call(bearer, "create_upload_token");
           assert.ok(upload.value.uploadUrl.includes(`projectId=${first.id}`));

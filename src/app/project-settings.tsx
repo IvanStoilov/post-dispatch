@@ -47,20 +47,15 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Plus, Save } from "lucide-react";
+import { Save } from "lucide-react";
 export default function ProjectSettings({
   project,
-  creating,
-  onCreated,
   onSaved,
 }: {
   project: Project;
-  creating: boolean;
-  onCreated: (id: string) => Promise<void>;
   onSaved: () => Promise<void>;
 }) {
   const [name, setName] = useState(project.name);
-  const [newName, setNewName] = useState("");
   const [facebookPageId, setFacebookPageId] = useState(project.facebookPageId);
   const [instagramAccountId, setInstagramAccountId] = useState(
     project.instagramAccountId,
@@ -168,62 +163,8 @@ export default function ProjectSettings({
       setBusy(false);
     }
   }
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      const result = await call("/api/projects", { name: newName });
-      await onCreated(result.project.id);
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Could not create project");
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <div className="flex flex-col gap-6">
-      {creating && (
-        <form onSubmit={create}>
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <h2>Create a project</h2>
-              </CardTitle>
-              <CardDescription>
-                Keep each brand’s drafts, channels, and assistants together.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="new-project">Project name</FieldLabel>
-                  <Input
-                    id="new-project"
-                    name="newProjectName"
-                    autoComplete="off"
-                    required
-                    maxLength={120}
-                    value={newName}
-                    disabled={busy}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Your brand or business…"
-                  />
-                </Field>
-              </FieldGroup>
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" disabled={busy}>
-                {busy ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <Plus data-icon="inline-start" aria-hidden="true" />
-                )}
-                Create project
-              </Button>
-            </CardFooter>
-          </Card>
-        </form>
-      )}
       <form onSubmit={save} className="flex flex-col gap-6">
         <Card>
           <CardHeader>

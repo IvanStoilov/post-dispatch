@@ -1,4 +1,5 @@
 import { brand } from "./brand";
+import { projectPath } from "./route-paths";
 import { appPageUrl } from "./origins";
 import { loggedOperation, logger, withLogContext } from "./logger";
 import { platforms } from "./types";
@@ -190,7 +191,7 @@ export async function handleAccountMcp(req: Request) {
         );
         const result = {
           ...post,
-          reviewUrl: appPageUrl(`/?projectId=${project.id}`),
+          reviewUrl: appPageUrl(projectPath(project.id)),
           ...(post.platforms.includes("instagram") &&
           !post.assets.length &&
           !post.imageUrl

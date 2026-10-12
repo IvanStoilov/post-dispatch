@@ -423,3 +423,29 @@ Authenticated endpoints: `GET /api/publications?projectId=...` (optional `postId
 `PATCH` with `{ "caption": "..." }` to update only that copy, and `DELETE` to remove
 only that copy from the network. Provider adapters implement optional publication
 operations so unsupported networks fail before making API calls.
+
+
+### Project routes and workspace layout
+
+The workspace now uses nested Next.js pages under `/app/projects/[projectId]`:
+
+- `/app/projects/[projectId]`: draft inbox
+- `/app/projects/[projectId]/published`: published posts and permanent copies
+- `/app/projects/[projectId]/connections`: project settings and social accounts
+- `/app/projects/[projectId]/assistant`: account MCP connection, in project context
+- `/app/projects/new`: create a project
+
+On `app.ramblo.io`, the public page URLs omit `/app`. The projects layout owns the
+sidebar, project switcher, user controls and header. Each page owns its content;
+server project layouts/pages check ownership before rendering. Navigation uses
+Next links and route parameters, with only `channel` and `search` in inbox queries.
+Changing projects preserves the current section and resets page-specific state.
+The workspace entry restores the last valid project (a non-secret preference
+cookie/localStorage), or opens creation when no projects exist. Stale or foreign
+project IDs never select someone else's workspace.
+
+Facebook/LinkedIn account pickers live inside the project's Connections route;
+OAuth completion returns to that project's Connections page. Provider callback
+URLs and API project parameters remain unchanged. MCP draft review links point
+to the project's inbox. Old `view` and `projectId` page query routing is removed;
+use the new paths when linking to the workspace.

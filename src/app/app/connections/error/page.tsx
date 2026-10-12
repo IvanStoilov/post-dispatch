@@ -36,9 +36,7 @@ export default function ConnectionError() {
         </CardContent>
         <CardFooter>
           <Button asChild>
-            <Link href={appPageUrl("/?connection=failed")}>
-              Return to Connections
-            </Link>
+            <Link href={appPageUrl()}>Return to workspace</Link>
           </Button>
         </CardFooter>
       </Card>

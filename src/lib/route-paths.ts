@@ -8,3 +8,18 @@ export function applicationPath(path = "/", cleanHost = false) {
       : path;
   return cleanHost ? path : `/app${suffix}`;
 }
+
+export type ProjectSection =
+  "inbox" | "published" | "connections" | "assistant";
+export function projectPath(
+  projectId: string,
+  section: ProjectSection = "inbox",
+) {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      projectId,
+    )
+  )
+    throw new Error("Invalid project ID");
+  return `/projects/${projectId}${section === "inbox" ? "" : `/${section}`}`;
+}

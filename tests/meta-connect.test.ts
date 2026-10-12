@@ -259,7 +259,7 @@ test(
           assert.equal(response.status, 303);
           assert.equal(
             new URL(response.headers.get("Location")!).pathname,
-            appPagePath("/connections/facebook"),
+            appPagePath(`/projects/${first.project.id}/connections/facebook`),
           );
           await assert.rejects(
             callbackConnection(req(callback, flow.cookie), "facebook"),
