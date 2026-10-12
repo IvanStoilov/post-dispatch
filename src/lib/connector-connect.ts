@@ -20,7 +20,7 @@ import { z } from "zod";
 import { getDb } from "../db";
 import { verifications } from "../db/schema";
 import { getAuth } from "./auth";
-import { getOwnedProject, updateProject, saveConnector } from "./projects";
+import { getOwnedProject, saveConnector } from "./projects";
 import { appOrigin } from "./uploads";
 import { logger, redact } from "./logger";
 
@@ -392,6 +392,7 @@ async function instagramAccount(code: string) {
     [access],
   );
   return {
+    name: z.string().trim().min(1).parse(profile.username),
     id: z
       .union([z.string(), z.number()])
       .transform(String)
@@ -502,12 +503,16 @@ export async function callbackConnection(req: Request, provider: Provider) {
         );
       }
       const account = await instagramAccount(code);
-      const project = await getOwnedProject(value.userId, value.projectId);
-      await updateProject(value.userId, value.projectId, {
-        name: project.name,
-        instagramAccountId: account.id,
-        instagramAccessToken: account.token,
-        instagramApiHost: "graph.instagram.com",
+      await saveConnector(value.userId, value.projectId, {
+        provider: "instagram",
+        accountId: account.id,
+        accountName: account.name,
+        accessToken: account.token,
+        scopes: [
+          "instagram_business_basic",
+          "instagram_business_content_publish",
+        ],
+        metadata: { apiHost: "graph.instagram.com" },
       });
       return withCookie(
         redirect(

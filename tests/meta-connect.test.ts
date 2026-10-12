@@ -338,6 +338,11 @@ test(
           assert.equal(project.instagramAccountId, "instagram-user");
           assert.equal(project.instagramAccessToken, "ig-long-secret");
           assert.equal(project.instagramApiHost, "graph.instagram.com");
+          assert.equal(
+            project.connections.find((c) => c.provider === "instagram")
+              ?.accountName,
+            "customer",
+          );
           assert.equal(project.facebookPageId, "page-two");
         },
       );

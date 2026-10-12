@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "./ui/sonner";
 import { useState } from "react";
 import type { Publication } from "@/lib/types";
 import { channelLabels } from "@/lib/connectors/catalog";
@@ -85,6 +86,13 @@ export function PublicationPanel({
       setItems((old) => old.map((p) => (p.id === data.id ? data : p)));
       setEditing(null);
       setDeleting(null);
+      toast.success(
+        method === "DELETE"
+          ? "Published copy deleted."
+          : method === "PATCH"
+            ? "Published post updated."
+            : "Stats refreshed.",
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Network request failed.");
     } finally {

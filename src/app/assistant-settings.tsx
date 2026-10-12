@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "@/components/ui/sonner";
 import { Copy, KeyRound, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +41,6 @@ export default function AssistantSettings({
   grants,
   onRotate,
   onRevoke,
-  onNotice,
 }: {
   project?: Project;
   endpoint: string;
@@ -50,14 +50,13 @@ export default function AssistantSettings({
   grants: { clientId: string; name: string }[];
   onRotate: () => void;
   onRevoke: (clientId: string) => Promise<void>;
-  onNotice: (message: string) => void;
 }) {
   async function copy(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
-      onNotice(`${label} copied.`);
+      toast.success(`${label} copied.`);
     } catch {
-      onNotice(`Select and copy the ${label.toLowerCase()} shown here.`);
+      toast.error(`Select and copy the ${label.toLowerCase()} shown here.`);
     }
   }
   return (

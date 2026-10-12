@@ -29,7 +29,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "@/components/ui/sonner";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Accordion,
@@ -63,18 +63,26 @@ export default function ProjectSettings({
   const [facebookPageToken, setFacebookPageToken] = useState("");
   const [instagramAccessToken, setInstagramAccessToken] = useState("");
   const [host, setHost] = useState(project.instagramApiHost);
-  const [message, setMessage] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => {
       const status = new URLSearchParams(window.location.search).get(
         "connection",
       );
       if (platforms.some((p) => p === status))
-        setMessage(`${channelLabels[status as Platform]} connected.`);
+        toast.success(`${channelLabels[status as Platform]} connected.`);
       else if (status === "cancelled")
-        setMessage("Connection cancelled. Your saved accounts were kept.");
+        toast.info("Connection cancelled. Your saved accounts were kept.");
       else if (status === "failed")
-        setMessage("Connection failed. Try connecting again.");
+        toast.error("Connection failed. Try connecting again.");
+      if (status) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("connection");
+        window.history.replaceState(
+          null,
+          "",
+          `${url.pathname}${url.search}${url.hash}`,
+        );
+      }
     }, 0);
     return () => clearTimeout(timer);
   }, []);
@@ -82,7 +90,6 @@ export default function ProjectSettings({
   const [disconnecting, setDisconnecting] = useState<Platform | null>(null);
   async function connect(provider: Platform) {
     setBusy(true);
-    setMessage("");
     try {
       const response = await fetch(
         `/api/${provider === "linkedin" ? "connectors" : "meta"}/${provider}/start`,
@@ -97,7 +104,7 @@ export default function ProjectSettings({
         throw new Error(result.error || "Could not start connection");
       window.location.assign(result.url);
     } catch (error) {
-      setMessage(
+      toast.error(
         error instanceof Error ? error.message : "Could not connect account",
       );
       setBusy(false);
@@ -116,7 +123,6 @@ export default function ProjectSettings({
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setMessage("");
     try {
       await call(`/api/projects/${project.id}`, {
         name,
@@ -128,17 +134,16 @@ export default function ProjectSettings({
       });
       setFacebookPageToken("");
       setInstagramAccessToken("");
-      setMessage("Project configuration saved.");
+      toast.success("Project configuration saved.");
       await onSaved();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Save failed");
+      toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setBusy(false);
     }
   }
   async function disconnect(platform: Platform) {
     setBusy(true);
-    setMessage("");
     try {
       const response = await fetch(
         `/api/projects/${project.id}/connectors/${platform}`,
@@ -154,11 +159,11 @@ export default function ProjectSettings({
         setInstagramAccountId("");
         setInstagramAccessToken("");
       }
-      setMessage("Channel disconnected.");
+      toast.success("Channel disconnected.");
       await onSaved();
       setDisconnecting(null);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Disconnect failed");
+      toast.error(e instanceof Error ? e.message : "Disconnect failed");
     } finally {
       setBusy(false);
     }
@@ -352,7 +357,7 @@ export default function ProjectSettings({
                 <CardFooter className="justify-between gap-3">
                   <span className="truncate text-xs text-muted-foreground">
                     {configured
-                      ? `Connected to ${connection?.accountName || connection?.accountId || (facebook ? project.facebookPageId : project.instagramAccountId)}`
+                      ? `Connected to ${connection?.accountName || (provider === "instagram" ? "Instagram account" : connection?.accountId || project.facebookPageId)}`
                       : "Connect an account to start publishing"}
                   </span>
                   {configured && (
@@ -371,11 +376,7 @@ export default function ProjectSettings({
             );
           })}
         </div>
-        {message && (
-          <Alert role="status" aria-live="polite">
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        )}
+
         <div className="flex justify-end">
           <Button type="submit" size="lg" disabled={busy}>
             {busy ? (

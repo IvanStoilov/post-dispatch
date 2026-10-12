@@ -48,6 +48,7 @@ export default function MediaGallery({
             variant="outline"
             size="icon-sm"
             type="button"
+            className="bg-secondary border-1 hover:bg-primary-hover shadow"
             aria-label="Previous image"
             onClick={() =>
               setSelected((index - 1 + assets.length) % assets.length)
@@ -63,6 +64,7 @@ export default function MediaGallery({
             variant="outline"
             size="icon-sm"
             type="button"
+            className="bg-secondary border-1 hover:bg-primary-hover shadow"
             aria-label="Next image"
             onClick={() => setSelected((index + 1) % assets.length)}
           >

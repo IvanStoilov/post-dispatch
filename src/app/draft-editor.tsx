@@ -3,10 +3,11 @@ import { platforms, channelLabels } from "@/lib/connectors/catalog";
 import { channelIcons } from "@/components/channel-catalog";
 import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { Post, PostAsset, Platform } from "@/lib/types";
+import type { Post, PostAsset } from "@/lib/types";
 import MediaGallery from "./media-gallery";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/file-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Field,
@@ -14,7 +15,7 @@ import {
   FieldLabel,
   FieldDescription,
 } from "@/components/ui/field";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -41,7 +42,9 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowUp, ArrowDown, Trash2, Save, Images, Upload } from "lucide-react";
+import { ArrowUp, ArrowDown, Trash2, Save, Images } from "lucide-react";
+import { cn } from "cn";
+import Image from "next/image";
 
 export type MediaItem = {
   id: string;
@@ -127,9 +130,7 @@ export default function DraftEditor({
     if (dirty) setDiscarding(true);
     else onClose();
   }
-  function addFiles(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || []);
-    event.target.value = "";
+  function addFiles(files: File[]) {
     if (!files.length) return;
     const videos = files.filter(
       (file) =>
@@ -250,29 +251,52 @@ export default function DraftEditor({
                 </Field>
                 <Field>
                   <FieldLabel id="draft-channels">Publish to</FieldLabel>
-                  <ToggleGroup
-                    type="multiple"
-                    value={form.platforms}
-                    disabled={busy}
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        platforms: value as Platform[],
-                      }))
-                    }
+                  <div
+                    role="group"
                     aria-labelledby="draft-channels"
-                    variant="outline"
+                    className="flex flex-wrap gap-2"
                   >
                     {platforms.map((platform) => {
                       const Icon = channelIcons[platform];
                       return (
-                        <ToggleGroupItem key={platform} value={platform}>
-                          <Icon data-icon="inline-start" aria-hidden="true" />
-                          {channelLabels[platform]}
-                        </ToggleGroupItem>
+                        <label
+                          key={platform}
+                          className={cn(
+                            `inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors`,
+                            busy
+                              ? "cursor-not-allowed opacity-50"
+                              : "cursor-pointer hover:bg-muted",
+                            form.platforms.includes(platform)
+                              ? "border-primary bg-primary/10"
+                              : "border-input",
+                          )}
+                        >
+                          <Checkbox
+                            checked={form.platforms.includes(platform)}
+                            disabled={busy}
+                            onCheckedChange={(checked) =>
+                              setForm((current) => ({
+                                ...current,
+                                platforms:
+                                  checked === true
+                                    ? [
+                                        ...current.platforms.filter(
+                                          (p) => p !== platform,
+                                        ),
+                                        platform,
+                                      ]
+                                    : current.platforms.filter(
+                                        (p) => p !== platform,
+                                      ),
+                              }))
+                            }
+                          />
+                          <Icon className="size-4" aria-hidden="true" />
+                          <span>{channelLabels[platform]}</span>
+                        </label>
                       );
                     })}
-                  </ToggleGroup>
+                  </div>
                   {!form.platforms.length && (
                     <FieldDescription>
                       Select at least one channel to save your draft.
@@ -299,19 +323,18 @@ export default function DraftEditor({
                 <FieldGroup>
                   <Field>
                     <FieldLabel htmlFor="draft-files">
-                      <Upload className="size-4" aria-hidden="true" />
                       Images or video
                     </FieldLabel>
-                    <Input
+                    <FileInput
                       id="draft-files"
                       name="media"
-                      type="file"
                       multiple
                       accept="image/jpeg,image/png,image/webp,video/mp4,.mp4"
                       disabled={busy}
-                      onChange={addFiles}
+                      onFilesSelected={addFiles}
+                      aria-describedby="draft-files-description"
                     />
-                    <FieldDescription>
+                    <FieldDescription id="draft-files-description">
                       Up to 10 images (4.5 MB each) or one MP4 (100 MB). Videos
                       publish as Instagram Reels.
                     </FieldDescription>
@@ -327,6 +350,23 @@ export default function DraftEditor({
                         key={item.id}
                         className="flex min-w-0 items-center gap-1 rounded-lg border p-1.5"
                       >
+                        {item.asset?.kind === "IMAGE" && item.asset.url ? (
+                          <Image
+                            src={item.asset.url}
+                            alt={`Image ${index + 1}`}
+                            width={48}
+                            height={48}
+                            unoptimized
+                            className="rounded-md object-cover w-10 h-10 mr-1"
+                          />
+                        ) : (
+                          <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted">
+                            <Images
+                              className="size-5 text-muted-foreground"
+                              aria-hidden="true"
+                            />
+                          </span>
+                        )}
                         <span className="min-w-0 flex-1 truncate pl-1 text-xs">
                           {index + 1}.{" "}
                           {item.file?.name ||
@@ -335,7 +375,7 @@ export default function DraftEditor({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon-sm"
                           disabled={busy || index === 0}
                           aria-label={`Move asset ${index + 1} up`}
                           onClick={() => move(index, -1)}
@@ -345,7 +385,7 @@ export default function DraftEditor({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon-sm"
                           disabled={busy || index === items.length - 1}
                           aria-label={`Move asset ${index + 1} down`}
                           onClick={() => move(index, 1)}
@@ -355,7 +395,7 @@ export default function DraftEditor({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon-xs"
+                          size="icon-sm"
                           disabled={busy}
                           aria-label={`Remove asset ${index + 1}`}
                           onClick={() =>
@@ -372,8 +412,10 @@ export default function DraftEditor({
                 )}
                 <Accordion type="single" collapsible>
                   <AccordionItem value="urls">
-                    <AccordionTrigger>Import media from URLs</AccordionTrigger>
-                    <AccordionContent>
+                    <AccordionTrigger className="py-0">
+                      Import media from URLs
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4">
                       <FieldGroup>
                         <Field>
                           <FieldLabel htmlFor="draft-urls" className="sr-only">

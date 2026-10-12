@@ -13,6 +13,7 @@ import { projectPath, type ProjectSection } from "@/lib/route-paths";
 import { authClient } from "@/lib/auth-client";
 import type { Project } from "@/lib/types";
 import { Brand } from "./brand";
+import { CreateProjectDialog } from "./create-project-dialog";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import {
@@ -89,13 +90,13 @@ function Navigation({
             >
               <item.icon aria-hidden="true" />
               <span>{item.label}</span>
+              {["inbox", "published"].includes(item.section) && (
+                <SidebarMenuBadge className="ml-auto pr-0">
+                  {item.section === "inbox" ? counts.drafts : counts.published}
+                </SidebarMenuBadge>
+              )}
             </Link>
           </SidebarMenuButton>
-          {["inbox", "published"].includes(item.section) && (
-            <SidebarMenuBadge>
-              {item.section === "inbox" ? counts.drafts : counts.published}
-            </SidebarMenuBadge>
-          )}
         </SidebarMenuItem>
       ))}
     </SidebarMenu>
@@ -115,6 +116,7 @@ export function WorkspaceShell({
     params = useParams<{ projectId?: string }>(),
     pathname = usePathname();
   const project = projects.find((p) => p.id === params.projectId);
+  const [creatingProject, setCreatingProject] = useState(false);
   const section =
     navigation.find(
       (item) =>
@@ -175,29 +177,42 @@ export function WorkspaceShell({
             >
               Your project
             </label>
-            <Select
-              value={project?.id || ""}
-              onValueChange={(id) =>
-                router.push(appPath(projectPath(id, section)))
-              }
-            >
-              <SelectTrigger id="active-project" aria-label="Active project">
-                <SelectValue placeholder="Choose a project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href={appPath("/projects/new")}>
+            <div className="flex gap-2 items-center justify-between">
+              {projects.length > 1 ? (
+                <Select
+                  value={project?.id || ""}
+                  onValueChange={(id) =>
+                    router.push(appPath(projectPath(id, section)))
+                  }
+                >
+                  <SelectTrigger
+                    id="active-project"
+                    aria-label="Active project"
+                  >
+                    <SelectValue placeholder="Choose a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="font-medium">{project?.name}</p>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="-mr-2 h-full min-h-10"
+                title="Create a project"
+                aria-label="Create a project"
+                onClick={() => setCreatingProject(true)}
+              >
                 <Plus className="size-4" />
-                New project
-              </Link>
-            </Button>
+              </Button>
+            </div>
           </SidebarHeader>
           <SidebarContent>
             {project && (
@@ -279,6 +294,9 @@ export function WorkspaceShell({
             {children}
           </main>
         </div>
+        {creatingProject && (
+          <CreateProjectDialog open onOpenChange={setCreatingProject} />
+        )}
       </SidebarProvider>
     </Workspace.Provider>
   );

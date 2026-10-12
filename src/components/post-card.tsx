@@ -1,12 +1,13 @@
 "use client";
 import { PublicationPanel } from "./publication-panel";
+import { PostPlaceholder } from "./post-placeholder";
 import { channelLabels } from "@/lib/connectors/catalog";
 import { channelIcons } from "./channel-catalog";
 import {
   Check,
-  FileText,
   Sparkles,
   Trash2,
+  MoreVertical,
   Send,
   AlertCircle,
 } from "lucide-react";
@@ -20,6 +21,12 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import MediaGallery from "@/app/media-gallery";
 import type { Post, Platform } from "@/lib/types";
@@ -61,16 +68,7 @@ export function PostCard({
           {post.assets.length ? (
             <MediaGallery assets={post.assets} title={post.title} />
           ) : (
-            <div className="flex aspect-4/3 flex-col justify-between bg-secondary p-7">
-              <FileText
-                className="size-5 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <p className="line-clamp-4 max-w-xs text-2xl font-semibold leading-snug tracking-tight text-secondary-foreground">
-                {post.title}
-              </p>
-              <span className="text-xs text-muted-foreground">Text post</span>
-            </div>
+            <PostPlaceholder />
           )}
           <div className="absolute top-3 left-3">
             <Badge
@@ -155,15 +153,35 @@ export function PostCard({
           </div>
         </CardContent>
         <CardFooter className="flex-wrap gap-2">
+          {post.status !== "publishing" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  aria-label={`Actions for ${post.title}`}
+                >
+                  <MoreVertical aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={busy}
+                  onSelect={onDelete}
+                >
+                  <Trash2 aria-hidden="true" />
+                  Delete post
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {post.status === "draft" ? (
             <>
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={onEdit}
-                className="flex-1"
-              >
-                Review & edit
+              <div className="flex-1"></div>
+              <Button variant="outline" disabled={busy} onClick={onEdit}>
+                Review
               </Button>
               <Button disabled={busy} onClick={onPublish}>
                 <Send data-icon="inline-start" aria-hidden="true" />
@@ -171,12 +189,16 @@ export function PostCard({
               </Button>
             </>
           ) : (
-            <p className="flex-1 text-xs leading-relaxed text-muted-foreground">
-              {post.status === "published"
-                ? "Delivered to your channels."
-                : post.status === "publishing"
-                  ? "Delivery continues in the background. You can close this page."
-                  : "Check your channels before resubmitting."}
+            <p className="flex-1 text-sm leading-relaxed text-muted-foreground">
+              {post.status === "published" ? (
+                <div className="text-success text-right">
+                  Delivered to your channels.
+                </div>
+              ) : post.status === "publishing" ? (
+                "Delivery continues in the background. You can close this page."
+              ) : (
+                "Check your channels before resubmitting."
+              )}
             </p>
           )}
           {post.status === "needs_review" &&
@@ -185,17 +207,6 @@ export function PostCard({
                 Retry failed channels
               </Button>
             )}
-          {post.status !== "publishing" && (
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={busy}
-              aria-label={`Delete ${post.title}`}
-              onClick={onDelete}
-            >
-              <Trash2 aria-hidden="true" />
-            </Button>
-          )}
         </CardFooter>
       </Card>
     </article>

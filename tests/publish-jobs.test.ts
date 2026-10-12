@@ -98,6 +98,47 @@ test(
           },
         ]);
       await t.test(
+        "disconnected channels reject publishing without creating jobs",
+        async () => {
+          const post = await draft();
+          await getDb()
+            .update(posts)
+            .set({ platforms: ["instagram"] })
+            .where(eq(posts.id, post.id));
+          await getDb()
+            .update(projectConnectors)
+            .set({ expiresAt: new Date(0) })
+            .where(
+              and(
+                eq(projectConnectors.projectId, projectId),
+                eq(projectConnectors.provider, "instagram"),
+              ),
+            );
+          try {
+            await assert.rejects(
+              enqueuePublication(projectId, post.id),
+              /Connect instagram before publishing/,
+            );
+            assert.equal((await jobs(post.id)).length, 0);
+            const [saved] = await getDb()
+              .select()
+              .from(posts)
+              .where(eq(posts.id, post.id));
+            assert.equal(saved.status, "draft");
+          } finally {
+            await getDb()
+              .update(projectConnectors)
+              .set({ expiresAt: null })
+              .where(
+                and(
+                  eq(projectConnectors.projectId, projectId),
+                  eq(projectConnectors.provider, "instagram"),
+                ),
+              );
+          }
+        },
+      );
+      await t.test(
         "approval and outbox are atomic, ownership checked, repeated clicks idempotent",
         async () => {
           const post = await draft(["facebook", "linkedin"]);

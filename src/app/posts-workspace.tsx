@@ -7,6 +7,7 @@ import { useAppPath } from "@/components/app-navigation";
 import { platforms, channelLabels } from "@/lib/connectors/catalog";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import DraftEditor, { type Draft, type MediaItem } from "./draft-editor";
 import { PostCard } from "@/components/post-card";
@@ -20,7 +21,8 @@ import {
   InputGroupInput,
   InputGroupAddon,
 } from "@/components/ui/input-group";
-import { Alert, AlertDescription, AlertAction } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "@/components/ui/sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import {
@@ -42,7 +44,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 
-import { Inbox, Send, Plus, Search, X, Check, Trash2 } from "lucide-react";
+import { Inbox, Send, Plus, Search, Check, Trash2 } from "lucide-react";
 import type { Post, Platform } from "@/lib/types";
 const blank: Draft = {
   title: "",
@@ -78,6 +80,11 @@ export default function PostsWorkspace({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [confirm, setConfirm] = useState<Post | null>(null);
+  const [publishError, setPublishError] = useState("");
+  const missingChannels =
+    confirm?.platforms.filter(
+      (platform) => !project.connectors?.[platform]?.configured,
+    ) || [];
   const [deleteConfirm, setDeleteConfirm] = useState<Post | null>(null);
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
@@ -99,11 +106,13 @@ export default function PostsWorkspace({
       });
     } catch (e) {
       if (sequence === requestSequence.current)
-        setNotice(e instanceof Error ? e.message : "Could not load posts");
+        toast.error(e instanceof Error ? e.message : "Could not load posts", {
+          id: `posts-load-${projectId}`,
+        });
     } finally {
       if (sequence === requestSequence.current) setLoading(false);
     }
-  }, [projectId, router, appPath, setCounts, setNotice, setLoading, setPosts]);
+  }, [projectId, router, appPath, setCounts, setLoading, setPosts]);
   useEffect(() => {
     const sequence = requestSequence;
     const initial = setTimeout(() => void refresh(), 0);
@@ -145,7 +154,9 @@ export default function PostsWorkspace({
           continue;
         }
         if (!item.file) continue;
-        setNotice(`Uploading ${item.file.name}…`);
+        toast.loading(`Uploading ${item.file.name}…`, {
+          id: `post-operation-${projectId}`,
+        });
         const path = `/api/assets/uploads?projectId=${projectId}`;
         const mimeType =
           item.file.type ||
@@ -193,9 +204,14 @@ export default function PostsWorkspace({
         },
       );
       setEditing(null);
-      setNotice("Draft saved. Ready when you are.");
+      toast.success("Draft saved. Ready when you are.", {
+        id: `post-operation-${projectId}`,
+      });
       await refresh();
     } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed", {
+        id: `post-operation-${projectId}`,
+      });
       setNotice(e instanceof Error ? e.message : "Save failed");
     } finally {
       setBusy(false);
@@ -205,19 +221,24 @@ export default function PostsWorkspace({
     if (!confirm) return;
     setBusy(true);
     const p = confirm;
-    setConfirm(null);
+    setPublishError("");
     try {
-      setNotice(
+      toast.loading(
         p.assets[0]?.kind === "VIDEO"
           ? "Publishing video… Instagram processing may take a few minutes."
           : "Publishing…",
+        { id: `post-operation-${projectId}` },
       );
       await request(`/api/posts/${p.id}/publish`, "POST");
-      setNotice(
+      setConfirm(null);
+      toast.success(
         "Publishing queued. You can close this page; progress will update automatically.",
+        { id: `post-operation-${projectId}` },
       );
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : "Publishing failed");
+      const message = e instanceof Error ? e.message : "Publishing failed";
+      setPublishError(message);
+      toast.error(message, { id: `post-operation-${projectId}` });
     } finally {
       await refresh();
       setBusy(false);
@@ -227,11 +248,11 @@ export default function PostsWorkspace({
     setBusy(true);
     try {
       await request(`/api/posts/${id}/retry`, "POST");
-      setNotice(
+      toast.success(
         "Retry queued for failed channels. Completed channels will be skipped.",
       );
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Retry failed");
+      toast.error(error instanceof Error ? error.message : "Retry failed");
     } finally {
       await refresh();
       setBusy(false);
@@ -244,9 +265,9 @@ export default function PostsWorkspace({
       setEditing(null);
       setDeleteConfirm(null);
       await refresh();
-      setNotice("Post deleted.");
+      toast.success("Post deleted.");
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : "Delete failed");
+      toast.error(e instanceof Error ? e.message : "Delete failed");
     } finally {
       setBusy(false);
     }
@@ -333,21 +354,6 @@ export default function PostsWorkspace({
           New draft
         </Button>
       </div>
-      {notice && !editing && (
-        <Alert role="status" aria-live="polite">
-          <AlertDescription>{notice}</AlertDescription>
-          <AlertAction>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Dismiss notification"
-              onClick={() => setNotice("")}
-            >
-              <X aria-hidden="true" />
-            </Button>
-          </AlertAction>
-        </Alert>
-      )}
       {
         <>
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -416,7 +422,10 @@ export default function PostsWorkspace({
                   post={post}
                   busy={busy}
                   onEdit={() => edit(post)}
-                  onPublish={() => setConfirm(post)}
+                  onPublish={() => {
+                    setPublishError("");
+                    setConfirm(post);
+                  }}
                   onRetry={() => void retryPublication(post.id)}
                   onDelete={() => setDeleteConfirm(post)}
                 />
@@ -567,13 +576,41 @@ export default function PostsWorkspace({
               your connected accounts.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {(missingChannels.length > 0 || publishError) && (
+            <Alert variant="destructive" role="alert">
+              <AlertDescription>
+                {missingChannels.length > 0 ? (
+                  <>
+                    {missingChannels.map((p) => channelLabels[p]).join(" and ")}{" "}
+                    {missingChannels.length > 1 ? "aren't" : "isn't"} connected
+                    or its connection has expired. Connect the account in this
+                    project before publishing.
+                  </>
+                ) : (
+                  publishError
+                )}
+                <Link
+                  href={appPath(projectPath(projectId, "connections"))}
+                  className="mt-2 block font-medium underline"
+                >
+                  Open Connections
+                </Link>
+              </AlertDescription>
+            </Alert>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>
               Keep reviewing
             </AlertDialogCancel>
-            <AlertDialogAction disabled={busy} onClick={() => void publish()}>
+            <AlertDialogAction
+              disabled={busy || missingChannels.length > 0}
+              onClick={(event) => {
+                event.preventDefault();
+                void publish();
+              }}
+            >
               <Send data-icon="inline-start" aria-hidden="true" />
-              Publish now
+              {busy ? "Submitting…" : "Publish now"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

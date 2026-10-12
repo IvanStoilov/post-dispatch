@@ -27,7 +27,7 @@ const pill =
   "inline-flex items-center gap-2 rounded-full font-semibold no-underline transition-colors duration-150";
 const sunButton = `${pill} bg-primary text-primary-foreground hover:bg-primary-hover`;
 const outlineButton = `${pill} border-[1.5px] border-input text-foreground hover:bg-sunken`;
-const mcpUrl = "https://mcp.ramblo.io";
+const mcpUrl = "https://app.ramblo.io/api/mcp";
 
 export function Landing() {
   const signup = appPageUrl("/signup");
@@ -383,9 +383,7 @@ function Agents() {
   "mcpServers": {
     "ramblo": {
       "url": `}
-            <span className="text-code-accent">
-              &quot;https://mcp.ramblo.io/sse&quot;
-            </span>
+            <span className="text-code-accent">&quot;{mcpUrl}&quot;</span>
             {`
     }
   }
