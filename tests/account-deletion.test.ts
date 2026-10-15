@@ -34,6 +34,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { DELETE } from "../src/app/api/account/route";
 loadEnvConfig(process.cwd());
+process.env.STORAGE_PROVIDER = "s3";
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 

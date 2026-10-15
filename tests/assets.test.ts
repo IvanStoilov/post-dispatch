@@ -29,12 +29,7 @@ import {
   completeDirectUpload,
   directUploadSchema,
 } from "../src/lib/direct-uploads";
-import {
-  removeImage,
-  readImage,
-  isMp4,
-  publicationImageUrl,
-} from "../src/lib/storage";
+import { removeImage, readImage, isMp4, getAssetUrl } from "../src/lib/storage";
 import { mcpDraftSchema, filesDraftSchema } from "../src/lib/mcp-images";
 import { validateAssetKinds } from "../src/lib/asset-inputs";
 import { rotateAccountToken } from "../src/lib/mcp-account";
@@ -46,6 +41,7 @@ import {
   PATCH as finalizeUpload,
 } from "../src/app/api/assets/uploads/route";
 loadEnvConfig(process.cwd());
+process.env.STORAGE_PROVIDER = "s3";
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 const origin = process.env.APP_URL || "http://localhost:8200";
@@ -133,7 +129,20 @@ test(
     assert.equal(signup.status, 200);
     const identity = await signup.json();
     const userId = identity.user.id as string;
-    const cookie = signup.headers
+    // Signup requires email verification and therefore does not create a session.
+    await getDb()
+      .update(users)
+      .set({ emailVerified: true })
+      .where(eq(users.id, userId));
+    const signin = await getAuth().handler(
+      new Request(origin + "/api/auth/sign-in/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", origin },
+        body: JSON.stringify({ email, password }),
+      }),
+    );
+    assert.equal(signin.status, 200);
+    const cookie = signin.headers
       .getSetCookie()
       .map((v) => v.split(";")[0])
       .join("; ");
@@ -562,7 +571,7 @@ test(
           const files = [];
           for (const [index, asset] of original.slice(0, 2).entries())
             files.push({
-              download_url: await publicationImageUrl(asset),
+              download_url: await getAssetUrl(asset),
               file_id: `file_image_${index}`,
             });
           const imported = await mcp("create_draft_from_files", {
@@ -578,7 +587,7 @@ test(
             ...draft,
             assets: [
               {
-                download_url: await publicationImageUrl(clip),
+                download_url: await getAssetUrl(clip),
                 file_id: "file_video",
                 mime_type: "video/mp4",
                 file_name: "flower.mp4",

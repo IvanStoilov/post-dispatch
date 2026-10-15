@@ -16,6 +16,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import type { Platform } from "../lib/types";
+export const storageProviderEnum = pgEnum("storage_provider", ["local", "s3"]);
 export const platformEnum = pgEnum("post_platform", [
   "instagram",
   "facebook",
@@ -234,6 +235,9 @@ export type PostRow = typeof posts.$inferSelect;
 export const postAssets = pgTable(
   "post_assets",
   {
+    storageProvider: storageProviderEnum("storage_provider")
+      .notNull()
+      .default("s3"),
     id: uuid("id").defaultRandom().primaryKey(),
     postId: uuid("post_id")
       .notNull()
@@ -252,7 +256,11 @@ export const postAssets = pgTable(
   (table) => [
     // Migration makes this constraint deferred so swapping positions is atomic.
     unique("post_assets_post_position_unique").on(table.postId, table.position),
-    unique("post_assets_object_unique").on(table.imageBucket, table.imageKey),
+    unique("post_assets_object_unique").on(
+      table.storageProvider,
+      table.imageBucket,
+      table.imageKey,
+    ),
     check("post_assets_position_valid", sql`${table.position} BETWEEN 0 AND 9`),
     check(
       "post_assets_kind_mime_valid",
@@ -300,6 +308,9 @@ export const uploadTokens = pgTable(
 export const imageUploads = pgTable(
   "image_uploads",
   {
+    storageProvider: storageProviderEnum("storage_provider")
+      .notNull()
+      .default("s3"),
     id: uuid("id").defaultRandom().primaryKey(),
     projectId: uuid("project_id")
       .notNull()
@@ -329,10 +340,13 @@ export const imageUploads = pgTable(
   ],
 );
 
-// Temporary S3 PUT targets. Finalization copies to a fresh immutable object key.
+// Temporary upload targets. Finalization copies to a fresh immutable object key.
 export const directUploads = pgTable(
   "direct_uploads",
   {
+    storageProvider: storageProviderEnum("storage_provider")
+      .notNull()
+      .default("s3"),
     id: uuid("id").defaultRandom().primaryKey(),
     projectId: uuid("project_id")
       .notNull()
@@ -685,6 +699,9 @@ export type PublicationRow = typeof postPublications.$inferSelect;
 export const accountMediaCleanup = pgTable(
   "account_media_cleanup",
   {
+    storageProvider: storageProviderEnum("storage_provider")
+      .notNull()
+      .default("s3"),
     id: uuid("id").defaultRandom().primaryKey(),
     bucket: text("bucket").notNull(),
     prefix: text("prefix").notNull(),

@@ -195,6 +195,7 @@ export async function receiveImageUpload(projectId: string, req: Request) {
             .values({
               imageKey: image.imageKey,
               imageBucket: image.imageBucket,
+              storageProvider: image.storageProvider,
               kind: image.kind,
               mimeType: image.mimeType,
               projectId,
@@ -251,6 +252,7 @@ export async function claimImageUpload(
             : ("image/jpeg" as const),
         imageKey: upload.imageKey,
         imageBucket: upload.imageBucket,
+        storageProvider: upload.storageProvider,
       };
     },
   );

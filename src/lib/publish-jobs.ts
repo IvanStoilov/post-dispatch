@@ -14,7 +14,7 @@ import { getProject, isConnected } from "./projects";
 import { connectors } from "./connectors/registry";
 import { MediaPending, type PublishState } from "./connectors/types";
 import { reconcileSubmission } from "./connectors/reconcile";
-import { publicationImageUrl } from "./storage";
+import { getAssetUrl } from "./storage";
 import { logger, redact, withLogContext } from "./logger";
 import { createQueue, queueDriver } from "./queue";
 
@@ -343,7 +343,7 @@ export async function processPublishingJob(jobId: string) {
             }
             const urls: string[] = [];
             for (const asset of job.snapshot.assets)
-              urls.push(await publicationImageUrl(asset));
+              urls.push(await getAssetUrl(asset));
             if (!urls.length && job.snapshot.externalUrl)
               urls.push(job.snapshot.externalUrl);
             const progress = {

@@ -11,8 +11,8 @@ import {
   verifications,
   accountMediaCleanup,
 } from "../db/schema";
-import { config } from "./config";
-import { bucket } from "./storage";
+import { newStorageLocation } from "./storage/index";
+import type { StorageLocation } from "./storage/types";
 import { pendingConnectionBelongsTo } from "./connector-connect";
 import { loggedOperation, logger } from "./logger";
 
@@ -30,7 +30,7 @@ export class DataDeletionError extends Error {
 export async function deleteProjectData(
   tx: Tx,
   owned: { id: string }[],
-  configuredBucket?: string,
+  configuredLocation?: Omit<StorageLocation, "imageKey">,
   scope: "project" | "account" = "project",
 ) {
   const ids = owned.map((p) => p.id);
@@ -73,6 +73,7 @@ export async function deleteProjectData(
             projectId: posts.projectId,
             imageBucket: postAssets.imageBucket,
             imageKey: postAssets.imageKey,
+            storageProvider: postAssets.storageProvider,
           })
           .from(postAssets)
           .innerJoin(posts, eq(posts.id, postAssets.postId))
@@ -81,15 +82,33 @@ export async function deleteProjectData(
     const media = [...assets, ...unclaimed, ...pending];
     const targets = owned.flatMap((project) => {
       const objects = media.filter((m) => m.projectId === project.id);
-      const buckets = new Set(objects.map((m) => m.imageBucket));
-      if (configuredBucket) buckets.add(configuredBucket);
-      return [...buckets].map((bucket) => ({
-        bucket,
+      const locations = new Map(
+        objects.map((object) => [
+          `${object.storageProvider}:${object.imageBucket}`,
+          {
+            storageProvider: object.storageProvider,
+            imageBucket: object.imageBucket,
+          },
+        ]),
+      );
+      if (configuredLocation) {
+        locations.set(
+          `${configuredLocation.storageProvider}:${configuredLocation.imageBucket}`,
+          configuredLocation,
+        );
+      }
+      return [...locations.values()].map((location) => ({
+        bucket: location.imageBucket,
+        storageProvider: location.storageProvider,
         prefix: `${project.id}/`,
         objectKeys: [
           ...new Set(
             objects
-              .filter((m) => m.imageBucket === bucket)
+              .filter(
+                (m) =>
+                  m.storageProvider === location.storageProvider &&
+                  m.imageBucket === location.imageBucket,
+              )
               .map((m) => m.imageKey),
           ),
         ],
@@ -111,9 +130,7 @@ export async function deleteOwnProject(
   confirmation: string,
 ) {
   return loggedOperation("project.delete", { userId, projectId }, async () => {
-    const configuredBucket = config.AWS_ENDPOINT_URL_S3
-      ? await bucket()
-      : undefined;
+    const configuredLocation = await newStorageLocation();
     await getDb().transaction(async (tx) => {
       const [user] = await tx
         .select({ id: users.id })
@@ -132,7 +149,7 @@ export async function deleteOwnProject(
           "Enter the current project name exactly to confirm deletion.",
           400,
         );
-      await deleteProjectData(tx, [project], configuredBucket);
+      await deleteProjectData(tx, [project], configuredLocation);
       const pending = await tx.select().from(verifications);
       const ids = pending
         .filter(

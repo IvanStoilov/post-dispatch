@@ -71,6 +71,8 @@ export const configSchema = z.object({
   AWS_SECRET_ACCESS_KEY: optionalText,
   AWS_REGION: optionalText,
   AWS_S3_BUCKET: optionalText,
+  STORAGE_PROVIDER: z.enum(["local", "s3"]).default("local"),
+  LOCAL_STORAGE_PATH: z.string().min(1).default("data/media"),
   META_API_VERSION: z
     .string()
     .regex(/^v\d+\.\d+$/, "must use the format v25.0")
@@ -133,6 +135,8 @@ function environmentValue(key: string, environment: Environment) {
   const production = environment.NODE_ENV === "production";
   if (key === "QUEUE_DRIVER")
     return production || environment.VERCEL === "1" ? "vercel" : "local";
+  if (key === "STORAGE_PROVIDER")
+    return production || environment.VERCEL === "1" ? "s3" : "local";
   if (key === "MAIL_PROVIDER") return production ? undefined : "console";
   if (key === "MAIL_FROM")
     return production ? undefined : `${brand.name} <${brand.email}>`;

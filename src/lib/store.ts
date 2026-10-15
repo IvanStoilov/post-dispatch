@@ -79,6 +79,7 @@ type MediaPost = PostRow & {
   assets: StoredAsset[];
   imageKey: string | null;
   imageBucket: string | null;
+  storageProvider: StoredAsset["storageProvider"] | null;
   deliveries?: Post["deliveries"];
   publications?: Post["publications"];
 };
@@ -132,6 +133,7 @@ export async function hydrate(
         kind: asset.kind,
         imageKey: asset.imageKey,
         imageBucket: asset.imageBucket,
+        storageProvider: asset.storageProvider,
         mimeType: asset.mimeType,
       });
       grouped.set(asset.postId, items);
@@ -157,12 +159,20 @@ export async function hydrate(
         assets,
         imageKey: first?.imageKey ?? null,
         imageBucket: first?.imageBucket ?? null,
+        storageProvider: first?.storageProvider ?? null,
       };
     });
   });
 }
 export function toPost(row: MediaPost): Post {
-  const { imageKey, imageBucket, assets: rawAssets, ...safe } = row;
+  const {
+    imageKey,
+    imageBucket,
+    storageProvider,
+    assets: rawAssets,
+    ...safe
+  } = row;
+  void storageProvider;
   void imageKey;
   void imageBucket;
   void rawAssets;

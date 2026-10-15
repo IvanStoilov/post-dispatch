@@ -15,8 +15,12 @@ test("configuration defaults and optional integrations are centralized", () => {
   assert.equal(values.LOG_LEVEL, "debug");
   assert.equal(values.MAIL_PROVIDER, "console");
   assert.equal(values.QUEUE_DRIVER, "local");
+  assert.equal(values.STORAGE_PROVIDER, "local");
+  assert.equal(values.LOCAL_STORAGE_PATH, "data/media");
   const hosted = parseConfig({ NODE_ENV: "production" });
   assert.equal(hosted.QUEUE_DRIVER, "vercel");
+  assert.equal(hosted.STORAGE_PROVIDER, "s3");
+  assert.equal(parseConfig({ VERCEL: "1" }).STORAGE_PROVIDER, "s3");
   assert.equal(hosted.MAIL_PROVIDER, undefined);
   assert.equal(hosted.MAIL_FROM, undefined);
   assert.equal(values.LINKEDIN_CLIENT_SECRET, undefined);
@@ -55,6 +59,7 @@ test("invalid environment settings report keys and rules without echoing secrets
     MAIL_REPLY_TO: "invalid",
     LEGACY_OWNER_EMAIL: "invalid",
     QUEUE_DRIVER: "other",
+    STORAGE_PROVIDER: "other",
     VERCEL: "yes",
   })) {
     assert.throws(

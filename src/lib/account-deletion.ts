@@ -7,8 +7,8 @@ import {
   verifications,
   accountMediaCleanup,
 } from "../db/schema";
-import { config } from "./config";
-import { bucket, purgeProjectMedia } from "./storage";
+import { purgeProjectMedia } from "./storage";
+import { newStorageLocation } from "./storage/index";
 import { pendingConnectionBelongsTo } from "./connector-connect";
 import { loggedOperation, logger } from "./logger";
 
@@ -55,9 +55,7 @@ export async function limitDeletionAttempts(userId: string) {
 export async function deleteOwnAccount(userId: string) {
   return loggedOperation("account.delete", { userId }, async () => {
     // Include the configured bucket to catch objects whose earlier DB insert failed.
-    const configuredBucket = config.AWS_ENDPOINT_URL_S3
-      ? await bucket()
-      : undefined;
+    const configuredLocation = await newStorageLocation();
     await getDb().transaction(async (tx) => {
       const [user] = await tx
         .select()
@@ -72,7 +70,7 @@ export async function deleteOwnAccount(userId: string) {
         .where(eq(projects.userId, userId))
         .orderBy(projects.id)
         .for("update");
-      await deleteProjectData(tx, owned, configuredBucket, "account");
+      await deleteProjectData(tx, owned, configuredLocation, "account");
       // Verification records are not FK-bound, including OAuth codes and sealed connector handshakes.
       const records = await tx.select().from(verifications);
       const verificationIds = records

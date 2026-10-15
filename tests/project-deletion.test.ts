@@ -40,6 +40,7 @@ import {
 import { processPublishingJob } from "../src/lib/publish-jobs";
 import { DELETE } from "../src/app/api/projects/[id]/route";
 loadEnvConfig(process.cwd());
+process.env.STORAGE_PROVIDER = "s3";
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 

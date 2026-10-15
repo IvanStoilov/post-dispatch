@@ -1,7 +1,7 @@
 import { loggedRequest } from "@/lib/logger";
 import { authenticated, ownedProject } from "@/lib/api-auth";
 import { getPostImage, storedAssets } from "@/lib/store";
-import { publicationImageUrl } from "@/lib/storage";
+import { getAssetUrl } from "@/lib/storage";
 export const runtime = "nodejs";
 export async function GET(
   req: Request,
@@ -21,11 +21,11 @@ export async function GET(
       }
       if (!asset) return new Response(null, { status: 404 });
       try {
-        // Range requests and streaming happen at S3, keeping videos off Vercel.
+        // S3 serves production media directly; local storage serves private dev URLs.
         return new Response(null, {
           status: 307,
           headers: {
-            Location: await publicationImageUrl(asset, 300),
+            Location: await getAssetUrl(asset, 300),
             "Cache-Control": "private, no-store",
             "Referrer-Policy": "no-referrer",
           },

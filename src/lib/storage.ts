@@ -1,16 +1,6 @@
-import { config } from "./config";
 import { loggedOperation } from "./logger";
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  DeleteObjectCommand,
-  ListBucketsCommand,
-  HeadObjectCommand,
-  ListObjectsV2Command,
-  DeleteObjectsCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { storageProvider, newStorageLocation } from "./storage/index";
+import type { StorageLocation } from "./storage/types";
 import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { request } from "node:https";
@@ -41,40 +31,6 @@ export const inlineImageFileSchema = imageFileSchema.extend({
     .min(1)
     .max(Math.ceil(MAX_INLINE_IMAGE_BYTES / 3) * 4),
 });
-let client: S3Client | undefined;
-let discoveredBucket: Promise<string> | undefined;
-export function storage() {
-  if (
-    !config.AWS_ENDPOINT_URL_S3 ||
-    !config.AWS_ACCESS_KEY_ID ||
-    !config.AWS_SECRET_ACCESS_KEY ||
-    !config.AWS_REGION
-  )
-    throw new Error("Image storage is not configured");
-  return (client ??= new S3Client({
-    endpoint: config.AWS_ENDPOINT_URL_S3,
-    region: config.AWS_REGION,
-    forcePathStyle: true,
-  }));
-}
-export async function bucket() {
-  return loggedOperation("lib.storage.bucket", {}, async () => {
-    if (config.AWS_S3_BUCKET) return config.AWS_S3_BUCKET;
-    if (!discoveredBucket)
-      discoveredBucket = storage()
-        .send(new ListBucketsCommand({}))
-        .then((r) => {
-          if (r.Buckets?.length !== 1 || !r.Buckets[0].Name)
-            throw new Error("Set AWS_S3_BUCKET to the image bucket name");
-          return r.Buckets[0].Name;
-        })
-        .catch((e) => {
-          discoveredBucket = undefined;
-          throw e;
-        });
-    return discoveredBucket;
-  });
-}
 export function assertPublicAddress(address: string) {
   const parsed = ipaddr.process(address);
   if (parsed.range() !== "unicast")
@@ -196,7 +152,11 @@ export async function uploadImage(
     return storeImage(projectId, bytes);
   });
 }
-export async function storeImage(projectId: string, bytes: Buffer) {
+export async function storeImage(
+  projectId: string,
+  bytes: Buffer,
+  provider?: StorageLocation["storageProvider"],
+) {
   return loggedOperation("lib.storage.storeImage", { projectId }, async () => {
     if (!bytes.length) throw new Error("The image is empty");
     if (bytes.length > MAX_IMAGE_BYTES) throw new Error(IMAGE_TOO_LARGE);
@@ -230,98 +190,59 @@ export async function storeImage(projectId: string, bytes: Buffer) {
       );
     }
     const imageKey = `${projectId}/${randomUUID()}.jpg`;
-    const imageBucket = await bucket();
-    await storage().send(
-      new PutObjectCommand({
-        Bucket: imageBucket,
-        Key: imageKey,
-        Body: jpeg,
-        ContentType: "image/jpeg",
-        CacheControl: "private, max-age=0",
-      }),
+    const location = { ...(await newStorageLocation(provider)), imageKey };
+    await storageProvider(location.storageProvider).write(
+      { bucket: location.imageBucket, key: imageKey },
+      jpeg,
+      "image/jpeg",
     );
-    return { imageKey, imageBucket };
+    return location;
   });
 }
 export async function removeImage(image: {
   imageKey: string | null;
   imageBucket: string | null;
+  storageProvider: StorageLocation["storageProvider"];
 }) {
   return loggedOperation("lib.storage.removeImage", {}, async () => {
     if (image.imageKey && image.imageBucket)
-      await storage().send(
-        new DeleteObjectCommand({
-          Bucket: image.imageBucket,
-          Key: image.imageKey,
-        }),
-      );
+      await storageProvider(image.storageProvider).delete(image.imageBucket, [
+        image.imageKey,
+      ]);
   });
 }
-/** Bounded, repeatable purge of one deleted project's private media. */
 export async function purgeProjectMedia(target: {
   bucket: string;
   prefix: string;
   objectKeys: string[];
+  storageProvider: StorageLocation["storageProvider"];
 }) {
   if (!/^[a-f0-9-]{36}\/$/i.test(target.prefix))
     throw new Error("Invalid project media prefix");
-  const remove = async (keys: string[]) => {
-    if (!keys.length) return;
-    const result = await storage().send(
-      new DeleteObjectsCommand({
-        Bucket: target.bucket,
-        Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
-      }),
-      { abortSignal: AbortSignal.timeout(30000) },
-    );
-    if (result.Errors?.length)
-      throw new Error("Some account media could not be removed");
-  };
-  for (let start = 0; start < target.objectKeys.length; start += 200)
-    await remove(target.objectKeys.slice(start, start + 200));
+  const provider = storageProvider(target.storageProvider);
+  await provider.delete(target.bucket, target.objectKeys);
   for (let page = 0; page < 5; page++) {
-    const result = await storage().send(
-      new ListObjectsV2Command({
-        Bucket: target.bucket,
-        Prefix: target.prefix,
-        MaxKeys: 200,
-      }),
-      { abortSignal: AbortSignal.timeout(30000) },
-    );
-    const keys =
-      result.Contents?.flatMap((object) => (object.Key ? [object.Key] : [])) ||
-      [];
-    await remove(keys);
-    if (!result.IsTruncated) return true;
+    const result = await provider.list(target.bucket, target.prefix, 200);
+    await provider.delete(target.bucket, result.keys);
+    if (!result.truncated) return true;
   }
   return false;
 }
-export async function readImage(image: {
-  imageKey: string;
-  imageBucket: string;
-}) {
-  return loggedOperation("lib.storage.readImage", {}, async () => {
-    const r = await storage().send(
-      new GetObjectCommand({ Bucket: image.imageBucket, Key: image.imageKey }),
-    );
-    if (!r.Body) throw new Error("Image not found");
-    return r.Body.transformToByteArray();
-  });
+export async function readImage(image: StorageLocation) {
+  return loggedOperation("lib.storage.readImage", {}, () =>
+    storageProvider(image.storageProvider).read(
+      { bucket: image.imageBucket, key: image.imageKey },
+      MAX_VIDEO_BYTES,
+    ),
+  );
 }
-export async function publicationImageUrl(
-  image: {
-    imageKey: string;
-    imageBucket: string;
-  },
-  expiresIn = 3600,
-) {
-  return loggedOperation("lib.storage.publicationImageUrl", {}, async () => {
-    return getSignedUrl(
-      storage(),
-      new GetObjectCommand({ Bucket: image.imageBucket, Key: image.imageKey }),
-      { expiresIn },
-    );
-  });
+export async function getAssetUrl(image: StorageLocation, expiresIn = 3600) {
+  return loggedOperation("lib.storage.getAssetUrl", {}, () =>
+    storageProvider(image.storageProvider).getAssetUrl(
+      { bucket: image.imageBucket, key: image.imageKey },
+      expiresIn,
+    ),
+  );
 }
 
 // Check the ISO-BMFF structure rather than trusting a MIME type or extension.
@@ -354,6 +275,7 @@ export async function storeAsset(
   projectId: string,
   bytes: Buffer,
   expectedKind?: AssetKind,
+  provider?: StorageLocation["storageProvider"],
 ): Promise<StoredAsset> {
   return loggedOperation("lib.storage.storeAsset", { projectId }, async () => {
     const kind = isMp4(bytes) ? "VIDEO" : "IMAGE";
@@ -365,22 +287,18 @@ export async function storeAsset(
         id,
         kind,
         mimeType: "image/jpeg",
-        ...(await storeImage(projectId, bytes)),
+        ...(await storeImage(projectId, bytes, provider)),
       };
     if (bytes.length > MAX_VIDEO_BYTES)
       throw new Error("Video must be 100 MB or smaller");
     const imageKey = `${projectId}/${id}.mp4`;
-    const imageBucket = await bucket();
-    await storage().send(
-      new PutObjectCommand({
-        Bucket: imageBucket,
-        Key: imageKey,
-        Body: bytes,
-        ContentType: "video/mp4",
-        CacheControl: "private, max-age=0",
-      }),
+    const location = { ...(await newStorageLocation(provider)), imageKey };
+    await storageProvider(location.storageProvider).write(
+      { bucket: location.imageBucket, key: imageKey },
+      bytes,
+      "video/mp4",
     );
-    return { id, kind, imageKey, imageBucket, mimeType: "video/mp4" };
+    return { id, kind, ...location, mimeType: "video/mp4" };
   });
 }
 export async function downloadAsset(
@@ -406,73 +324,16 @@ export async function downloadAsset(
     },
   );
 }
-export async function stagedUploadUrl(
-  projectId: string,
-  mimeType: string,
-  fileSize: number,
+export async function readStagedUpload(
+  asset: StorageLocation & { fileSize: number },
 ) {
-  return loggedOperation(
-    "lib.storage.stagedUploadUrl",
-    { projectId },
-    async () => {
-      const imageKey = `${projectId}/pending/${randomUUID()}`;
-      const imageBucket = await bucket();
-      const uploadUrl = await getSignedUrl(
-        storage(),
-        new PutObjectCommand({
-          Bucket: imageBucket,
-          Key: imageKey,
-          ContentType: mimeType,
-          ContentLength: fileSize,
-        }),
-        { expiresIn: 600 },
-      );
-      return { imageKey, imageBucket, uploadUrl };
-    },
+  if (asset.fileSize > MAX_VIDEO_BYTES)
+    throw new Error("Uploaded file exceeds its size limit");
+  const bytes = await storageProvider(asset.storageProvider).read(
+    { bucket: asset.imageBucket, key: asset.imageKey },
+    asset.fileSize,
   );
-}
-export async function readStagedUpload(asset: {
-  imageKey: string;
-  imageBucket: string;
-  fileSize: number;
-}) {
-  return loggedOperation("lib.storage.readStagedUpload", {}, async () => {
-    const head = await storage().send(
-      new HeadObjectCommand({ Bucket: asset.imageBucket, Key: asset.imageKey }),
-    );
-    if (
-      head.ContentLength !== asset.fileSize ||
-      head.ContentLength > MAX_VIDEO_BYTES
-    )
-      throw new Error("Uploaded file size does not match the upload request");
-    const response = await storage().send(
-      new GetObjectCommand({ Bucket: asset.imageBucket, Key: asset.imageKey }),
-      { abortSignal: AbortSignal.timeout(120000) },
-    );
-    if (!response.Body) throw new Error("Uploaded file is unavailable");
-    const reader = response.Body.transformToWebStream().getReader();
-    const chunks: Uint8Array[] = [];
-    let length = 0;
-    try {
-      if (response.ContentLength !== asset.fileSize) {
-        await reader.cancel();
-        throw new Error("Uploaded file changed during verification");
-      }
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        length += value.length;
-        if (length > asset.fileSize) {
-          await reader.cancel();
-          throw new Error("Uploaded file changed during verification");
-        }
-        chunks.push(value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-    if (length !== asset.fileSize)
-      throw new Error("Uploaded file changed during verification");
-    return Buffer.concat(chunks);
-  });
+  if (bytes.length !== asset.fileSize)
+    throw new Error("Uploaded file size does not match the upload request");
+  return bytes;
 }

@@ -1,5 +1,6 @@
 export type AssetKind = "IMAGE" | "VIDEO";
 export type StoredAsset = {
+  storageProvider: "local" | "s3";
   id: string;
   kind: AssetKind;
   imageKey: string;

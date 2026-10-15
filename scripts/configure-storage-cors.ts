@@ -1,15 +1,18 @@
 import { appOrigin } from "../src/lib/origins";
 import { loadEnvConfig } from "@next/env";
 import { GetBucketCorsCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
-import { bucket, storage } from "../src/lib/storage";
+import { s3Client } from "../src/lib/storage/providers/s3";
+import { requireConfig } from "../src/lib/config";
+
 loadEnvConfig(process.cwd());
+
 async function main() {
   const origin = new URL(appOrigin()).origin;
-  const Bucket = await bucket();
+  const Bucket = requireConfig("AWS_S3_BUCKET");
   let rules: import("@aws-sdk/client-s3").CORSRule[];
   try {
     rules =
-      (await storage().send(new GetBucketCorsCommand({ Bucket }))).CORSRules ||
+      (await s3Client().send(new GetBucketCorsCommand({ Bucket }))).CORSRules ||
       [];
   } catch (error) {
     if (!(error instanceof Error) || error.name !== "NoSuchCORSConfiguration")
@@ -21,7 +24,7 @@ async function main() {
   const ID = "PostDispatchUploads";
   const old = rules.find((rule) => rule.ID === ID);
   const origins = [...new Set([...(old?.AllowedOrigins || []), origin])];
-  await storage().send(
+  await s3Client().send(
     new PutBucketCorsCommand({
       Bucket,
       CORSConfiguration: {

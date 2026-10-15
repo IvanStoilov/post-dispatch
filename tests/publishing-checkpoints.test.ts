@@ -53,6 +53,7 @@ function context(
       {
         id: "asset",
         kind: "VIDEO",
+        storageProvider: "s3",
         imageBucket: "bucket",
         imageKey: "video.mp4",
         mimeType: "video/mp4",

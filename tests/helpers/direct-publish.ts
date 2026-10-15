@@ -7,7 +7,7 @@ import {
   storedAssets,
 } from "../../src/lib/store";
 import { getProject, isConnected } from "../../src/lib/projects";
-import { publicationImageUrl } from "../../src/lib/storage";
+import { getAssetUrl } from "../../src/lib/storage";
 import { withLogContext } from "../../src/lib/logger";
 import { connectors } from "../../src/lib/connectors/registry";
 export async function publishPost(projectId: string, id: string) {
@@ -22,7 +22,7 @@ export async function publishPost(projectId: string, id: string) {
       const media = await getPostImage(projectId, id);
       const assets = storedAssets(media);
       const urls: string[] = [];
-      for (const asset of assets) urls.push(await publicationImageUrl(asset));
+      for (const asset of assets) urls.push(await getAssetUrl(asset));
       if (!urls.length && media.imageUrl) urls.push(media.imageUrl);
       // Validate every destination before making any irreversible provider call.
       for (const target of post.platforms) {

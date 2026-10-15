@@ -1,11 +1,17 @@
+import type { StorageLocation } from "./storage/types";
 import { loggedOperation, logger } from "./logger";
-import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
+import {
+  randomBytes,
+  randomUUID,
+  createHash,
+  timingSafeEqual,
+} from "node:crypto";
+import { newStorageLocation, storageProvider } from "./storage/index";
 import { and, eq, gt, lte, sql, count } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import { directUploads, imageUploads } from "../db/schema";
 import {
-  stagedUploadUrl,
   readStagedUpload,
   storeAsset,
   removeImage,
@@ -66,18 +72,28 @@ export async function createDirectUpload(projectId: string, input: unknown) {
         throw new Error(
           "Too many unused media uploads. Use them in drafts or let them expire.",
         );
-      const target = await stagedUploadUrl(
-        projectId,
-        data.mimeType,
-        data.fileSize,
-      );
+      const target = {
+        ...(await newStorageLocation()),
+        imageKey: `${projectId}/pending/${randomUUID()}`,
+      };
+      const uploadId = randomUUID();
+      const uploadUrl = await storageProvider(
+        target.storageProvider,
+      ).createUploadUrl({
+        bucket: target.imageBucket,
+        key: target.imageKey,
+        uploadId,
+        ...data,
+      });
       const completionToken = randomBytes(32).toString("base64url");
       const [upload] = await getDb()
         .insert(directUploads)
         .values({
+          id: uploadId,
           projectId,
           imageKey: target.imageKey,
           imageBucket: target.imageBucket,
+          storageProvider: target.storageProvider,
           ...data,
           completionTokenHash: hash(completionToken),
           expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
@@ -85,7 +101,7 @@ export async function createDirectUpload(projectId: string, input: unknown) {
         .returning();
       return {
         uploadId: upload.id,
-        uploadUrl: target.uploadUrl,
+        uploadUrl,
         method: "PUT",
         headers: { "Content-Type": data.mimeType },
         uploadExpiresAt: new Date(Date.now() + 600000).toISOString(),
@@ -108,7 +124,7 @@ export async function completeDirectUpload(
       z.uuid().parse(projectId);
       z.uuid().parse(uploadId);
       let stored: Awaited<ReturnType<typeof storeAsset>> | undefined;
-      let pending: { imageKey: string; imageBucket: string } | undefined;
+      let pending: StorageLocation | undefined;
       try {
         const result = await getDb().transaction(async (tx) => {
           const [upload] = await tx
@@ -139,6 +155,7 @@ export async function completeDirectUpload(
             projectId,
             await readStagedUpload(upload),
             upload.mimeType === "video/mp4" ? "VIDEO" : "IMAGE",
+            upload.storageProvider,
           );
           const [ready] = await tx
             .insert(imageUploads)
@@ -146,6 +163,7 @@ export async function completeDirectUpload(
               projectId,
               imageKey: stored.imageKey,
               imageBucket: stored.imageBucket,
+              storageProvider: stored.storageProvider,
               kind: stored.kind,
               mimeType: stored.mimeType,
               expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),

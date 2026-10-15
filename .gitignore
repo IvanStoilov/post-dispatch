@@ -40,6 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Local post storage
+# Local file storage (never serve this directory as public assets)
 /data/
 !.env.example

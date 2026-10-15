@@ -16,12 +16,13 @@ export async function GET(
       } catch {
         return new Response(null, { status: 404 });
       }
-      if (!post.imageKey || !post.imageBucket)
+      if (!post.imageKey || !post.imageBucket || !post.storageProvider)
         return new Response(null, { status: 404 });
       try {
         const bytes = await readImage({
           imageKey: post.imageKey,
           imageBucket: post.imageBucket,
+          storageProvider: post.storageProvider,
         });
         return new Response(Buffer.from(bytes), {
           headers: {

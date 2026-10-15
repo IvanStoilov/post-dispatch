@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { GET as previewImage } from "../src/app/api/posts/[id]/image/route";
-import { removeImage, publicationImageUrl } from "../src/lib/storage";
+import { removeImage, getAssetUrl } from "../src/lib/storage";
 import { getPostImage, storedAssets } from "../src/lib/store";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -29,6 +29,7 @@ import { GET as connections } from "../src/app/api/connections/route";
 import { rotateAccountToken } from "../src/lib/mcp-account";
 import { handleAccountMcp } from "../src/lib/mcp";
 loadEnvConfig(process.cwd());
+process.env.STORAGE_PROVIDER = "s3";
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 const createdUsers: string[] = [];
@@ -437,7 +438,8 @@ test(
           );
           const row = await getPostImage(extra.project.id, post.id);
           assert.ok(row.imageKey && row.imageBucket);
-          const signed = await publicationImageUrl({
+          const signed = await getAssetUrl({
+            storageProvider: row.storageProvider!,
             imageKey: row.imageKey!,
             imageBucket: row.imageBucket!,
           });

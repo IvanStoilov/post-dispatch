@@ -59,7 +59,7 @@ Send `Authorization: Bearer <account token>` from MCP integration, or use OAuth.
 - `get_project`: identify the selected project and its configured channels (no secrets).
 - `create_upload_token`: returns a short-lived bearer token and the upload endpoint for sending image files over plain HTTP (see Private images).
 - `create_draft`: title, caption, platforms (`facebook`, `instagram`, `linkedin`), optional ordered `assets` array, optional source. Supports up to 10 images OR one MP4 video. Each source uses EXTERNAL_URL, INLINE_BASE64 (images only), UPLOAD_ID, or OPENAPI_FILE; optional `kind` IMAGE/VIDEO is checked against the bytes. Missing Instagram media returns `needsMedia` / `needsImage` and a `reviewUrl`.
-- `create_asset_upload`: prepares a private S3 PUT URL for an image or video. Requires `mimeType` and exact `fileSize` in bytes. PUT the bytes, then finalize.
+- `create_asset_upload`: prepares a private storage PUT URL for an image or video. Requires `mimeType` and exact `fileSize` in bytes. PUT the bytes, then finalize.
 - `complete_asset_upload`: verifies an uploaded file, copies it to an immutable key, and returns `assetUploadId` for `assets: [{"type":"UPLOAD_ID","uploadId":"..."}]`.
 - `create_draft_from_files`: ChatGPT attachment tool with `openai/fileParams: ["assets"]`; `assets` is an ordered array of plain `{download_url,file_id,mime_type?,file_name?}` file objects. Supports multiple images or one video.
 - `list_posts`: read this project’s saved posts and delivery state.
@@ -126,9 +126,20 @@ Publishing claims the draft before sending and saves each platform's resulting I
 
 ## Private media
 
-Set AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION in `.env`. AWS_S3_BUCKET is optional if the endpoint has exactly one bucket. The SDK uses path-style S3 addressing for Neon. Images are normalized to JPEG; MP4 video is stored as supplied. Images are limited to 4.5 MB / 20 megapixels each, videos to 100 MB. Videos must meet Meta's codec, duration and aspect-ratio requirements (H.264 video, AAC audio when present); this app does not transcode video.
+File I/O is behind `StorageProvider` in `src/lib/storage/`. Providers read, write, delete and list files for cleanup, and implement `getAssetUrl()` for media URLs and `createUploadUrl()` for their upload transport (S3 presigned PUT or the local development endpoint). Upload records, image validation, transformations and finalization remain in shared application code.
 
-A post contains an ordered asset list: **up to 10 images, or one video**. Mixed image/video posts and multiple videos are rejected. The dashboard lets you select multiple files, remove/reorder retained or new media, and import public HTTPS URLs one per line. Previews use project-owner authorization and short-lived signed GET URLs; video range requests go directly to S3. Buckets stay private.
+| `STORAGE_PROVIDER` | Configuration                                                                     | Behavior                                                                                                                                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `local`            | `LOCAL_STORAGE_PATH=data/media` (default)                                         | Default in development and tests. Files live under this private, Git-ignored directory, never in `public/`. Relative paths resolve from the application working directory. Refused in production or on Vercel. |
+| `s3`               | `AWS_ENDPOINT_URL_S3`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` | Default in production and on Vercel. Set `AWS_S3_BUCKET`, or the endpoint must have exactly one bucket. Uses path-style S3 addressing, compatible with Neon.                                                   |
+
+Migration `0016_storage_providers.sql` records the provider on assets, pending uploads, cleanup tasks and existing publishing snapshots. Existing files are marked `s3`; they are not copied. The configured default affects **new uploads only**: reading, finalizing and deleting an existing file always use its recorded provider and bucket. Keep S3 credentials available if development data still references S3 files. Keep the local storage directory stable unless you also move its contents.
+
+Use separate development and production databases and S3 buckets/credentials. Provider selection alone does not isolate environments that share a database. Local publishing to Facebook or Instagram requires a publicly reachable HTTPS development origin/tunnel so Meta can download the media URLs; a localhost or locally spoofed domain alone will not work.
+
+Images are normalized to JPEG; MP4 video is stored as supplied. Images are limited to 4.5 MB / 20 megapixels each, videos to 100 MB. Videos must meet Meta's codec, duration and aspect-ratio requirements (H.264 video, AAC audio when present); this app does not transcode video.
+
+A post contains an ordered asset list: **up to 10 images, or one video**. Mixed image/video posts and multiple videos are rejected. The dashboard lets you select multiple files, remove/reorder retained or new media, and import public HTTPS URLs one per line. S3 previews use project-owner authorization and short-lived signed GET URLs, with video ranges served directly by S3. Local development uses plain URLs without authentication or signatures, with range support; these endpoints are disabled in production. Local files remain outside `public/`.
 
 `create_draft` accepts these asset sources:
 
@@ -153,16 +164,16 @@ Other sources are `{type:"INLINE_BASE64",dataBase64,filename?,mimeType?}` for sm
 
 For ChatGPT attachments use `create_draft_from_files` with a plain `assets` array of `{download_url,file_id,mime_type?,file_name?}`. OpenAI's `openai/fileParams` requires plain top-level file objects or arrays, so this companion converts host-resolved files internally. Both draft tools use `assets`, including for a single image or video. Refresh the ChatGPT connection's tools after deployment.
 
-Local files use a direct-to-S3 upload:
+File uploads use the selected storage provider with the same client flow:
 
 1. Call `create_asset_upload` with `mimeType` and `fileSize`.
 2. PUT the exact bytes to `uploadUrl`, using the supplied Content-Type. PUT URLs expire after 10 minutes.
 3. Call `complete_asset_upload` with `uploadId` and `completionToken`. HTTP-capable clients may instead POST those fields to `completionUrl`.
 4. Pass the returned `assetUploadId` to `create_draft.assets` with type UPLOAD_ID. Each upload is project-scoped, expires after an hour, and can be claimed once. Finalization writes a new key so reusing the PUT URL cannot alter a post.
 
-The dashboard uses authenticated `/api/assets/uploads` POST/PATCH for this same flow. File bytes bypass Vercel's 4.5 MB request limit. The old `create_upload_token` + raw HTTP endpoint remains available for small image files.
+The dashboard uses authenticated `/api/assets/uploads` POST/PATCH for this same flow. S3 file bytes bypass Vercel's 4.5 MB request limit. Local PUT URLs write through an unsigned, size-checked development endpoint; completed or expired uploads cannot be overwritten through it. The old `create_upload_token` + raw HTTP endpoint remains available for small image files.
 
-Before browser uploads, enable S3 CORS for the app's origin, preserving existing bucket rules:
+For the S3 provider, enable S3 CORS for the app's origin, preserving existing bucket rules (not needed for local storage):
 
 ```sh
 # Use your actual deployment origin when configuring Vercel uploads.
