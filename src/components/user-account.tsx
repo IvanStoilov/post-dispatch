@@ -86,7 +86,7 @@ export function UserAccount({ name, email }: { name: string; email: string }) {
         Back to workspace
       </Link>
       <AlertDialog open={open} onOpenChange={changeOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent size="lg">
           <AlertDialogHeader>
             <AlertDialogTitle>
               Permanently delete your account?

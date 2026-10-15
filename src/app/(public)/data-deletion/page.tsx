@@ -53,6 +53,21 @@ export default function DeletionPage() {
           <Link href={appPageUrl("/account")}>Open User Account</Link>
         </Button>
       </DocumentSection>
+      <DocumentSection id="project" title="Delete an individual project">
+        <p>
+          Open the project’s Connections page and select Delete project. Enter
+          the project’s name exactly and confirm permanent deletion. This
+          removes its drafts, connection credentials, publication records, and
+          upload permissions, cancels queued publications, and schedules stored
+          media for removal. Your account and other projects remain available.
+        </p>
+        <p>
+          If a publication is actively being processed, wait for it to finish
+          before retrying. Posts already published on social networks remain
+          there. Disable any external automation targeting the deleted project
+          separately.
+        </p>
+      </DocumentSection>
       <DocumentSection id="request" title="Request account deletion">
         <ol className="flex list-decimal flex-col gap-3 pl-5">
           <li>

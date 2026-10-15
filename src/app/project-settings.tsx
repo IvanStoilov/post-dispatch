@@ -48,6 +48,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Save } from "lucide-react";
+import { DeleteProject } from "@/components/delete-project";
 export default function ProjectSettings({
   project,
   onSaved,
@@ -388,6 +389,7 @@ export default function ProjectSettings({
           </Button>
         </div>
       </form>
+      <DeleteProject project={project} disabled={busy} />
       <AlertDialog
         open={!!disconnecting}
         onOpenChange={(open) => {

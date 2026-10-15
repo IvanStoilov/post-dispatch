@@ -4,11 +4,6 @@ import { getDb } from "../db";
 import {
   users,
   projects,
-  posts,
-  postAssets,
-  publishJobs,
-  imageUploads,
-  directUploads,
   verifications,
   accountMediaCleanup,
 } from "../db/schema";
@@ -17,14 +12,11 @@ import { bucket, purgeProjectMedia } from "./storage";
 import { pendingConnectionBelongsTo } from "./connector-connect";
 import { loggedOperation, logger } from "./logger";
 
-export class AccountDeletionError extends Error {
-  constructor(
-    message: string,
-    readonly status = 409,
-  ) {
-    super(message);
-  }
-}
+import {
+  deleteProjectData,
+  DataDeletionError as AccountDeletionError,
+} from "./project-deletion";
+export { DataDeletionError as AccountDeletionError } from "./project-deletion";
 
 // Persisted rate limit so incorrect password attempts cannot be spread across instances.
 export async function limitDeletionAttempts(userId: string) {
@@ -80,81 +72,7 @@ export async function deleteOwnAccount(userId: string) {
         .where(eq(projects.userId, userId))
         .orderBy(projects.id)
         .for("update");
-      const ids = owned.map((p) => p.id);
-      if (ids.length) {
-        const jobs = await tx
-          .select()
-          .from(publishJobs)
-          .where(inArray(publishJobs.projectId, ids))
-          .orderBy(publishJobs.id)
-          .for("update");
-        if (
-          jobs.some(
-            (job) =>
-              job.status === "submitting" ||
-              (job.leaseExpiresAt && job.leaseExpiresAt > new Date()),
-          )
-        )
-          throw new AccountDeletionError(
-            "A publication is currently being processed. Wait for it to finish before deleting your account. If it remains stuck, contact support.",
-          );
-        const drafts = await tx
-          .select()
-          .from(posts)
-          .where(inArray(posts.projectId, ids))
-          .orderBy(posts.id)
-          .for("update");
-        const unclaimed = await tx
-          .select()
-          .from(imageUploads)
-          .where(inArray(imageUploads.projectId, ids))
-          .for("update");
-        const pending = await tx
-          .select()
-          .from(directUploads)
-          .where(inArray(directUploads.projectId, ids))
-          .for("update");
-        const assets = drafts.length
-          ? await tx
-              .select({
-                projectId: posts.projectId,
-                imageBucket: postAssets.imageBucket,
-                imageKey: postAssets.imageKey,
-              })
-              .from(postAssets)
-              .innerJoin(posts, eq(posts.id, postAssets.postId))
-              .where(inArray(posts.projectId, ids))
-          : [];
-        const media = [...assets, ...unclaimed, ...pending];
-        const targets = owned.flatMap((project) => {
-          const objects = media.filter((m) => m.projectId === project.id);
-          const buckets = new Set(objects.map((m) => m.imageBucket));
-          if (configuredBucket) buckets.add(configuredBucket);
-          return [...buckets].map((bucket) => ({
-            bucket,
-            prefix: `${project.id}/`,
-            objectKeys: [
-              ...new Set(
-                objects
-                  .filter((m) => m.imageBucket === bucket)
-                  .map((m) => m.imageKey),
-              ),
-            ],
-            finalSweepAfter: new Date(Date.now() + 60 * 60000),
-          }));
-        });
-        if (targets.length)
-          await tx.insert(accountMediaCleanup).values(targets);
-        await tx.delete(publishJobs).where(inArray(publishJobs.projectId, ids));
-        await tx
-          .delete(directUploads)
-          .where(inArray(directUploads.projectId, ids));
-        await tx
-          .delete(imageUploads)
-          .where(inArray(imageUploads.projectId, ids));
-        await tx.delete(posts).where(inArray(posts.projectId, ids));
-        await tx.delete(projects).where(inArray(projects.id, ids));
-      }
+      await deleteProjectData(tx, owned, configuredBucket, "account");
       // Verification records are not FK-bound, including OAuth codes and sealed connector handshakes.
       const records = await tx.select().from(verifications);
       const verificationIds = records

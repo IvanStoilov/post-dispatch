@@ -110,9 +110,17 @@ function unseal(value: string): Pending {
     ]).toString(),
   );
 }
-export function pendingConnectionBelongsTo(value: string, userId: string) {
+export function pendingConnectionBelongsTo(
+  value: string,
+  userId: string,
+  projectId?: string,
+) {
   try {
-    return unseal(value).userId === userId;
+    const pending = unseal(value);
+    return (
+      pending.userId === userId &&
+      (projectId === undefined || pending.projectId === projectId)
+    );
   } catch {
     return false;
   }

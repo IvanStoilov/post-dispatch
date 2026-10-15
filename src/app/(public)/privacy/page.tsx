@@ -251,6 +251,13 @@ export default function PrivacyPage() {
         title="Revocation of access and deletion requests"
       >
         <p>
+          An individual project may be deleted through its Connections page.
+          This removes that project’s stored records and credentials and
+          schedules its media for removal, while retaining the account and any
+          other projects. Account-level assistant authorisations continue to
+          apply to the remaining projects until revoked separately.
+        </p>
+        <p>
           Social-account connections may be revoked in the project’s Connections
           screen. Assistant OAuth grants may be revoked in MCP integration, and
           account bearer tokens may be rotated to invalidate access through the
