@@ -1,3 +1,4 @@
+import { acceptedSignup } from "./helpers/terms";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
@@ -98,7 +99,13 @@ test(
           origin,
           "Content-Type": "application/json",
         },
-        ...(body ? { body: JSON.stringify(body) } : {}),
+        ...(body
+          ? {
+              body: JSON.stringify(
+                path.endsWith("/sign-up/email") ? acceptedSignup(body) : body,
+              ),
+            }
+          : {}),
       });
     try {
       const email = `li-${randomUUID()}@example.test`;

@@ -41,6 +41,36 @@ export const users = pgTable("users", {
     .notNull()
     .defaultNow(),
 });
+// Independent audit evidence survives account closure. No mutable user profile data.
+export const termsAcceptances = pgTable(
+  "terms_acceptances",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").notNull(),
+    termsVersion: text("terms_version").notNull(),
+    termsContent: text("terms_content").notNull(),
+    termsHash: varchar("terms_hash", { length: 64 }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    acceptanceSource: text("acceptance_source").notNull(),
+  },
+  (t) => [
+    unique("terms_acceptances_user_version_unique").on(
+      t.userId,
+      t.termsVersion,
+    ),
+    index("terms_acceptances_user_id_idx").on(t.userId),
+    check(
+      "terms_acceptances_hash_valid",
+      sql`${t.termsHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      "terms_acceptances_source_valid",
+      sql`${t.acceptanceSource} IN ('email_signup', 'oauth_signup', 'account')`,
+    ),
+  ],
+);
 export const accountMcpTokens = pgTable("account_mcp_tokens", {
   userId: text("user_id")
     .primaryKey()
@@ -598,6 +628,12 @@ export const publishJobs = pgTable(
     snapshot: jsonb("snapshot")
       .$type<{
         post: import("../lib/types").Post;
+        // Optional only for jobs created before authorization evidence was introduced.
+        authorization?: {
+          userId: string;
+          authorizedAt: string;
+          source: "user_publish";
+        };
         assets: import("../lib/types").StoredAsset[];
         externalUrl: string;
       }>()

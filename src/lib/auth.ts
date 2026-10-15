@@ -9,16 +9,17 @@ import { oauthPlugins, appOrigin } from "./oauth-provider";
 import * as schema from "../db/schema";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { eq } from "drizzle-orm";
 import { getDb } from "../db";
+import { randomUUID } from "node:crypto";
+import { APIError, createAuthMiddleware } from "better-auth/api";
+import { getCurrentAdapter } from "@better-auth/core/context";
+import { validateTermsAcceptance } from "./terms-acceptance";
 import {
   users,
   sessions,
   accounts,
   verifications,
-  projects,
 } from "../db/schema";
-const LEGACY_OWNER = "legacy-project-owner";
 // Emails go out after the response so slow providers don't delay requests
 // and response timing doesn't reveal whether an account exists.
 function runInBackground(task: Promise<unknown>) {
@@ -46,11 +47,13 @@ function makeAuth() {
     secret: config.BETTER_AUTH_SECRET,
     database: drizzleAdapter(getDb(), {
       provider: "pg",
+      transaction: true,
       schema: {
         user: users,
         session: sessions,
         account: accounts,
         verification: verifications,
+        termsAcceptance: schema.termsAcceptances,
         jwks: schema.oauthJwks,
         oauthClient: schema.oauthClients,
         oauthResource: schema.oauthResources,
@@ -63,6 +66,21 @@ function makeAuth() {
     }),
     disabledPaths: ["/token"],
     plugins: [
+      {
+        id: "ramblo-terms-evidence",
+        schema: {
+          termsAcceptance: {
+            fields: {
+              userId: { type: "string", required: true },
+              termsVersion: { type: "string", required: true },
+              termsContent: { type: "string", required: true },
+              termsHash: { type: "string", required: true },
+              acceptedAt: { type: "date", required: true },
+              acceptanceSource: { type: "string", required: true },
+            },
+          },
+        },
+      },
       jwt({ jwt: { issuer: appOrigin() + "/api/auth" } }),
       ...oauthPlugins(),
     ],
@@ -98,12 +116,55 @@ function makeAuth() {
     advanced: { backgroundTasks: { handler: runInBackground } },
     trustedOrigins: [appOrigin()],
     rateLimit: { enabled: true },
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === "/sign-up/email") validateTermsAcceptance(ctx.body);
+      }),
+    },
     databaseHooks: {
       user: {
         create: {
+          before: async (user, ctx) => {
+            // Also fail closed if a future auth provider introduces another signup path.
+            if (ctx?.path !== "/sign-up/email")
+              throw new APIError("BAD_REQUEST", {
+                code: "TERMS_ACCEPTANCE_REQUIRED",
+                message:
+                  "Create your account using the signup form and accept the Terms of Service first.",
+              });
+            validateTermsAcceptance(ctx.body);
+            return { data: user };
+          },
           after: async (user) => {
             logger.info("auth.user.created", { userId: user.id });
-            logger.info("auth.workspace.ready", { userId: user.id });
+          },
+        },
+      },
+      account: {
+        create: {
+          before: async (account, ctx) => {
+            if (ctx?.path === "/sign-up/email") {
+              const terms = validateTermsAcceptance(ctx.body);
+              // Signup's outer transaction contains user, evidence and password account.
+              // An evidence failure must roll the entire registration back.
+              const adapter = await getCurrentAdapter(ctx.context.adapter);
+              await adapter.create({
+                model: "termsAcceptance",
+                forceAllowId: true,
+                data: {
+                  id: randomUUID(),
+                  userId: account.userId,
+                  termsVersion: terms.version,
+                  termsContent: terms.content,
+                  termsHash: terms.hash,
+                  acceptedAt: new Date(),
+                  acceptanceSource: ctx.body?.oauth_query
+                    ? "oauth_signup"
+                    : "email_signup",
+                },
+              });
+            }
+            return { data: account };
           },
         },
       },
@@ -115,9 +176,9 @@ const state = globalThis as typeof globalThis & {
   dispatchAuthVersion?: string;
 };
 export function getAuth() {
-  if (state.dispatchAuthVersion !== "email-verification-v1") {
+  if (state.dispatchAuthVersion !== "terms-acceptance-v1") {
     state.dispatchAuth = undefined;
-    state.dispatchAuthVersion = "email-verification-v1";
+    state.dispatchAuthVersion = "terms-acceptance-v1";
   }
   return (state.dispatchAuth ??= makeAuth());
 }

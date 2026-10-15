@@ -4,7 +4,7 @@ import { site } from "@/lib/public-site";
 export const metadata: Metadata = {
   title: "Company details | Ramblo",
   description:
-    "Legal and contact information for Growth Optimize SL, the operator of Ramblo.",
+    "Legal and contact information for Ivan Sashov Stoilov, the operator of Ramblo.",
   alternates: { canonical: "/legal" },
 };
 export default function LegalPage() {
@@ -23,7 +23,7 @@ export default function LegalPage() {
     >
       <PageIntro
         title="Company details"
-        description="Ramblo is operated by Growth Optimize SL."
+        description="Ramblo is operated by Ivan Sashov Stoilov, a sole proprietor (autónomo) in Spain."
       />
       <dl className="flex flex-col divide-y">
         {details.map(([label, value]) => (

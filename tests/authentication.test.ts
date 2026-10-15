@@ -1,3 +1,4 @@
+import { acceptedSignup } from "./helpers/terms";
 import sharp from "sharp";
 import { GET as previewImage } from "../src/app/api/posts/[id]/image/route";
 import { removeImage, getAssetUrl } from "../src/lib/storage";
@@ -38,7 +39,11 @@ function request(path: string, method = "GET", cookie = "", body?: unknown) {
   return new Request(origin + path, {
     method,
     headers: { origin, cookie, "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body
+      ? JSON.stringify(
+          path.endsWith("/sign-up/email") ? acceptedSignup(body) : body,
+        )
+      : undefined,
   });
 }
 function cookies(response: Response) {
@@ -121,6 +126,7 @@ test(
           );
         },
       );
+      await getDb().insert(projects).values([{userId:a.id, name:"Auth A"},{userId:b.id, name:"Auth B"}]);
       const aProjects = await (
         await listProjects(request("/api/projects", "GET", a.cookie))
       ).json();
@@ -360,6 +366,7 @@ test(
             }),
           );
           const tools = (await toolResponse.json()).result.tools;
+          assert.ok(tools.every((tool: {name:string}) => !/publish|schedule|approve/.test(tool.name)));
           const mainTool = tools.find(
             (tool: { name: string }) => tool.name === "create_draft",
           );

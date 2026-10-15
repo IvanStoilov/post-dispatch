@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import AuthForm from "../../auth-form";
 import { parseAuthQuery } from "../../auth-query";
+import { currentTerms } from "@/lib/terms";
 export default async function Page({
   searchParams,
 }: {
@@ -15,5 +16,13 @@ export default async function Page({
     (await getAuth().api.getSession({ headers: await headers() }))
   )
     redirect(appPageUrl());
-  return <AuthForm mode="signup" oauthQuery={oauthQuery} notice={notice} />;
+  const terms = currentTerms();
+  return (
+    <AuthForm
+      mode="signup"
+      oauthQuery={oauthQuery}
+      notice={notice}
+      terms={{ version: terms.version, hash: terms.hash }}
+    />
+  );
 }

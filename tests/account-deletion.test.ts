@@ -1,3 +1,4 @@
+import { acceptedSignup } from "./helpers/terms";
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -75,7 +76,9 @@ test(
           cookie: cookies,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(
+          path.endsWith("/sign-up/email") ? acceptedSignup(body) : body,
+        ),
       });
     async function fixture() {
       const email = `delete-${randomUUID()}@example.test`,
@@ -98,10 +101,7 @@ test(
         req("/api/auth/sign-in/email", { email, password }),
       );
       assert.equal(signin.status, 200);
-      const [project] = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.userId, user.id));
+      const [project] = await db.insert(projects).values({ userId: user.id, name: "Deletion fixture" }).returning();
       projectIds.push(project.id);
       return {
         id: user.id,

@@ -1,3 +1,4 @@
+import { acceptedSignup } from "./helpers/terms";
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -90,7 +91,9 @@ test(
           origin,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(
+          path.endsWith("/sign-up/email") ? acceptedSignup(body) : body,
+        ),
       });
     async function fixture() {
       const email = `project-delete-${randomUUID()}@example.test`,
@@ -113,10 +116,7 @@ test(
         req("/api/auth/sign-in/email", { email, password }),
       );
       assert.equal(signin.status, 200);
-      const [project] = await db
-        .select()
-        .from(projects)
-        .where(eq(projects.userId, user.id));
+      const [project] = await db.insert(projects).values({ userId: user.id, name: "Deletion fixture" }).returning();
       projectIds.push(project.id);
       return { id: user.id, cookie: cookie(signin), project };
     }
@@ -170,61 +170,49 @@ test(
         caption: "Preserve this draft",
         platforms: ["facebook"],
       });
-      await db
-        .insert(postAssets)
-        .values({
-          id: randomUUID(),
-          postId: post.id,
-          position: 0,
-          kind: "IMAGE",
-          mimeType: "image/jpeg",
-          imageBucket: "project-deletion-test",
-          imageKey: `${a.project.id}/image.jpg`,
-        });
-      await db
-        .insert(imageUploads)
-        .values({
-          projectId: a.project.id,
-          imageBucket: "project-deletion-test",
-          imageKey: `${a.project.id}/unused.jpg`,
-          expiresAt: new Date(Date.now() + 3600000).toISOString(),
-        });
-      await db
-        .insert(directUploads)
-        .values({
-          projectId: a.project.id,
-          imageBucket: "project-deletion-test",
-          imageKey: `${a.project.id}/pending/file`,
-          mimeType: "image/jpeg",
-          fileSize: 100,
-          completionTokenHash: "d".repeat(64),
-          expiresAt: new Date(Date.now() + 3600000).toISOString(),
-        });
-      await db
-        .insert(uploadTokens)
-        .values({
-          projectId: a.project.id,
-          tokenHash: "e".repeat(64),
-          uploadsRemaining: 1,
-          expiresAt: new Date(Date.now() + 3600000).toISOString(),
-        });
-      await db
-        .insert(projectConnectors)
-        .values({
-          projectId: a.project.id,
-          provider: "facebook",
-          accountId: "test-page",
-          accessToken: "secret-token",
-        });
-      await db
-        .insert(postPublications)
-        .values({
-          projectId: a.project.id,
-          postId: post.id,
-          platform: "facebook",
-          remotePostId: "published-copy",
-          publishedAt: new Date(),
-        });
+      await db.insert(postAssets).values({
+        id: randomUUID(),
+        postId: post.id,
+        position: 0,
+        kind: "IMAGE",
+        mimeType: "image/jpeg",
+        imageBucket: "project-deletion-test",
+        imageKey: `${a.project.id}/image.jpg`,
+      });
+      await db.insert(imageUploads).values({
+        projectId: a.project.id,
+        imageBucket: "project-deletion-test",
+        imageKey: `${a.project.id}/unused.jpg`,
+        expiresAt: new Date(Date.now() + 3600000).toISOString(),
+      });
+      await db.insert(directUploads).values({
+        projectId: a.project.id,
+        imageBucket: "project-deletion-test",
+        imageKey: `${a.project.id}/pending/file`,
+        mimeType: "image/jpeg",
+        fileSize: 100,
+        completionTokenHash: "d".repeat(64),
+        expiresAt: new Date(Date.now() + 3600000).toISOString(),
+      });
+      await db.insert(uploadTokens).values({
+        projectId: a.project.id,
+        tokenHash: "e".repeat(64),
+        uploadsRemaining: 1,
+        expiresAt: new Date(Date.now() + 3600000).toISOString(),
+      });
+      await db.insert(projectConnectors).values({
+        projectId: a.project.id,
+        provider: "facebook",
+        accountId: "test-page",
+        accessToken: "secret-token",
+      });
+      await db.insert(postPublications).values({
+        projectId: a.project.id,
+        postId: post.id,
+        platform: "facebook",
+        remotePostId: "published-copy",
+        publishedAt: new Date(),
+      });
       for (const projectId of [a.project.id, keep.id])
         assert.equal(
           (

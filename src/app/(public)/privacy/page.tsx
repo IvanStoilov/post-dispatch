@@ -178,6 +178,15 @@ export default function PrivacyPage() {
       </DocumentSection>
       <DocumentSection id="storage" title="Storage, security, and retention">
         <p>
+          We record affirmative Terms of Service acceptance as contractual
+          evidence: account identifier, exact accepted text, version, SHA-256
+          hash, UTC time and acceptance source. These append-only records are
+          retained separately from account data following closure for legal
+          accountability and the establishment, exercise or defence of legal
+          claims, subject to applicable retention and data-protection
+          requirements. They do not authorise publication.
+        </p>
+        <p>
           Uploaded and imported post media is maintained in private object
           storage. Access is made available to authenticated Users and
           authorised tools in accordance with application permissions. Temporary

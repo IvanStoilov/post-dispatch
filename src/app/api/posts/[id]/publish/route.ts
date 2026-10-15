@@ -15,6 +15,7 @@ export async function POST(
         const { post, jobIds } = await enqueuePublication(
           projectId,
           (await ctx.params).id,
+          userId,
         );
         after(async () => {
           for (const id of jobIds) await dispatchPublishingJob(id);

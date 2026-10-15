@@ -1,3 +1,4 @@
+import { acceptedSignup } from "./helpers/terms";
 import { appPagePath } from "../src/lib/origins";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -40,7 +41,11 @@ const req = (
       origin: requestOrigin,
       "Content-Type": "application/json",
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body
+      ? JSON.stringify(
+          path.endsWith("/sign-up/email") ? acceptedSignup(body) : body,
+        )
+      : undefined,
   });
 
 test(

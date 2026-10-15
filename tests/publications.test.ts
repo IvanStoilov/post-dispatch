@@ -85,7 +85,7 @@ test(
       });
       connectors.facebook.publish = async () => "fb-remote-id";
       connectors.linkedin.publish = async () => "urn:li:share:1234";
-      const queued = await enqueuePublication(projectId, post.id);
+      const queued = await enqueuePublication(projectId, post.id, userId);
       for (const id of queued.jobIds) await processPublishingJob(id);
       let copies = await listPublications(projectId, post.id);
       assert.equal(copies.length, 2);

@@ -10,7 +10,7 @@ import {
   type PublishJob,
 } from "../db/schema";
 import { hydrate, toPost } from "./store";
-import { getProject, isConnected } from "./projects";
+import { getProject, getOwnedProject, isConnected } from "./projects";
 import { connectors } from "./connectors/registry";
 import { MediaPending, type PublishState } from "./connectors/types";
 import { reconcileSubmission } from "./connectors/reconcile";
@@ -28,14 +28,25 @@ export const publishingQueue = createQueue<{ jobId: string }>(
   async (message) => processPublishingJob(messageSchema.parse(message).jobId),
 );
 
-export async function enqueuePublication(projectId: string, postId: string) {
+export async function enqueuePublication(
+  projectId: string,
+  postId: string,
+  authorizedBy: string,
+) {
   return loggedOperation(
     "lib.publish-jobs.enqueuePublication",
     { projectId, postId },
     async () => {
       z.uuid().parse(projectId);
       z.uuid().parse(postId);
-      const project = await getProject(projectId);
+      if (!authorizedBy)
+        throw new Error("Explicit user authorization is required");
+      const project = await getOwnedProject(authorizedBy, projectId);
+      const authorization = {
+        userId: authorizedBy,
+        authorizedAt: new Date().toISOString(),
+        source: "user_publish" as const,
+      };
       return getDb().transaction(async (tx) => {
         const [row] = await tx
           .select()
@@ -98,6 +109,7 @@ export async function enqueuePublication(projectId: string, postId: string) {
                 (c) => c.provider === platform,
               )!.accountId,
               snapshot: {
+                authorization,
                 post,
                 assets: media.assets,
                 externalUrl: row.imageUrl,

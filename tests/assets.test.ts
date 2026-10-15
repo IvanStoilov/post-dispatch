@@ -1,3 +1,4 @@
+import { acceptedSignup } from "./helpers/terms";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -123,7 +124,9 @@ test(
       new Request(origin + "/api/auth/sign-up/email", {
         method: "POST",
         headers: { "Content-Type": "application/json", origin },
-        body: JSON.stringify({ name: "Media test", email, password }),
+        body: JSON.stringify(
+          acceptedSignup({ name: "Media test", email, password }),
+        ),
       }),
     );
     assert.equal(signup.status, 200);

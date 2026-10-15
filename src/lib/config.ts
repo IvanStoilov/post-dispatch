@@ -110,12 +110,9 @@ export const configSchema = z.object({
   COMPANY_REGISTERED_ADDRESS: z
     .string()
     .min(1)
-    .default("Av. de la Pineda 2, 08860 Castelldefels, Barcelona, Spain"),
-  COMPANY_TAX_ID: z.string().min(1).default("B23991748"),
-  COMPANY_REGISTRY_DETAILS: z
-    .string()
-    .min(1)
-    .default("Registro Mercantil de Barcelona"),
+    .default("Av. de la Pineda 2, 08860 Castelldefels, Spain"),
+  COMPANY_TAX_ID: z.string().min(1).default("Y4966626C"),
+  COMPANY_REGISTRY_DETAILS: z.string().default(""),
   FONTCONFIG_FILE: optionalText,
 });
 export type Config = z.infer<typeof configSchema>;

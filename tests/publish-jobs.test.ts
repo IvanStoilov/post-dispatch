@@ -116,7 +116,7 @@ test(
             );
           try {
             await assert.rejects(
-              enqueuePublication(projectId, post.id),
+              enqueuePublication(projectId, post.id, userId),
               /Connect instagram before publishing/,
             );
             assert.equal((await jobs(post.id)).length, 0);
@@ -142,13 +142,19 @@ test(
         "approval and outbox are atomic, ownership checked, repeated clicks idempotent",
         async () => {
           const post = await draft(["facebook", "linkedin"]);
-          await assert.rejects(enqueuePublication(randomUUID(), post.id));
+          await assert.rejects(enqueuePublication(projectId, post.id, ""), /authorization/);
+          await assert.rejects(enqueuePublication(projectId, post.id, randomUUID()), /Project not found/);
+          await assert.rejects(
+            enqueuePublication(randomUUID(), post.id, userId),
+          );
           const [a, b] = await Promise.all([
-            enqueuePublication(projectId, post.id),
-            enqueuePublication(projectId, post.id),
+            enqueuePublication(projectId, post.id, userId),
+            enqueuePublication(projectId, post.id, userId),
           ]);
           assert.deepEqual(new Set(a.jobIds), new Set(b.jobIds));
           assert.equal((await jobs(post.id)).length, 2);
+          assert.equal((await jobs(post.id))[0].snapshot.authorization?.userId, userId);
+          assert.equal((await jobs(post.id))[0].snapshot.authorization?.source, "user_publish");
           assert.equal(
             (await getPostImage(projectId, post.id)).status,
             "publishing",
@@ -190,7 +196,11 @@ test(
             return "processed-media";
           };
           const post = await draft();
-          const { jobIds } = await enqueuePublication(projectId, post.id);
+          const { jobIds } = await enqueuePublication(
+            projectId,
+            post.id,
+            userId,
+          );
           await processPublishingJob(jobIds[0]);
           const [job] = await jobs(post.id);
           assert.equal(job.status, "waiting");
@@ -215,7 +225,11 @@ test(
             throw new Error("private-token upload rejected");
           };
           const post = await draft();
-          const { jobIds } = await enqueuePublication(projectId, post.id);
+          const { jobIds } = await enqueuePublication(
+            projectId,
+            post.id,
+            userId,
+          );
           for (let i = 0; i < 5; i++) {
             await due(jobIds[0]);
             await processPublishingJob(jobIds[0]);
@@ -247,7 +261,11 @@ test(
             return "li-saved";
           };
           const post = await draft(["facebook", "linkedin"]);
-          const { jobIds } = await enqueuePublication(projectId, post.id);
+          const { jobIds } = await enqueuePublication(
+            projectId,
+            post.id,
+            userId,
+          );
           for (const id of jobIds) await processPublishingJob(id);
           let rows = await jobs(post.id);
           const retry = rows.find((j) => j.platform === "linkedin")!;
@@ -289,7 +307,11 @@ test(
             return "once";
           };
           const post = await draft();
-          const { jobIds } = await enqueuePublication(projectId, post.id);
+          const { jobIds } = await enqueuePublication(
+            projectId,
+            post.id,
+            userId,
+          );
           const first = processPublishingJob(jobIds[0]);
           await started;
           try {
@@ -319,7 +341,11 @@ test(
             return "should-not-happen";
           };
           const post = await draft();
-          const { jobIds } = await enqueuePublication(projectId, post.id);
+          const { jobIds } = await enqueuePublication(
+            projectId,
+            post.id,
+            userId,
+          );
           await assert.rejects(
             processPublishingJob(jobIds[0]),
             /lease was lost/,
@@ -353,7 +379,11 @@ test(
             throw new Error("Lost response after remote publish");
           };
           const post = await draft();
-          const { jobIds } = await enqueuePublication(projectId, post.id);
+          const { jobIds } = await enqueuePublication(
+            projectId,
+            post.id,
+            userId,
+          );
           await processPublishingJob(jobIds[0]);
           assert.equal((await jobs(post.id))[0].status, "needs_review");
           await processPublishingJob(jobIds[0]);
@@ -372,7 +402,11 @@ test(
         "an interrupted submitting job checks its saved Instagram container",
         async () => {
           const post = await draft();
-          const { jobIds } = await enqueuePublication(projectId, post.id);
+          const { jobIds } = await enqueuePublication(
+            projectId,
+            post.id,
+            userId,
+          );
           await getDb()
             .update(publishJobs)
             .set({
@@ -411,7 +445,11 @@ test(
             return "completed-channel";
           };
           const post = await draft(["facebook", "linkedin"]);
-          const { jobIds } = await enqueuePublication(projectId, post.id);
+          const { jobIds } = await enqueuePublication(
+            projectId,
+            post.id,
+            userId,
+          );
           const rows = await jobs(post.id);
           await processPublishingJob(
             rows.find((j) => j.platform === "facebook")!.id,
@@ -468,7 +506,7 @@ test(
         "the recovery sweep delivers a committed outbox even without an initial enqueue",
         async () => {
           const post = await draft();
-          await enqueuePublication(projectId, post.id);
+          await enqueuePublication(projectId, post.id, userId);
           connectors.facebook.publish = async ({ progress }) => {
             await progress!.beforeSubmit();
             return "recovered-outbox";

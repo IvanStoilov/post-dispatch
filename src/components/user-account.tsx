@@ -24,8 +24,19 @@ import {
 } from "./ui/alert-dialog";
 import { toast } from "./ui/sonner";
 import { Trash2 } from "lucide-react";
+import { LegalAgreements } from "./legal-agreements";
 
-export function UserAccount({ name, email }: { name: string; email: string }) {
+export function UserAccount({
+  name,
+  email,
+  agreements,
+  terms,
+}: {
+  name: string;
+  email: string;
+  agreements: { id: string; termsVersion: string; acceptedAt: string }[];
+  terms: { version: string; hash: string };
+}) {
   const appPath = useAppPath();
   const [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false);
@@ -62,6 +73,7 @@ export function UserAccount({ name, email }: { name: string; email: string }) {
           </div>
         </CardContent>
       </Card>
+      <LegalAgreements records={agreements} terms={terms} />
       <Card className="border-destructive/30">
         <CardHeader>
           <CardTitle>Delete account</CardTitle>
@@ -74,7 +86,9 @@ export function UserAccount({ name, email }: { name: string; email: string }) {
             This removes your drafts, connection credentials, publication
             records, and assistant access. Stored media is scheduled for
             permanent removal. Posts already published on social networks remain
-            there. Stop any external scheduled automations separately.
+            there. Stop any external scheduled automations separately. Original
+            terms acceptance evidence is retained separately for legal
+            accountability.
           </p>
           <Button variant="destructive" onClick={() => changeOpen(true)}>
             <Trash2 aria-hidden="true" />

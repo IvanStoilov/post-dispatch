@@ -1,3 +1,4 @@
+import { acceptedSignup } from "./helpers/terms";
 import { appPagePath } from "../src/lib/origins";
 import { DELETE as disconnectGrant } from "../src/app/api/mcp-settings/oauth/route";
 import { rotateAccountToken } from "../src/lib/mcp-account";
@@ -42,7 +43,11 @@ function req(path: string, method = "GET", body?: unknown, cookie = "") {
       origin,
       cookie,
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body
+      ? JSON.stringify(
+          path.endsWith("/sign-up/email") ? acceptedSignup(body) : body,
+        )
+      : undefined,
   });
 }
 function cookies(response: Response) {
@@ -118,6 +123,8 @@ test(
       }
       const a = await signup(),
         b = await signup();
+      await createProject(a.user.id, { name: "OAuth primary" });
+      await createProject(b.user.id, { name: "OAuth other" });
       const project = (await listProjects(a.user.id))[0];
       const other = (await listProjects(b.user.id))[0];
       const secondProject = await createProject(a.user.id, {

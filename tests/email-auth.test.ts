@@ -1,3 +1,4 @@
+import { acceptedSignup } from "./helpers/terms";
 import { appPagePath } from "../src/lib/origins";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -17,7 +18,11 @@ function request(path: string, method = "GET", cookie = "", body?: unknown) {
   return new Request(path.startsWith("http") ? path : origin + path, {
     method,
     headers: { origin, cookie, "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body
+      ? JSON.stringify(
+          path.endsWith("/sign-up/email") ? acceptedSignup(body) : body,
+        )
+      : undefined,
   });
 }
 function cookies(response: Response) {

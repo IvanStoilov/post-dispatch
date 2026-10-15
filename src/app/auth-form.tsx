@@ -22,6 +22,7 @@ import {
   FieldError,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { ArrowRight, AlertCircle, CheckCircle2, MailCheck } from "lucide-react";
@@ -49,10 +50,12 @@ export default function AuthForm({
   mode,
   oauthQuery,
   notice,
+  terms,
 }: {
   mode: "signin" | "signup";
   oauthQuery?: string;
   notice?: AuthNotice;
+  terms?: { version: string; hash: string };
 }) {
   const hydrated = useSyncExternalStore(
     subscribeToHydration,
@@ -68,6 +71,7 @@ export default function AuthForm({
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   // Set once a confirmation email is on its way; switches to the inbox view.
   const [sentTo, setSentTo] = useState("");
   const [resent, setResent] = useState(false);
@@ -75,6 +79,10 @@ export default function AuthForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (signup && (!termsAccepted || !terms)) {
+      setError("You must read and agree to Ramblo's Terms of Service.");
+      return;
+    }
     if (signup && password !== confirmation) {
       setError("Your passwords do not match.");
       confirmationInput.current?.focus();
@@ -92,6 +100,11 @@ export default function AuthForm({
             email: email.trim(),
             password,
             callbackURL,
+            ...{
+              termsAccepted,
+              termsVersion: terms?.version,
+              termsHash: terms?.hash,
+            },
             ...(oauthQuery ? { oauth_query: oauthQuery } : {}),
           })
         : await authClient.signIn.email({
@@ -324,6 +337,36 @@ export default function AuthForm({
                   )}
                 </Field>
               )}
+              {signup && (
+                <Field orientation="horizontal" className="items-start">
+                  <Checkbox
+                    id="terms-accepted"
+                    name="termsAccepted"
+                    required
+                    checked={termsAccepted}
+                    disabled={!hydrated || busy}
+                    onCheckedChange={(value) =>
+                      setTermsAccepted(value === true)
+                    }
+                    className="mt-1"
+                  />
+                  <label
+                    htmlFor="terms-accepted"
+                    className="text-sm leading-6 cursor-pointer"
+                  >
+                    I have read and agree to Ramblo&apos;s{" "}
+                    <Link
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="document-link"
+                    >
+                      Terms of Service
+                    </Link>
+                    .
+                  </label>
+                </Field>
+              )}
               {error && !mismatch && (
                 <Alert variant="destructive">
                   <AlertCircle aria-hidden="true" />
@@ -333,7 +376,9 @@ export default function AuthForm({
               <Button
                 type="submit"
                 size="lg"
-                disabled={!hydrated || busy}
+                disabled={
+                  !hydrated || busy || (signup && (!termsAccepted || !terms))
+                }
                 className="w-full"
               >
                 {busy && <Spinner data-icon="inline-start" />}
@@ -366,11 +411,11 @@ export default function AuthForm({
         </CardFooter>
       </Card>
       <p className="max-w-sm text-center text-xs leading-6 text-muted-foreground">
-        {signup ? "By creating an account, you agree to our " : "Read our "}
+        Read our{" "}
         <Link className="document-link" href="/terms">
           Terms
         </Link>
-        {signup ? ". See how we handle your information in our " : " and "}
+        {" and "}
         <Link className="document-link" href="/privacy">
           Privacy policy
         </Link>

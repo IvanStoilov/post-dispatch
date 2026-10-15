@@ -6,7 +6,7 @@ import {
   DeleteObjectsCommand,
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
-import { config, requireConfig } from "../../config";
+import { requireConfig } from "../../config";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { StorageProvider } from "../types";
 
@@ -40,7 +40,9 @@ export function s3Client() {
 
 export const s3Provider: StorageProvider = {
   name: "s3",
-  bucket: config.AWS_S3_BUCKET || "BucketNotConfigured",
+  get bucket() {
+    return requireConfig("AWS_S3_BUCKET");
+  },
   async getAssetUrl({ bucket, key }, expiresIn = 3600) {
     return getSignedUrl(
       s3Client(),
