@@ -41,11 +41,11 @@ import {
 import {
   Inbox,
   Send,
-  Plug,
   Code2,
   Plus,
   LogOut,
   ShieldCheck,
+  Cog,
 } from "lucide-react";
 type Counts = { drafts: number; published: number };
 const Workspace = createContext<{
@@ -60,7 +60,7 @@ export function useWorkspace() {
 const navigation = [
   { section: "inbox", label: "Inbox", icon: Inbox },
   { section: "published", label: "Published", icon: Send },
-  { section: "connections", label: "Connections", icon: Plug },
+  { section: "connections", label: "Settings", icon: Cog },
   { section: "assistant", label: "MCP integration", icon: Code2 },
 ] as const;
 function Navigation({

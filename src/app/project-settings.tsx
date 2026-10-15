@@ -198,8 +198,22 @@ export default function ProjectSettings({
                 />
               </Field>
             </FieldGroup>
+            <div className="flex mt-6">
+              <Button type="submit" size="lg" disabled={busy}>
+                {busy ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <Save data-icon="inline-start" aria-hidden="true" />
+                )}
+                {busy ? "Saving…" : "Save project settings"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
+        <div className="flex flex-col gap-2 mt-6">
+          <h2 className="text-lg font-bold">Connected channels</h2>
+          <p>Choose where this project’s posts go live.</p>
+        </div>
         <div className="grid gap-6 lg:grid-cols-2">
           {platforms.map((provider) => {
             const facebook = provider === "facebook";
@@ -240,15 +254,6 @@ export default function ProjectSettings({
                   </CardAction>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-5">
-                  <Button
-                    type="button"
-                    size="lg"
-                    variant={configured ? "outline" : "default"}
-                    disabled={busy}
-                    onClick={() => void connect(provider)}
-                  >
-                    {configured ? `Reconnect ${label}` : `Connect ${label}`}
-                  </Button>
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     {facebook
                       ? "Sign in with Facebook, grant publishing access, and choose your Page."
@@ -372,23 +377,27 @@ export default function ProjectSettings({
                       Disconnect
                     </Button>
                   )}
+                  <div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={configured ? "outline" : "default"}
+                      disabled={busy}
+                      onClick={() => void connect(provider)}
+                    >
+                      {configured ? `Reconnect ${label}` : `Connect ${label}`}
+                    </Button>
+                  </div>
                 </CardFooter>
               </Card>
             );
           })}
         </div>
-
-        <div className="flex justify-end">
-          <Button type="submit" size="lg" disabled={busy}>
-            {busy ? (
-              <Spinner data-icon="inline-start" />
-            ) : (
-              <Save data-icon="inline-start" aria-hidden="true" />
-            )}
-            {busy ? "Saving…" : "Save project settings"}
-          </Button>
-        </div>
       </form>
+      <div className="flex flex-col gap-2 mt-6">
+        <h2 className="text-lg font-bold">Account deletion</h2>
+        <p>Permanently delete this project and all associated data.</p>
+      </div>
       <DeleteProject project={project} disabled={busy} />
       <AlertDialog
         open={!!disconnecting}

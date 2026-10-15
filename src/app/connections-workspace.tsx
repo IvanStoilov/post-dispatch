@@ -9,9 +9,9 @@ export default function ConnectionsPage() {
   return (
     <>
       <div>
-        <h1 className="display-m">Projects & channels</h1>
+        <h1 className="display-m">Project settings</h1>
         <p className="text-sm text-muted-foreground">
-          Choose where this project’s posts go live.
+          Manage your project settings and configurations.
         </p>
       </div>
       <ProjectSettings
