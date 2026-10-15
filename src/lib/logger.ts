@@ -162,6 +162,7 @@ const developmentFormat = winston.format.printf((info) => {
     route,
     status,
     durationMs,
+    error,
     ...details
   } = info;
   const value = (entry: unknown) =>
@@ -176,7 +177,8 @@ const developmentFormat = winston.format.printf((info) => {
         : level === "info"
           ? `\x1b[36m${level.toUpperCase()}\x1b[0m`
           : `\x1b[90m${level.toUpperCase()}\x1b[0m`;
-  return [
+
+  const line = [
     new Date(String(timestamp)).toISOString(),
     levelColored,
     String(message).replace(/[\r\n]+/g, " "),
@@ -190,6 +192,14 @@ const developmentFormat = winston.format.printf((info) => {
   ]
     .filter((entry) => entry !== undefined && entry !== "")
     .join(" ");
+
+  const errorMessage = error
+    ? typeof error === "object" && error && "stack" in error
+      ? error.stack
+      : value(error)
+    : null;
+
+  return line + (error ? `\n\x1b[31m${errorMessage}\x1b[0m` : "");
 });
 
 const level = config.LOG_LEVEL;

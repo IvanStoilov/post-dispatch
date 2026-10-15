@@ -10,6 +10,7 @@ import {
   MoreVertical,
   Send,
   AlertCircle,
+  CircleAlert,
 } from "lucide-react";
 import {
   Card,
@@ -31,6 +32,16 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import MediaGallery from "@/app/media-gallery";
 import type { Post, Platform } from "@/lib/types";
 import { cn } from "cn";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
+import { PlatformName } from "./platform-name";
 
 export function PlatformBadge({ platform }: { platform: Platform }) {
   const Icon = channelIcons[platform];
@@ -63,7 +74,7 @@ export function PostCard({
     needs_review: {
       label: "Needs attention",
       icon: AlertCircle,
-      color: "destructive",
+      color: "destructive-strong",
     },
   }[post.status];
   return (
@@ -79,7 +90,7 @@ export function PostCard({
             <Badge
               variant={
                 post.status === "needs_review"
-                  ? "destructive"
+                  ? "destructive-strong"
                   : post.status === "published"
                     ? "default"
                     : "secondary"
@@ -110,12 +121,50 @@ export function PostCard({
               aria-live="polite"
             >
               {post.deliveries.map((delivery) => (
-                <p key={delivery.platform}>
+                <div key={delivery.platform}>
                   {channelLabels[delivery.platform]}:{" "}
                   <ChannelStatus status={delivery.status} />
-                </p>
+                </div>
               ))}
             </div>
+          )}
+          {post.deliveries?.some((delivery) => delivery.error) && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  See problems
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delivery Errors</DialogTitle>
+                  <DialogDescription>
+                    Some of the deliveries for this post have encountered
+                    errors.
+                  </DialogDescription>
+                  {post.deliveries
+                    ?.map((delivery) => delivery.error)
+                    .filter(Boolean).length > 0 &&
+                    post.deliveries
+                      ?.filter((delivery) => delivery.error)
+                      .map((delivery, index) => (
+                        <div key={index} className="mb-2">
+                          <div className="font-medium mb-1">
+                            <PlatformName platform={delivery.platform} />
+                          </div>
+                          <div className="text-destructive flex items-start gap-1 shrink-0">
+                            <CircleAlert
+                              size={14}
+                              className="shrink-0 mt-0.5"
+                              aria-hidden="true"
+                            />
+                            <span>{delivery.error}</span>
+                          </div>
+                        </div>
+                      ))}
+                </DialogHeader>
+              </DialogContent>
+            </Dialog>
           )}
           {!!post.publications?.length && (
             <PublicationPanel
@@ -123,14 +172,6 @@ export function PostCard({
               postId={post.id}
               initial={post.publications}
             />
-          )}
-          {post.error && (
-            <Alert variant="destructive">
-              <AlertCircle aria-hidden="true" />
-              <AlertDescription className="break-words">
-                {post.error}
-              </AlertDescription>
-            </Alert>
           )}
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span className="flex min-w-0 items-center gap-1.5">
@@ -184,7 +225,7 @@ export function PostCard({
               </Button>
             </>
           ) : (
-            <p className="flex-1 text-sm leading-relaxed text-muted-foreground">
+            <div className="flex-1 text-sm leading-relaxed text-muted-foreground">
               {post.status === "published" ? (
                 <div className="text-success text-right">
                   Delivered to your channels.
@@ -194,7 +235,7 @@ export function PostCard({
               ) : (
                 "Check your channels before resubmitting."
               )}
-            </p>
+            </div>
           )}
           {post.status === "needs_review" &&
             post.deliveries?.some((d) => d.status === "failed") && (
@@ -217,7 +258,7 @@ function ChannelStatus({ status }: { status: string }) {
     published: { label: "✓ Published", color: "success" },
     failed: { label: "Failed before submission", color: "destructive" },
     needs_review: {
-      label: "Check account — outcome uncertain",
+      label: "Check account - outcome uncertain",
       color: "destructive",
     },
   };
