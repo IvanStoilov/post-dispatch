@@ -21,186 +21,259 @@ export default function PrivacyPage() {
     >
       <PageIntro
         title="Privacy policy"
-        description="How your information is used when you create, review, and publish with Ramblo."
+        description="Information concerning the collection, use, disclosure, and retention of personal data in connection with Ramblo."
       />
-      <PolicyDate />
-      <DocumentSection id="controller" title="Who operates Ramblo">
+      <PolicyDate date="2026-10-15" />
+      <DocumentSection
+        id="controller"
+        title="Identity and contact details of the controller"
+      >
         <p>
-          {site.operator}, based in {site.country}, operates Ramblo and is
-          responsible for personal data used to manage your account and provide
-          the service. Our registered address is {site.address}. Our tax ID is{" "}
-          {site.taxId}.
+          {site.operator}, established in {site.country}, with its registered
+          address at {site.address} and tax identification number {site.taxId},
+          operates Ramblo and is the controller of personal data processed for
+          account administration and the operation of the Service as described
+          in this Privacy Policy.
         </p>
         <p>
-          For privacy questions or requests, email{" "}
+          Questions concerning this Policy and requests relating to personal
+          data may be addressed to{" "}
           <a className="document-link" href={`mailto:${site.email}`}>
             {site.email}
           </a>
-          .{" "}
+          . Further corporate information is available in our{" "}
           <Link className="document-link" href="/legal">
-            View company details
+            legal notice
           </Link>
           .
         </p>
       </DocumentSection>
-      <DocumentSection id="information" title="Information we handle">
+      <DocumentSection
+        id="information"
+        title="Categories and sources of personal data"
+      >
+        <p>
+          Depending on the features used, the Service processes the following
+          categories of information, provided by you, submitted by an assistant
+          or automation service you authorise, obtained from connected accounts
+          within the permissions granted, or generated through operation of the
+          Service:
+        </p>
         <ul className="flex list-disc flex-col gap-3 pl-5">
           <li>
-            <strong className="text-foreground">Account information:</strong>{" "}
-            your name, email address, password hash, session records, and
-            available sign-in security information such as IP address and
-            browser details.
-          </li>
-          <li>
-            <strong className="text-foreground">Project content:</strong>{" "}
-            project names, draft titles and captions, uploaded or imported
-            images and videos, selected channels, and delivery results.
-          </li>
-          <li>
-            <strong className="text-foreground">Connection information:</strong>{" "}
-            social account IDs and names, authorization scopes, access tokens,
-            and expiry information. Assistant connections also include
-            authorization grants and token records.
+            <strong className="text-foreground">
+              Account and authentication data:
+            </strong>{" "}
+            name, email address, password hash, session and verification
+            records, and available sign-in security information, including IP
+            addresses and browser details.
           </li>
           <li>
             <strong className="text-foreground">
-              Operational information:
+              Project and publication data:
             </strong>{" "}
-            request details, errors, publishing responses, and support
-            correspondence. Diagnostic logs can contain post content and social
-            account identifiers; authentication credentials are redacted by the
-            application logger.
+            project names, draft titles and captions, uploaded or imported
+            images and videos, selected channels, publication identifiers and
+            links, delivery outcomes, and available publication metrics.
+          </li>
+          <li>
+            <strong className="text-foreground">
+              Connection and authorisation data:
+            </strong>{" "}
+            social-account identifiers and names, granted scopes, access tokens
+            and expiry details, assistant authorisation grants, and token
+            records.
+          </li>
+          <li>
+            <strong className="text-foreground">
+              Operational and correspondence data:
+            </strong>{" "}
+            technical request information, error and delivery responses, and
+            support correspondence. Diagnostic records may include post content
+            and social-account identifiers. The application logger applies
+            credential redaction to diagnostic output.
           </li>
         </ul>
       </DocumentSection>
-      <DocumentSection id="purposes" title="Why we use it">
+      <DocumentSection
+        id="purposes"
+        title="Purposes and legal bases of processing"
+      >
         <p>
-          We use this information to create and authenticate your account, keep
-          projects separate, store and display drafts, connect accounts you
-          authorize, publish posts you submit, troubleshoot errors, and answer
-          support requests.
+          Account creation and authentication, project administration, storage
+          and display of drafts, management of authorised connections, delivery
+          of User-approved publications, and responses to service requests are
+          undertaken as necessary to perform our agreement with you.
         </p>
         <p>
-          Providing the service and answering service requests is based on
-          performing our agreement with you. Protecting accounts, investigating
-          failures, and preventing misuse is based on our legitimate interests
-          in operating a reliable, secure service. We process information to
-          meet legal obligations where those apply. If we introduce an optional
-          activity that requires consent, we will request that consent
-          separately.
+          Security monitoring, investigation of technical failures, prevention
+          of misuse, and protection of the Service are undertaken on the basis
+          of our legitimate interests in maintaining a secure and reliable
+          service, subject to the rights and interests of affected individuals.
+          Processing necessary to satisfy a binding statutory or regulatory
+          requirement is undertaken on the basis of the applicable legal
+          obligation. Where an optional processing activity requires consent,
+          that consent will be requested separately.
         </p>
         <p>
-          Account and connection information is necessary to use the
-          corresponding features. You can browse these public pages without
-          creating an account.
-        </p>
-      </DocumentSection>
-      <DocumentSection id="sharing" title="Who receives your information">
-        <p>
-          Our infrastructure providers process information to operate Ramblo:
-          Vercel hosts the application, and Neon provides the configured
-          database and private object storage. Their services can also process
-          technical logs and maintain backups under their own contractual terms.
-        </p>
-        <p>
-          When you publish, the selected network—Meta for Facebook and
-          Instagram, or LinkedIn—receives the caption and media needed to create
-          the post. The resulting published content is subject to the network’s
-          privacy settings and policies.
-        </p>
-        <p>
-          An assistant or automation provider you connect can access information
-          from all your current and future projects exposed by the tools you
-          authorize, including drafts and their media references. ChatGPT,
-          Claude, and any automation or AI provider you choose have their own
-          terms and privacy practices. Ramblo receives submitted drafts; it does
-          not run an AI model to generate them itself.
-        </p>
-        <p>
-          Providers may process information outside Spain or the European
-          Economic Area. The applicable locations and transfer arrangements
-          depend on the provider and deployment configuration. Contact us for
-          information about the arrangements applying to your data. We may also
-          disclose information when legally required.
+          The account and connection information requested for a feature is
+          necessary to provide that feature. If it is not supplied, the
+          corresponding functionality may be unavailable. Public informational
+          pages may be accessed without creating an account.
         </p>
       </DocumentSection>
-      <DocumentSection id="storage" title="Storage and retention">
+      <DocumentSection id="sharing" title="Recipients of personal data">
         <p>
-          Draft media is stored privately. Authenticated users and authorized
-          tools can receive access to it; temporary media URLs are also provided
-          when necessary for delivery to social networks. Keep those URLs and
-          your account tokens private.
+          Infrastructure providers process information for the operation of the
+          Service.{" "}
+          <a className="document-link" href="https://vercel.com/">
+            Vercel
+          </a>{" "}
+          (Vercel Inc.) provides application hosting, and{" "}
+          <a className="document-link" href="https://neon.com/">
+            Neon
+          </a>{" "}
+          (Neon, LLC, part of Databricks, Inc.) provides the configured database
+          and private object storage. These providers may also process technical
+          logs and maintain backups in connection with their services. Providers
+          used for transactional email delivery process the recipient details
+          and message content necessary to deliver account verification,
+          password reset, and other service-related messages.
         </p>
         <p>
-          Account and project records are kept while you use the service, until
-          you delete the relevant content or request account deletion. Deleting
-          a post removes its Ramblo record and associated stored media. If media
-          removal fails, contact support so we can investigate. This does not
-          delete posts already published on social networks.
+          When you authorise publication, the designated social network—Meta’s
+          Facebook or Instagram services, or LinkedIn—receives the caption,
+          media, and associated information necessary to process the request.
+          Published content is subsequently subject to the destination network’s
+          privacy settings, terms, and policies.
         </p>
         <p>
-          Logs, support records, and provider backups may remain after active
-          records are removed, according to their retention cycles or where
-          needed to investigate an incident, meet legal obligations, or resolve
-          a dispute. Contact us for details of the retention applicable to a
-          specific request.
+          An assistant or automation provider authorised through an
+          account-level connection may access information exposed by the
+          permitted MCP tools across your existing and future projects,
+          including drafts and media references. ChatGPT, Claude, and other
+          providers selected by you apply their own terms and privacy policies.
+          Ramblo receives the content submitted through those connections and
+          does not itself operate an AI model to generate that content.
+        </p>
+        <p>
+          Information may also be disclosed to competent authorities or other
+          recipients where disclosure is required by applicable law or a binding
+          legal process.
         </p>
       </DocumentSection>
-      <DocumentSection id="cookies" title="Cookies and browser storage">
+      <DocumentSection id="transfers" title="International transfers">
         <p>
-          The application uses cookies necessary for sign-in, sessions, and
-          connecting accounts. It also uses browser storage to remember your
-          selected project and interface preferences. Our public pages do not
-          add advertising trackers or analytics scripts. Hosting services may
-          process technical request information to serve and protect the
-          application.
+          Infrastructure and connected-service providers may process information
+          outside Spain or the European Economic Area. Processing locations and
+          the transfer arrangements applicable to the Service depend on the
+          provider and deployment configuration. Information concerning the
+          destinations, applicable transfer arrangements, and safeguards
+          relevant to your data may be requested at the contact address above.
         </p>
       </DocumentSection>
-      <DocumentSection id="rights" title="Your rights">
+      <DocumentSection id="storage" title="Storage, security, and retention">
         <p>
-          Where applicable, you can request access to, correction of, deletion
-          of, or portability of your personal data, and ask to restrict or
-          object to processing. You can withdraw consent for processing based on
-          consent, without affecting earlier lawful processing. We may need to
-          verify your identity before acting on a request.
+          Uploaded and imported post media is maintained in private object
+          storage. Access is made available to authenticated Users and
+          authorised tools in accordance with application permissions. Temporary
+          media URLs may be issued for delivery to social networks. Such URLs
+          and account tokens must be protected against unauthorised disclosure.
         </p>
         <p>
-          Send requests to{" "}
+          Account and project records are retained while required to provide the
+          Service, until the relevant records are deleted or an account deletion
+          request is processed, subject to any applicable retention obligations.
+          Deleting a post removes its local draft record and initiates removal
+          of its associated stored media. References to previously published
+          copies may be retained separately within the project; deleting a draft
+          does not automatically remove those references or the content
+          published on a social network.
+        </p>
+        <p>
+          Technical logs, support correspondence, and provider backups may
+          remain after deletion of active records for periods determined by
+          their operational purpose, applicable backup cycles, the need to
+          investigate incidents or resolve disputes, and legal retention
+          requirements. Information concerning retention applicable to a
+          particular record or deletion request may be obtained through the
+          contact address above.
+        </p>
+      </DocumentSection>
+      <DocumentSection id="cookies" title="Cookies and local storage">
+        <p>
+          The application uses cookies necessary to authenticate Users, maintain
+          sessions, and establish account connections. Browser storage is also
+          used to retain the selected project and interface preferences. The
+          public pages do not add advertising trackers or analytics scripts.
+          Hosting providers may process technical request information for
+          delivery, security, and operation of the website.
+        </p>
+      </DocumentSection>
+      <DocumentSection id="rights" title="Rights of data subjects">
+        <p>
+          Subject to the conditions and limitations of applicable data
+          protection law, you may request access, rectification, erasure,
+          restriction of processing, or portability of personal data. You may
+          object to processing based on legitimate interests on grounds relating
+          to your particular situation. Where processing is based on consent,
+          consent may be withdrawn at any time without affecting the lawfulness
+          of processing carried out before withdrawal.
+        </p>
+        <p>
+          Requests may be submitted to{" "}
           <a
             className="document-link"
             href={`mailto:${site.email}?subject=Ramblo%20privacy%20request`}
           >
             {site.email}
           </a>
-          . You may also complain to your local supervisory authority; in Spain
-          this is the{" "}
+          . We may request information reasonably necessary to verify the
+          identity and authority of the requester. Requests will be addressed
+          within the periods prescribed by applicable law.
+        </p>
+        <p>
+          You may lodge a complaint with a competent supervisory authority,
+          including the{" "}
           <a className="document-link" href="https://www.aepd.es/">
             Agencia Española de Protección de Datos
-          </a>
-          .
+          </a>{" "}
+          in Spain. Contacting us first is not a condition for exercising this
+          right.
         </p>
       </DocumentSection>
-      <DocumentSection id="deletion" title="Disconnecting and deleting data">
+      <DocumentSection
+        id="deletion"
+        title="Revocation of access and deletion requests"
+      >
         <p>
-          Disconnect social accounts in your project’s Connections screen.
-          Revoke assistant OAuth grants in MCP integration; rotate the account
-          bearer token to invalidate clients using that token. These actions
-          stop future access through those credentials but do not remove saved
-          posts.
+          Social-account connections may be revoked in the project’s Connections
+          screen. Assistant OAuth grants may be revoked in MCP integration, and
+          account bearer tokens may be rotated to invalidate access through the
+          previous token. These measures prevent subsequent access through the
+          affected credentials but do not, by themselves, delete stored drafts,
+          publications, or information already received by a third-party
+          provider.
         </p>
         <p>
-          For account deletion and related data removal, follow the{" "}
+          Requests for account deletion and associated data removal are
+          currently processed through support in accordance with the{" "}
           <Link className="document-link" href="/data-deletion">
             data deletion instructions
           </Link>
-          . Account deletion is currently handled through support.
+          . Deletion from Ramblo does not itself remove content already
+          published to a third-party social network.
         </p>
       </DocumentSection>
-      <DocumentSection id="changes" title="Changes to this policy">
+      <DocumentSection id="changes" title="Revisions to this Privacy Policy">
         <p>
-          We update this page when the service or our practices change and
-          revise the date above. Material changes will be communicated through
-          the service or your account email where appropriate.
+          This Policy may be revised to reflect changes in the Service or the
+          processing practices described herein. The current version and
+          revision date will be displayed on this page. Material changes will be
+          communicated through the Service or the account email address where
+          appropriate or required by law. Where a new processing activity
+          requires consent, publication of a revised Policy will not substitute
+          for obtaining that consent.
         </p>
       </DocumentSection>
     </main>

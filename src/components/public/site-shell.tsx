@@ -150,17 +150,17 @@ export function DocumentSection({
     </section>
   );
 }
-export function PolicyDate() {
+export function PolicyDate({ date = site.updated }: { date?: string }) {
   return (
     <p className="text-sm text-muted-foreground">
       Last updated{" "}
-      <time dateTime={site.updated}>
+      <time dateTime={date}>
         {new Intl.DateTimeFormat("en-GB", {
           day: "numeric",
           month: "long",
           year: "numeric",
           timeZone: "Europe/Madrid",
-        }).format(new Date(`${site.updated}T12:00:00Z`))}
+        }).format(new Date(`${date}T12:00:00Z`))}
       </time>
       .
     </p>
