@@ -199,7 +199,7 @@ export default function ProjectSettings({
               </Field>
             </FieldGroup>
             <div className="flex mt-6">
-              <Button type="submit" size="lg" disabled={busy}>
+              <Button type="submit" disabled={busy}>
                 {busy ? (
                   <Spinner data-icon="inline-start" />
                 ) : (

@@ -16,7 +16,7 @@ test("configuration defaults and optional integrations are centralized", () => {
   assert.equal(values.MAIL_PROVIDER, "console");
   assert.equal(values.QUEUE_DRIVER, "local");
   assert.equal(values.STORAGE_PROVIDER, "local");
-  assert.equal(values.LOCAL_STORAGE_PATH, "data/media");
+  assert.equal(values.LOCAL_STORAGE_PATH, "data");
   const hosted = parseConfig({ NODE_ENV: "production" });
   assert.equal(hosted.QUEUE_DRIVER, "vercel");
   assert.equal(hosted.STORAGE_PROVIDER, "s3");

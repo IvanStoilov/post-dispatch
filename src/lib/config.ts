@@ -72,7 +72,7 @@ export const configSchema = z.object({
   AWS_REGION: optionalText,
   AWS_S3_BUCKET: optionalText,
   STORAGE_PROVIDER: z.enum(["local", "s3"]).default("local"),
-  LOCAL_STORAGE_PATH: z.string().min(1).default("data/media"),
+  LOCAL_STORAGE_PATH: z.string().min(1).default("data"),
   META_API_VERSION: z
     .string()
     .regex(/^v\d+\.\d+$/, "must use the format v25.0")
