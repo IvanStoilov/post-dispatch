@@ -4,7 +4,12 @@ import { randomUUID, createHash } from "node:crypto";
 import { loadEnvConfig } from "@next/env";
 import { eq, sql } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
-import { users, accounts, termsAcceptances, oauthClients } from "../src/db/schema";
+import {
+  users,
+  accounts,
+  termsAcceptances,
+  oauthClients,
+} from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
 import { currentTerms } from "../src/lib/terms";
 import { acceptedSignup } from "./helpers/terms";
@@ -12,6 +17,7 @@ import { listTermsAcceptances } from "../src/lib/terms-acceptance";
 import { GET as agreement } from "../src/app/api/account/agreements/[id]/route";
 import { POST as accept } from "../src/app/api/account/agreements/route";
 import { appOrigin } from "../src/lib/origins";
+import { ensureAccountResource } from "../src/lib/oauth";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -100,33 +106,101 @@ test(
       };
       const a = await signup(),
         b = await signup();
-      await t.test("OAuth onboarding still requires acceptance and records its source", async () => {
-        const registered = await getAuth().handler(req("/api/auth/oauth2/register", {
-          client_name: "Terms OAuth test", redirect_uris: ["https://client.example.test/callback"],
-          token_endpoint_auth_method:"none", grant_types:["authorization_code"], response_types:["code"], scope:"posts:read posts:write",
-        }));
-        assert.equal(registered.status,201,await registered.clone().text());
-        const client = await registered.json();
-        try {
-          const query = new URLSearchParams({client_id:client.client_id, redirect_uri:"https://client.example.test/callback", response_type:"code",code_challenge:createHash("sha256").update(randomUUID()).digest("base64url"),code_challenge_method:"S256",scope:"posts:read posts:write",resource:appOrigin()+"/api/mcp",state:randomUUID()});
-          const authorized = await getAuth().handler(req("/api/auth/oauth2/authorize?"+query));
-          const target = authorized.status === 302 ? authorized.headers.get("location")! : (await authorized.json()).url;
-          const oauthQuery = new URL(target,appOrigin()).searchParams.toString();
-          const missing = draft();
-          assert.equal((await getAuth().handler(req("/api/auth/sign-up/email", {...missing,oauth_query:oauthQuery}))).status,400);
-          const body = acceptedSignup(draft());
-          const response = await getAuth().handler(req("/api/auth/sign-up/email",{...body,oauth_query:oauthQuery}));
-          assert.equal(response.status,200,await response.clone().text());
-          const {user}=await response.json(); ids.push(user.id);
-          const [evidence]=await getDb().select().from(termsAcceptances).where(eq(termsAcceptances.userId,user.id));
-          assert.equal(evidence.acceptanceSource,"oauth_signup");
-        } finally { await getDb().delete(oauthClients).where(eq(oauthClients.clientId,client.client_id)); }
-      });
-      await t.test("unconfigured provider signup cannot bypass the acceptance form", async () => {
-        const body = draft();
-        await assert.rejects(authContext.internalAdapter.createOAuthUser({name:body.name,email:body.email,emailVerified:true}, {providerId:"unconfigured",accountId:randomUUID()}));
-        assert.equal((await getDb().select().from(users).where(eq(users.email,body.email))).length,0);
-      });
+      await t.test(
+        "OAuth onboarding still requires acceptance and records its source",
+        async () => {
+          await ensureAccountResource();
+          const registered = await getAuth().handler(
+            req("/api/auth/oauth2/register", {
+              client_name: "Terms OAuth test",
+              redirect_uris: ["https://client.example.test/callback"],
+              token_endpoint_auth_method: "none",
+              grant_types: ["authorization_code"],
+              response_types: ["code"],
+              scope: "posts:read posts:write",
+            }),
+          );
+          assert.equal(registered.status, 201, await registered.clone().text());
+          const client = await registered.json();
+          try {
+            const query = new URLSearchParams({
+              client_id: client.client_id,
+              redirect_uri: "https://client.example.test/callback",
+              response_type: "code",
+              code_challenge: createHash("sha256")
+                .update(randomUUID())
+                .digest("base64url"),
+              code_challenge_method: "S256",
+              scope: "posts:read posts:write",
+              resource: appOrigin() + "/api/mcp",
+              state: randomUUID(),
+            });
+            const authorized = await getAuth().handler(
+              req("/api/auth/oauth2/authorize?" + query),
+            );
+            const target =
+              authorized.status === 302
+                ? authorized.headers.get("location")!
+                : (await authorized.json()).url;
+            const oauthQuery = new URL(
+              target,
+              appOrigin(),
+            ).searchParams.toString();
+            const missing = draft();
+            assert.equal(
+              (
+                await getAuth().handler(
+                  req("/api/auth/sign-up/email", {
+                    ...missing,
+                    oauth_query: oauthQuery,
+                  }),
+                )
+              ).status,
+              400,
+            );
+            const body = acceptedSignup(draft());
+            const response = await getAuth().handler(
+              req("/api/auth/sign-up/email", {
+                ...body,
+                oauth_query: oauthQuery,
+              }),
+            );
+            assert.equal(response.status, 200, await response.clone().text());
+            const { user } = await response.json();
+            ids.push(user.id);
+            const [evidence] = await getDb()
+              .select()
+              .from(termsAcceptances)
+              .where(eq(termsAcceptances.userId, user.id));
+            assert.equal(evidence.acceptanceSource, "oauth_signup");
+          } finally {
+            await getDb()
+              .delete(oauthClients)
+              .where(eq(oauthClients.clientId, client.client_id));
+          }
+        },
+      );
+      await t.test(
+        "unconfigured provider signup cannot bypass the acceptance form",
+        async () => {
+          const body = draft();
+          await assert.rejects(
+            authContext.internalAdapter.createOAuthUser(
+              { name: body.name, email: body.email, emailVerified: true },
+              { providerId: "unconfigured", accountId: randomUUID() },
+            ),
+          );
+          assert.equal(
+            (
+              await getDb()
+                .select()
+                .from(users)
+                .where(eq(users.email, body.email))
+            ).length,
+            0,
+          );
+        },
+      );
       const [record] = await getDb()
         .select()
         .from(termsAcceptances)

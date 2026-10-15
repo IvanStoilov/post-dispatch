@@ -157,7 +157,9 @@ export const logger = winston.createLogger({
   format: winston.format.combine(
     sanitize(),
     winston.format.timestamp(),
-    winston.format.json(),
+    process.env.NODE_ENV === "production"
+      ? winston.format.json()
+      : winston.format.prettyPrint(),
   ),
   transports: [new winston.transports.Console()],
 });

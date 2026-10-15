@@ -137,6 +137,10 @@ export async function linkedinAccounts(
         : linkedinScopes();
       if (!scopes.includes("w_member_social"))
         throw new Error("Grant LinkedIn publishing permission and reconnect.");
+      if (!scopes.includes("openid") || !scopes.includes("profile"))
+        throw new Error(
+          "Enable 'Sign In with LinkedIn using OpenID Connect' in your LinkedIn app, then reconnect to grant openid and profile permissions.",
+        );
       const signal = AbortSignal.timeout(60000);
       const { data: profile } = await linkedinRequest<{
         sub: string;

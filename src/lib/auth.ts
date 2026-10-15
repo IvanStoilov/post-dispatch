@@ -14,12 +14,7 @@ import { randomUUID } from "node:crypto";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { getCurrentAdapter } from "@better-auth/core/context";
 import { validateTermsAcceptance } from "./terms-acceptance";
-import {
-  users,
-  sessions,
-  accounts,
-  verifications,
-} from "../db/schema";
+import { users, sessions, accounts, verifications } from "../db/schema";
 // Emails go out after the response so slow providers don't delay requests
 // and response timing doesn't reveal whether an account exists.
 function runInBackground(task: Promise<unknown>) {

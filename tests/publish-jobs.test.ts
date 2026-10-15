@@ -142,8 +142,14 @@ test(
         "approval and outbox are atomic, ownership checked, repeated clicks idempotent",
         async () => {
           const post = await draft(["facebook", "linkedin"]);
-          await assert.rejects(enqueuePublication(projectId, post.id, ""), /authorization/);
-          await assert.rejects(enqueuePublication(projectId, post.id, randomUUID()), /Project not found/);
+          await assert.rejects(
+            enqueuePublication(projectId, post.id, ""),
+            /authorization/,
+          );
+          await assert.rejects(
+            enqueuePublication(projectId, post.id, randomUUID()),
+            /Project not found/,
+          );
           await assert.rejects(
             enqueuePublication(randomUUID(), post.id, userId),
           );
@@ -153,8 +159,14 @@ test(
           ]);
           assert.deepEqual(new Set(a.jobIds), new Set(b.jobIds));
           assert.equal((await jobs(post.id)).length, 2);
-          assert.equal((await jobs(post.id))[0].snapshot.authorization?.userId, userId);
-          assert.equal((await jobs(post.id))[0].snapshot.authorization?.source, "user_publish");
+          assert.equal(
+            (await jobs(post.id))[0].snapshot.authorization?.userId,
+            userId,
+          );
+          assert.equal(
+            (await jobs(post.id))[0].snapshot.authorization?.source,
+            "user_publish",
+          );
           assert.equal(
             (await getPostImage(projectId, post.id)).status,
             "publishing",

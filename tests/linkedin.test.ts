@@ -24,6 +24,7 @@ import {
 import {
   publishLinkedIn,
   linkedinUploadUrl,
+  linkedinAccounts,
 } from "../src/lib/connectors/linkedin";
 import { mcpDraftSchema, filesDraftSchema } from "../src/lib/mcp-images";
 import { createPost, deletePost } from "../src/lib/store";
@@ -65,6 +66,32 @@ test("LinkedIn upload destinations reject credential exfiltration", () => {
     "https://localhost/a",
   ])
     assert.throws(() => linkedinUploadUrl(url));
+});
+test("LinkedIn explains missing OpenID permissions before requesting userinfo", async () => {
+  const env = { ...process.env },
+    original = globalThis.fetch;
+  process.env.LINKEDIN_CLIENT_ID = "test-client";
+  process.env.LINKEDIN_CLIENT_SECRET = "test-secret";
+  const requested: string[] = [];
+  globalThis.fetch = async (input) => {
+    requested.push(String(input));
+    return Response.json({
+      access_token: "test-token",
+      expires_in: 3600,
+      scope: "w_member_social",
+    });
+  };
+  try {
+    await assert.rejects(
+      linkedinAccounts("test-code", "https://example.test/callback"),
+      /OpenID Connect/,
+    );
+    assert.equal(requested.length, 1);
+    assert.ok(requested[0].endsWith("/oauth/v2/accessToken"));
+  } finally {
+    globalThis.fetch = original;
+    process.env = env;
+  }
 });
 test(
   "LinkedIn OAuth chooses authorized profiles/companies, isolates projects, and publishes through the registry",
@@ -154,6 +181,10 @@ test(
         "linkedin",
       );
       const authorization = new URL((await begin.json()).url);
+      for (const scope of ["openid", "profile", "w_member_social"])
+        assert.ok(
+          authorization.searchParams.get("scope")?.split(" ").includes(scope),
+        );
       assert.equal(authorization.origin, "https://www.linkedin.com");
       assert.ok(
         authorization.searchParams

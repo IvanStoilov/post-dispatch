@@ -2,6 +2,9 @@ import { config } from "./src/lib/config";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/*": ["./src/content/legal/terms.md"],
+  },
   // Allow the local HTTPS proxy to load dev assets and establish HMR.
   allowedDevOrigins: [new URL(config.APP_URL).hostname],
   experimental: {

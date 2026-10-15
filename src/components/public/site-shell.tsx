@@ -12,7 +12,13 @@ const productLinks = [
   ["/#networks", "Networks"],
   ["/#agents", "Agents"],
 ] as const;
-export function SiteShell({ children }: { children: React.ReactNode }) {
+export async function SiteShell({
+  children,
+  isAuth,
+}: {
+  isAuth: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground">
       <a
@@ -41,12 +47,21 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              href={appPageUrl("/signin")}
-              className="hidden px-3 py-2.5 text-[15px] font-semibold text-foreground no-underline hover:text-muted-foreground min-[761px]:inline"
-            >
-              Log in
-            </Link>
+            {!isAuth ? (
+              <Link
+                href={appPageUrl("/signin")}
+                className="hidden px-3 py-2.5 text-[15px] font-semibold text-foreground no-underline hover:text-muted-foreground min-[761px]:inline"
+              >
+                Log in
+              </Link>
+            ) : (
+              <Link
+                href={appPageUrl("/")}
+                className="hidden px-3 py-2.5 text-[15px] font-semibold text-foreground no-underline hover:text-muted-foreground min-[761px]:inline"
+              >
+                Dashboard
+              </Link>
+            )}
             <Link
               href={appPageUrl("/signup")}
               className={`${pill} min-h-11 bg-primary px-5 text-[15px] text-primary-foreground no-underline hover:bg-primary-hover`}

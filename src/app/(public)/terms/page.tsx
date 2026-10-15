@@ -15,7 +15,6 @@ export default function TermsPage() {
       tabIndex={-1}
       className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-5 py-12 sm:px-8 sm:py-16"
     >
-      <h1 className="display-m">Terms of service</h1>
       <TermsDocument content={currentTerms().content} />
     </main>
   );

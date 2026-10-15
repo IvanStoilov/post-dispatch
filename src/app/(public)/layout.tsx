@@ -1,8 +1,11 @@
 import { SiteShell } from "@/components/public/site-shell";
-export default function PublicLayout({
+import { getSession } from "@/lib/workspace";
+
+export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <SiteShell>{children}</SiteShell>;
+  const session = await getSession();
+  return <SiteShell isAuth={!!session}>{children}</SiteShell>;
 }

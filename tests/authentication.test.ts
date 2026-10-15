@@ -126,7 +126,12 @@ test(
           );
         },
       );
-      await getDb().insert(projects).values([{userId:a.id, name:"Auth A"},{userId:b.id, name:"Auth B"}]);
+      await getDb()
+        .insert(projects)
+        .values([
+          { userId: a.id, name: "Auth A" },
+          { userId: b.id, name: "Auth B" },
+        ]);
       const aProjects = await (
         await listProjects(request("/api/projects", "GET", a.cookie))
       ).json();
@@ -366,7 +371,12 @@ test(
             }),
           );
           const tools = (await toolResponse.json()).result.tools;
-          assert.ok(tools.every((tool: {name:string}) => !/publish|schedule|approve/.test(tool.name)));
+          assert.ok(
+            tools.every(
+              (tool: { name: string }) =>
+                !/publish|schedule|approve/.test(tool.name),
+            ),
+          );
           const mainTool = tools.find(
             (tool: { name: string }) => tool.name === "create_draft",
           );

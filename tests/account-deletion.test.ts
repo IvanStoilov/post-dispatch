@@ -101,7 +101,10 @@ test(
         req("/api/auth/sign-in/email", { email, password }),
       );
       assert.equal(signin.status, 200);
-      const [project] = await db.insert(projects).values({ userId: user.id, name: "Deletion fixture" }).returning();
+      const [project] = await db
+        .insert(projects)
+        .values({ userId: user.id, name: "Deletion fixture" })
+        .returning();
       projectIds.push(project.id);
       return {
         id: user.id,

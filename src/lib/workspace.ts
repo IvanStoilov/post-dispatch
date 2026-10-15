@@ -4,8 +4,13 @@ import { z } from "zod";
 import { getAuth } from "./auth";
 import { appPageUrl } from "./origins";
 import { getOwnedProject } from "./projects";
+
+export async function getSession() {
+  return await getAuth().api.getSession({ headers: await headers() });
+}
+
 export async function workspaceSession() {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session) redirect(appPageUrl("/signin"));
   return session;
 }
