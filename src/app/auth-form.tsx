@@ -30,8 +30,12 @@ const subscribeToHydration = () => () => {};
 const clientHydrated = () => true;
 const serverHydrated = () => false;
 
-export type AuthNotice = "verified" | "verification-failed" | "password-reset";
+export type AuthNotice =
+  "verified" | "verification-failed" | "password-reset" | "account-deleted";
 const notices: Record<AuthNotice, { text: string; error?: boolean }> = {
+  "account-deleted": {
+    text: "Your account has been deleted and access revoked. Stored media is scheduled for permanent removal.",
+  },
   verified: { text: "Your email is confirmed. Sign in to continue." },
   "verification-failed": {
     text: "That confirmation link is invalid or has expired. Sign in and we’ll send you a new one.",

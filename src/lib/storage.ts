@@ -7,6 +7,8 @@ import {
   DeleteObjectCommand,
   ListBucketsCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
+  DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
@@ -254,6 +256,45 @@ export async function removeImage(image: {
         }),
       );
   });
+}
+/** Bounded, repeatable purge of one deleted project's private media. */
+export async function purgeProjectMedia(target: {
+  bucket: string;
+  prefix: string;
+  objectKeys: string[];
+}) {
+  if (!/^[a-f0-9-]{36}\/$/i.test(target.prefix))
+    throw new Error("Invalid project media prefix");
+  const remove = async (keys: string[]) => {
+    if (!keys.length) return;
+    const result = await storage().send(
+      new DeleteObjectsCommand({
+        Bucket: target.bucket,
+        Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
+      }),
+      { abortSignal: AbortSignal.timeout(30000) },
+    );
+    if (result.Errors?.length)
+      throw new Error("Some account media could not be removed");
+  };
+  for (let start = 0; start < target.objectKeys.length; start += 200)
+    await remove(target.objectKeys.slice(start, start + 200));
+  for (let page = 0; page < 5; page++) {
+    const result = await storage().send(
+      new ListObjectsV2Command({
+        Bucket: target.bucket,
+        Prefix: target.prefix,
+        MaxKeys: 200,
+      }),
+      { abortSignal: AbortSignal.timeout(30000) },
+    );
+    const keys =
+      result.Contents?.flatMap((object) => (object.Key ? [object.Key] : [])) ||
+      [];
+    await remove(keys);
+    if (!result.IsTruncated) return true;
+  }
+  return false;
 }
 export async function readImage(image: {
   imageKey: string;

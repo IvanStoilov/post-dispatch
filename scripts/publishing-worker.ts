@@ -4,6 +4,7 @@ import { loadEnvConfig } from "@next/env";
 import { setTimeout as delay } from "node:timers/promises";
 import { closeDb } from "../src/db";
 import { recoverPublishingJobs } from "../src/lib/publish-jobs";
+import { recoverAccountMediaCleanup } from "../src/lib/account-deletion";
 import { queueDriver } from "../src/lib/queue";
 loadEnvConfig(process.cwd());
 // Static imports initialize Winston before this script loads .env files.
@@ -26,6 +27,9 @@ async function main() {
     while (running) {
       await recoverPublishingJobs().catch((error) =>
         logger.error("publishing.worker.recovery.failure", { error }),
+      );
+      await recoverAccountMediaCleanup().catch((error) =>
+        logger.error("account.media_cleanup.recovery.failed", { error }),
       );
       if (running) await delay(5000);
     }

@@ -106,7 +106,15 @@ test(
         );
         const data = await checked(r);
         testUsers.push(data.user.id);
-        return { ...data, email, password, cookie: cookies(r) };
+        await getDb()
+          .update(users)
+          .set({ emailVerified: true })
+          .where(eq(users.id, data.user.id));
+        const signedIn = await getAuth().handler(
+          req("/api/auth/sign-in/email", "POST", { email, password }),
+        );
+        await checked(signedIn.clone());
+        return { ...data, email, password, cookie: cookies(signedIn) };
       }
       const a = await signup(),
         b = await signup();

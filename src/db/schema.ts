@@ -680,3 +680,26 @@ export const postPublications = pgTable(
   ],
 );
 export type PublicationRow = typeof postPublications.$inferSelect;
+
+// No user foreign key: retries must survive deletion of the account itself.
+export const accountMediaCleanup = pgTable(
+  "account_media_cleanup",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    bucket: text("bucket").notNull(),
+    prefix: text("prefix").notNull(),
+    objectKeys: jsonb("object_keys").$type<string[]>().notNull().default([]),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // Sweep again after outstanding upload URLs and in-flight requests expire.
+    finalSweepAfter: timestamp("final_sweep_after", {
+      withTimezone: true,
+    }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("account_media_cleanup_due_idx").on(table.nextAttemptAt)],
+);

@@ -445,3 +445,9 @@ OAuth completion returns to that project's Connections page. Provider callback
 URLs and API project parameters remain unchanged. MCP draft review links point
 to the project's inbox. Old `view` and `projectId` page query routing is removed;
 use the new paths when linking to the workspace.
+
+### Self-service account deletion
+
+Users can open **User Account** by selecting their name/email in the sidebar. Deletion requires the current password and the literal confirmation `DELETE`; the endpoint accepts no target user ID. Password attempts are limited in Postgres. Active publishing leases and submissions prevent deletion until safe; queued work is removed atomically with project/account data. Previously published social posts remain on their networks.
+
+Apply migration `0015_account_media_cleanup` before deploying this feature (`pnpm db:migrate`). A durable, non-user-linked media cleanup manifest survives account deletion. Cleanup runs after the deletion response and retries through the existing authenticated publishing recovery cron and local `pnpm jobs:work` worker. The project prefix is swept again after an hour to cover outstanding upload URLs and in-flight uploads; the manifest is removed after the final successful sweep. With the daily Vercel cron, that final sweep can run on the following scheduled invocation. Storage failures are logged as `account.media_cleanup.failed` and remain retryable. The S3 credentials must allow listing and deleting objects within the configured media bucket. Provider backups and diagnostic logs follow their separate retention schedules.

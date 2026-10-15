@@ -110,6 +110,13 @@ function unseal(value: string): Pending {
     ]).toString(),
   );
 }
+export function pendingConnectionBelongsTo(value: string, userId: string) {
+  try {
+    return unseal(value).userId === userId;
+  } catch {
+    return false;
+  }
+}
 const identifier = (nonce: string) =>
   `meta-connect:${createHash("sha256").update(nonce).digest("hex")}`;
 const routeBase = (provider: Provider) =>

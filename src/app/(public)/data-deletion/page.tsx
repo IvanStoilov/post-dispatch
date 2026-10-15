@@ -3,6 +3,8 @@ import { PageIntro, DocumentSection } from "@/components/public/site-shell";
 import { Button } from "@/components/ui/button";
 import { Mail } from "lucide-react";
 import { site } from "@/lib/public-site";
+import Link from "next/link";
+import { appPageUrl } from "@/lib/origins";
 export const metadata: Metadata = {
   title: "Data deletion | Ramblo",
   description:
@@ -18,8 +20,39 @@ export default function DeletionPage() {
     >
       <PageIntro
         title="Delete your Ramblo data"
-        description="Account deletion is currently handled by our support team. You can remove individual posts and disconnect accounts in the dashboard."
+        description="Delete your account from the User Account page, or contact support for assistance."
       />
+      <DocumentSection
+        id="self-service"
+        title="Delete your account in the application"
+      >
+        <ol className="flex list-decimal flex-col gap-3 pl-5">
+          <li>
+            Sign in and select your name or email in the sidebar to open User
+            Account.
+          </li>
+          <li>
+            Select Delete account, enter your current password, and type DELETE
+            to confirm.
+          </li>
+          <li>
+            Confirm permanent deletion. Your account, projects, drafts,
+            connection credentials, and assistant access are removed. Queued
+            publications are cancelled, and stored media is scheduled for
+            removal with automatic retries.
+          </li>
+        </ol>
+        <p>
+          If a publication is actively being processed, wait for it to finish
+          before retrying. If it remains stuck, contact support. Published posts
+          on social networks are not removed by account deletion. Minimal
+          cleanup records remain until media removal and a subsequent
+          verification sweep are complete.
+        </p>
+        <Button className="w-fit" asChild>
+          <Link href={appPageUrl("/account")}>Open User Account</Link>
+        </Button>
+      </DocumentSection>
       <DocumentSection id="request" title="Request account deletion">
         <ol className="flex list-decimal flex-col gap-3 pl-5">
           <li>

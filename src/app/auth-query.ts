@@ -13,8 +13,11 @@ export function parseAuthQuery(values: SearchParams) {
       : "verified"
     : query.has("reset")
       ? "password-reset"
-      : undefined;
-  for (const key of ["verified", "error", "reset"]) query.delete(key);
+      : query.get("account") === "deleted"
+        ? "account-deleted"
+        : undefined;
+  for (const key of ["verified", "error", "reset", "account"])
+    query.delete(key);
   const oauthQuery = query.has("sig") ? query.toString() : undefined;
   return { oauthQuery, notice };
 }

@@ -201,7 +201,8 @@ export default function TermsPage() {
           <Link className="document-link" href="/data-deletion">
             data deletion procedure
           </Link>
-          . Account deletion requests are currently administered by support.
+          . Account deletion is available on the User Account page; support
+          remains available for requests that cannot be completed there.
         </p>
         <p>
           You remain responsible for disabling separately configured external

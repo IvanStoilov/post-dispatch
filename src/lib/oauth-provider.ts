@@ -7,6 +7,9 @@ import {
 } from "@better-auth/oauth-provider";
 import { createAuthEndpoint, APIError } from "better-auth/api";
 import { z } from "zod";
+import { getDb } from "../db";
+import { users } from "../db/schema";
+import { eq } from "drizzle-orm";
 
 export const MCP_SCOPES = ["posts:read", "posts:write"] as const;
 export function accountResource() {
@@ -75,6 +78,12 @@ export function oauthPlugins() {
               throw new APIError("UNAUTHORIZED", { error: "invalid_token" });
             const scopes =
               typeof payload.scope === "string" ? payload.scope.split(" ") : [];
+            const [user] = await getDb()
+              .select({ id: users.id })
+              .from(users)
+              .where(eq(users.id, payload.sub));
+            if (!user)
+              throw new APIError("UNAUTHORIZED", { error: "invalid_token" });
             return { userId: payload.sub, scopes };
           },
         ),

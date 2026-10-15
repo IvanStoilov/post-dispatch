@@ -556,7 +556,11 @@ test(
       );
       await t.test(
         "signin rejects incorrect passwords and signout invalidates sessions",
-        async () => {
+        async (signinTest) => {
+          // Fixture sign-ins share an IP. Advance beyond the library's 10-second
+          // sign-in window while leaving production rate limits enabled.
+          signinTest.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+          signinTest.mock.timers.tick(11000);
           let response = await getAuth().handler(
             request("/api/auth/sign-in/email", "POST", "", {
               email: a.email,

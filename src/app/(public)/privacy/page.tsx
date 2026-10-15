@@ -134,11 +134,15 @@ export default function PrivacyPage() {
             Neon
           </a>{" "}
           (Neon, LLC, part of Databricks, Inc.) provides the configured database
-          and private object storage. These providers may also process technical
-          logs and maintain backups in connection with their services. Providers
-          used for transactional email delivery process the recipient details
-          and message content necessary to deliver account verification,
-          password reset, and other service-related messages.
+          and private object storage.{" "}
+          <a className="document-link" href="https://resend.com/">
+            Resend
+          </a>{" "}
+          (Plus Five Five, Inc.) provides transactional email delivery and
+          processes recipient details, message content, and delivery metadata
+          necessary to deliver account verification, password reset, and other
+          service-related messages. These providers may also process technical
+          logs and maintain backups in connection with their services.
         </p>
         <p>
           When you authorise publication, the designated social network—Meta’s
@@ -256,13 +260,20 @@ export default function PrivacyPage() {
           provider.
         </p>
         <p>
-          Requests for account deletion and associated data removal are
-          currently processed through support in accordance with the{" "}
+          Account deletion and associated data removal may be initiated through
+          the User Account page or requested through support in accordance with
+          the{" "}
           <Link className="document-link" href="/data-deletion">
             data deletion instructions
           </Link>
           . Deletion from Ramblo does not itself remove content already
           published to a third-party social network.
+        </p>
+        <p>
+          Account access is revoked when deletion is completed. Minimal
+          storage-cleanup records are retained until removal of stored media and
+          a subsequent verification sweep have completed. Media deletion
+          failures are retried by the recovery process.
         </p>
       </DocumentSection>
       <DocumentSection id="changes" title="Revisions to this Privacy Policy">

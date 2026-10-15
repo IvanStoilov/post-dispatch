@@ -200,7 +200,16 @@ export function WorkspaceShell({
                   </SelectContent>
                 </Select>
               ) : (
-                <p className="font-medium">{project?.name}</p>
+                <Link
+                  href={appPath(
+                    projects[0] ? projectPath(projects[0].id) : "/projects/new",
+                  )}
+                  className="font-medium hover:underline"
+                >
+                  {project?.name ||
+                    projects[0]?.name ||
+                    "Create your first project"}
+                </Link>
               )}
               <Button
                 variant="ghost"
@@ -244,12 +253,16 @@ export function WorkspaceShell({
               ))}
             </nav>
             <div className="flex items-center gap-3">
-              <div className="min-w-0 flex-1">
+              <Link
+                href={appPath("/account")}
+                aria-label="User account"
+                className="min-w-0 flex-1 rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              >
                 <p className="truncate text-sm font-medium">{user.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {user.email}
                 </p>
-              </div>
+              </Link>
               <Button
                 variant="ghost"
                 size="icon"
@@ -272,13 +285,17 @@ export function WorkspaceShell({
             <div className="flex min-w-0 items-center gap-3">
               <SidebarTrigger />
               <span className="truncate text-sm text-muted-foreground">
-                {project?.name || "Workspace"}
+                {pathname.endsWith("/account")
+                  ? "User account"
+                  : project?.name || "Workspace"}
               </span>
               <span aria-hidden="true">/</span>
               <span className="text-sm font-medium">
                 {project
                   ? navigation.find((n) => n.section === section)?.label
-                  : "New project"}
+                  : pathname.endsWith("/account")
+                    ? "Settings"
+                    : "New project"}
               </span>
             </div>
             <Badge variant="secondary" className="hidden sm:inline-flex">
