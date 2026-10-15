@@ -47,7 +47,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Save } from "lucide-react";
+import { ExternalLink, Save } from "lucide-react";
 import { DeleteProject } from "@/components/delete-project";
 export default function ProjectSettings({
   project,
@@ -362,9 +362,38 @@ export default function ProjectSettings({
                 </CardContent>
                 <CardFooter className="justify-between gap-3">
                   <span className="truncate text-xs text-muted-foreground">
-                    {configured
-                      ? `Connected to ${connection?.accountName || (provider === "instagram" ? "Instagram account" : connection?.accountId || project.facebookPageId)}`
-                      : "Connect an account to start publishing"}
+                    {configured ? (
+                      <>
+                        Connected to{" "}
+                        {connection?.accountUrl ? (
+                          <a
+                            href={connection.accountUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex max-w-full items-center gap-1 align-bottom font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                          >
+                            <span className="truncate">
+                              {connection.accountName || connection.accountId}
+                            </span>
+                            <ExternalLink
+                              className="size-3 shrink-0"
+                              aria-hidden="true"
+                            />
+                            <span className="sr-only">
+                              {" "}
+                              (opens in a new tab)
+                            </span>
+                          </a>
+                        ) : (
+                          connection?.accountName ||
+                          (provider === "instagram"
+                            ? "Instagram account"
+                            : connection?.accountId || project.facebookPageId)
+                        )}
+                      </>
+                    ) : (
+                      "Connect an account to start publishing"
+                    )}
                   </span>
                   {configured && (
                     <Button

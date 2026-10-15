@@ -2,6 +2,7 @@ import { config, environmentSecrets } from "./config";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import winston from "winston";
+import { inspect } from "node:util";
 
 export type LogContext = {
   requestId?: string;
@@ -151,6 +152,46 @@ export async function loggedRequest(
   });
 }
 
+// Keep console output on one line; sanitize() runs before either formatter.
+const developmentFormat = winston.format.printf((info) => {
+  const {
+    timestamp,
+    level,
+    message,
+    method,
+    route,
+    status,
+    durationMs,
+    ...details
+  } = info;
+  const value = (entry: unknown) =>
+    typeof entry === "string" && !/\s/.test(entry)
+      ? entry
+      : inspect(entry, { compact: true, breakLength: Infinity, depth: 12 });
+  const levelColored =
+    level === "error"
+      ? `\x1b[31m${level.toUpperCase()}\x1b[0m`
+      : level === "warn"
+        ? `\x1b[33m${level.toUpperCase()}\x1b[0m`
+        : level === "info"
+          ? `\x1b[36m${level.toUpperCase()}\x1b[0m`
+          : `\x1b[90m${level.toUpperCase()}\x1b[0m`;
+  return [
+    new Date(String(timestamp)).toISOString(),
+    levelColored,
+    String(message).replace(/[\r\n]+/g, " "),
+    method,
+    route,
+    status,
+    durationMs === undefined ? undefined : `${durationMs}ms`,
+    ...Object.entries(details)
+      .filter(([, entry]) => entry !== undefined)
+      .map(([key, entry]) => `${key}=${value(entry)}`),
+  ]
+    .filter((entry) => entry !== undefined && entry !== "")
+    .join(" ");
+});
+
 const level = config.LOG_LEVEL;
 export const logger = winston.createLogger({
   level: Object.hasOwn(winston.config.npm.levels, level) ? level : "debug",
@@ -159,7 +200,7 @@ export const logger = winston.createLogger({
     winston.format.timestamp(),
     process.env.NODE_ENV === "production"
       ? winston.format.json()
-      : winston.format.prettyPrint(),
+      : developmentFormat,
   ),
   transports: [new winston.transports.Console()],
 });

@@ -16,6 +16,7 @@ export type PostAsset = {
 export const platforms = ["facebook", "instagram", "linkedin"] as const;
 export type Platform = (typeof platforms)[number];
 export type ConnectionSummary = {
+  accountUrl?: string | null;
   accountId: string;
   accountName: string;
   configured: boolean;

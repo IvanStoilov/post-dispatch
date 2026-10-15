@@ -1,3 +1,4 @@
+import { connectedAccountUrl } from "./connectors/account-url";
 import { loggedOperation } from "./logger";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { z } from "zod";
@@ -70,6 +71,7 @@ export function publicProject(p: ConnectedProject): Project {
         {
           accountId: c.accountId,
           accountName: c.accountName,
+          accountUrl: connectedAccountUrl(c.provider, c),
           configured: isConnected(c),
           expiresAt: c.expiresAt?.toISOString() || null,
         },

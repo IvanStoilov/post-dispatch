@@ -30,6 +30,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import MediaGallery from "@/app/media-gallery";
 import type { Post, Platform } from "@/lib/types";
+import { cn } from "cn";
 
 export function PlatformBadge({ platform }: { platform: Platform }) {
   const Icon = channelIcons[platform];
@@ -56,10 +57,14 @@ export function PostCard({
   onRetry: () => void;
 }) {
   const label = {
-    draft: "Awaiting review",
-    published: "Published",
-    publishing: "Publishing…",
-    needs_review: "Needs attention",
+    draft: { label: "Awaiting review", icon: Sparkles, color: "secondary" },
+    published: { label: "Published", icon: Check, color: "success" },
+    publishing: { label: "Publishing…", icon: Send, color: "secondary" },
+    needs_review: {
+      label: "Needs attention",
+      icon: AlertCircle,
+      color: "destructive",
+    },
   }[post.status];
   return (
     <article className="min-w-0 [content-visibility:auto] [contain-intrinsic-size:auto_540px] shadow rounded-xl">
@@ -81,7 +86,7 @@ export function PostCard({
               }
             >
               {post.status === "published" && <Check aria-hidden="true" />}
-              {label}
+              {label.label}
             </Badge>
           </div>
         </div>
@@ -107,17 +112,7 @@ export function PostCard({
               {post.deliveries.map((delivery) => (
                 <p key={delivery.platform}>
                   {channelLabels[delivery.platform]}:{" "}
-                  {
-                    {
-                      queued: "Queued",
-                      preparing: "Preparing media",
-                      waiting: "Processing media",
-                      submitting: "Submitting",
-                      published: "Published",
-                      failed: "Failed before submission",
-                      needs_review: "Check account — outcome uncertain",
-                    }[delivery.status]
-                  }
+                  <ChannelStatus status={delivery.status} />
                 </p>
               ))}
             </div>
@@ -210,5 +205,35 @@ export function PostCard({
         </CardFooter>
       </Card>
     </article>
+  );
+}
+
+function ChannelStatus({ status }: { status: string }) {
+  const statusMap: Record<string, { label: string; color: string }> = {
+    queued: { label: "Queued", color: "secondary" },
+    preparing: { label: "Preparing media", color: "secondary" },
+    waiting: { label: "Processing media", color: "secondary" },
+    submitting: { label: "Submitting", color: "secondary" },
+    published: { label: "✓ Published", color: "success" },
+    failed: { label: "Failed before submission", color: "destructive" },
+    needs_review: {
+      label: "Check account — outcome uncertain",
+      color: "destructive",
+    },
+  };
+
+  const label = statusMap[status] || { label: status, color: "secondary" };
+  return (
+    <span
+      className={cn(
+        label.color === "success"
+          ? "text-success"
+          : label.color === "destructive"
+            ? "text-destructive"
+            : "",
+      )}
+    >
+      {label.label}
+    </span>
   );
 }

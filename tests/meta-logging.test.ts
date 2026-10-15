@@ -18,7 +18,9 @@ test("Meta logs correlate POST/GET responses and redact credentials", async () =
   const originalTransports = [...logger.transports];
   logger.clear();
   logger.level = "debug";
-  logger.add(new winston.transports.Stream({ stream }));
+  logger.add(
+    new winston.transports.Stream({ stream, format: winston.format.json() }),
+  );
   const token = "secret-meta-token";
   try {
     const requests: RequestInit[] = [];

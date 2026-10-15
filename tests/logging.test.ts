@@ -25,7 +25,9 @@ async function capture(
   });
   logger.clear();
   logger.level = "debug";
-  logger.add(new winston.transports.Stream({ stream }));
+  logger.add(
+    new winston.transports.Stream({ stream, format: winston.format.json() }),
+  );
   try {
     await action(entries);
   } finally {
@@ -171,4 +173,49 @@ test("exceptions retain identity and tool error results are logged as rejected",
     assert.equal(entries.at(-1)?.level, "warn");
     assert.ok(!JSON.stringify(entries).includes("Private detail"));
   });
+});
+
+test("development logs are single-line, readable, and still redact credentials", async () => {
+  if (process.env.NODE_ENV === "production") return;
+  const lines: string[] = [];
+  const transports = [...logger.transports];
+  const level = logger.level;
+  const stream = new Writable({
+    write(chunk, _encoding, done) {
+      lines.push(chunk.toString());
+      done();
+    },
+  });
+  logger.clear();
+  logger.level = "debug";
+  logger.add(new winston.transports.Stream({ stream }));
+  try {
+    withLogSecrets(["development-private-token"], () => {
+      logger.debug("http.response", {
+        method: "GET",
+        route: "/api/posts",
+        status: 200,
+        durationMs: 14,
+        requestId: "req-1",
+      });
+      logger.error("operation.failed", {
+        error: new Error("Failed development-private-token\nsecond line"),
+        nested: { password: "hidden-password" },
+      });
+    });
+    assert.equal(lines.length, 2);
+    assert.match(
+      lines[0],
+      /^\d{2}:\d{2}:\d{2} DEBUG http.response GET \/api\/posts 200 14ms requestId=req-1\n$/,
+    );
+    assert.equal(lines[1].trimEnd().split("\n").length, 1);
+    assert.ok(lines[1].includes("ERROR operation.failed"));
+    assert.ok(lines[1].includes("[REDACTED]"));
+    assert.ok(!lines.join("").includes("development-private-token"));
+    assert.ok(!lines.join("").includes("hidden-password"));
+  } finally {
+    logger.clear();
+    for (const transport of transports) logger.add(transport);
+    logger.level = level;
+  }
 });
