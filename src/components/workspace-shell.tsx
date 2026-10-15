@@ -169,58 +169,62 @@ export function WorkspaceShell({
           Skip to content
         </a>
         <Sidebar>
-          <SidebarHeader className="gap-6 px-5 pt-7 pb-5">
+          <SidebarHeader className="px-5 pt-7 pb-5">
             <Brand />
-            <label
-              htmlFor="active-project"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Your project
-            </label>
-            <div className="flex gap-2 items-center justify-between">
-              {projects.length > 1 ? (
-                <Select
-                  value={project?.id || ""}
-                  onValueChange={(id) =>
-                    router.push(appPath(projectPath(id, section)))
-                  }
-                >
-                  <SelectTrigger
-                    id="active-project"
-                    aria-label="Active project"
-                  >
-                    <SelectValue placeholder="Choose a project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Link
-                  href={appPath(
-                    projects[0] ? projectPath(projects[0].id) : "/projects/new",
-                  )}
-                  className="font-medium hover:underline"
-                >
-                  {project?.name ||
-                    projects[0]?.name ||
-                    "Create your first project"}
-                </Link>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="-mr-2 h-full min-h-10"
-                title="Create a project"
-                aria-label="Create a project"
-                onClick={() => setCreatingProject(true)}
+            <div className="pt-6">
+              <label
+                htmlFor="active-project"
+                className="text-xs font-medium text-muted-foreground"
               >
-                <Plus className="size-4" />
-              </Button>
+                Your project
+              </label>
+              <div className="flex gap-2 items-center justify-between">
+                {projects.length > 1 ? (
+                  <Select
+                    value={project?.id || ""}
+                    onValueChange={(id) =>
+                      router.push(appPath(projectPath(id, section)))
+                    }
+                  >
+                    <SelectTrigger
+                      id="active-project"
+                      aria-label="Active project"
+                    >
+                      <SelectValue placeholder="Choose a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Link
+                    href={appPath(
+                      projects[0]
+                        ? projectPath(projects[0].id)
+                        : "/projects/new",
+                    )}
+                    className="font-medium hover:underline"
+                  >
+                    {project?.name ||
+                      projects[0]?.name ||
+                      "Create your first project"}
+                  </Link>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="-mr-2 h-full min-h-10"
+                  title="Create a project"
+                  aria-label="Create a project"
+                  onClick={() => setCreatingProject(true)}
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </div>
             </div>
           </SidebarHeader>
           <SidebarContent>

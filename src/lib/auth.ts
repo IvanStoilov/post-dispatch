@@ -103,23 +103,6 @@ function makeAuth() {
         create: {
           after: async (user) => {
             logger.info("auth.user.created", { userId: user.id });
-            await getDb().transaction(async (tx) => {
-              const legacyEmail =
-                config.LEGACY_OWNER_EMAIL?.trim().toLowerCase();
-              let inherited = false;
-              if (legacyEmail && user.email.toLowerCase() === legacyEmail) {
-                const claimed = await tx
-                  .update(projects)
-                  .set({ userId: user.id })
-                  .where(eq(projects.userId, LEGACY_OWNER))
-                  .returning({ id: projects.id });
-                inherited = claimed.length > 0;
-              }
-              if (!inherited)
-                await tx
-                  .insert(projects)
-                  .values({ userId: user.id, name: "Personal workspace" });
-            });
             logger.info("auth.workspace.ready", { userId: user.id });
           },
         },
