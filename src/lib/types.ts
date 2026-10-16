@@ -13,15 +13,13 @@ export type PostAsset = {
   url: string;
   mimeType: string;
 };
-export const platforms = ["facebook", "instagram", "linkedin"] as const;
-export type Platform = (typeof platforms)[number];
-export type ConnectionSummary = {
-  accountUrl?: string | null;
-  accountId: string;
-  accountName: string;
-  configured: boolean;
-  expiresAt: string | null;
-};
+// Moving to src/shared: platforms and project DTOs live there now.
+import type { Platform } from "../shared/platforms";
+export { platforms, type Platform } from "../shared/platforms";
+export type {
+  ConnectionSummaryDto as ConnectionSummary,
+  ProjectDto as Project,
+} from "../shared/schemas/project";
 export type Publication = {
   id: string;
   postId: string | null;
@@ -64,15 +62,4 @@ export type Post = {
       | "needs_review";
     error: string | null;
   }[];
-};
-
-export type Project = {
-  id: string;
-  name: string;
-  facebookPageId: string;
-  instagramAccountId: string;
-  instagramApiHost: "graph.facebook.com" | "graph.instagram.com";
-  facebookConfigured: boolean;
-  instagramConfigured: boolean;
-  connectors?: Partial<Record<Platform, ConnectionSummary>>;
 };

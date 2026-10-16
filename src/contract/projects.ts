@@ -1,31 +1,33 @@
-import { type } from "@orpc/contract";
 import { z } from "zod";
-import { projectSchema } from "@/lib/schemas/project";
-import { platforms, type Project } from "@/lib/types";
+import {
+  createProjectInput,
+  deleteProjectInput,
+  disconnectChannelInput,
+  projectDto,
+  updateProjectInput,
+} from "@/shared/schemas/project";
 import { base } from "./base";
 
-const projectId = z.uuid();
-
+// Routes for projects. Inputs and outputs are the shared zod DTOs; outputs
+// are checked at runtime, and keys not in a DTO (like tokens) are dropped.
 export const projectsContract = {
   list: base
     .route({ method: "GET", path: "/projects" })
-    .output(type<Project[]>()),
+    .output(z.array(projectDto)),
   create: base
     .route({ method: "POST", path: "/projects", successStatus: 201 })
-    .input(z.object({ name: projectSchema.shape.name }))
-    .output(type<Project>()),
+    .input(createProjectInput)
+    .output(projectDto),
   update: base
     .route({ method: "PUT", path: "/projects/{id}" })
-    .input(projectSchema.extend({ id: projectId }))
-    .output(type<Project>()),
+    .input(updateProjectInput)
+    .output(projectDto),
   delete: base
     .route({ method: "DELETE", path: "/projects/{id}" })
-    .input(
-      z.object({ id: projectId, confirmation: z.string().min(1).max(120) }),
-    )
-    .output(type<void>()),
+    .input(deleteProjectInput)
+    .output(z.void()),
   disconnectChannel: base
     .route({ method: "DELETE", path: "/projects/{id}/channels/{provider}" })
-    .input(z.object({ id: projectId, provider: z.enum(platforms) }))
-    .output(type<void>()),
+    .input(disconnectChannelInput)
+    .output(z.void()),
 };

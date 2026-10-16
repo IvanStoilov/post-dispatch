@@ -1,9 +1,9 @@
-import { implement, ORPCError, os, ValidationError } from "@orpc/server";
+import { implement, ORPCError, ValidationError } from "@orpc/server";
 import { contract } from "@/contract";
 import { getAuth } from "@/lib/auth";
-import { UserFacingError, type UserFacingStatus } from "@/lib/errors";
+import type { Actor } from "@/domain/shared/actor";
+import { UserFacingError, type UserFacingStatus } from "@/domain/shared/errors";
 import { logger, withLogContext } from "@/lib/logger";
-import { getOwnedProject } from "@/lib/projects";
 
 const codes = {
   400: "BAD_REQUEST",
@@ -41,22 +41,11 @@ export const pub = api.use(async ({ next, path, errors }) => {
   }
 });
 
-// Signed-in procedures; tags all logs below with the user ID.
+// Signed-in procedures. Authentication only: it puts the actor in the
+// context, and the domain enforces what that actor may access.
 export const authed = pub.use(async ({ context, next }) => {
   const session = await getAuth().api.getSession({ headers: context.headers });
   if (!session) throw new UserFacingError("Sign in to continue", 401);
-  const userId = session.user.id;
-  return withLogContext({ userId }, () => next({ context: { userId } }));
+  const actor: Actor = { userId: session.user.id };
+  return withLogContext(actor, () => next({ context: { actor } }));
 });
-
-// For procedures whose input has the project as `id`; use after authed:
-// authed.projects.update.use(ownsProject). Projects the user doesn't own
-// fail like missing ones, so IDs can't be probed.
-export const ownsProject = os
-  .$context<{ userId: string }>()
-  .middleware(async ({ context, next }, input: { id: string }) => {
-    await getOwnedProject(context.userId, input.id);
-    return withLogContext({ projectId: input.id }, () =>
-      next({ context: { projectId: input.id } }),
-    );
-  });

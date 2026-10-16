@@ -1,33 +1,29 @@
-import { deleteProject } from "@/lib/delete-project";
 import {
   createProject,
-  disconnectConnector,
+  disconnectChannel,
   listProjects,
   updateProject,
-} from "@/lib/projects";
-import { authed, ownsProject } from "../orpc";
+} from "@/domain/projects";
+import { deleteProject } from "@/lib/delete-project";
+import { authed } from "../orpc";
 
-// Routes, input and output come from src/contract/projects.ts.
+// Routes, input and output come from src/contract/projects.ts; access is
+// enforced by the domain, scoped to context.actor.
 export const projectsRouter = {
   list: authed.projects.list.handler(({ context }) =>
-    listProjects(context.userId),
+    listProjects(context.actor),
   ),
-  create: authed.projects.create.handler(
-    async ({ context, input }) =>
-      (await createProject(context.userId, input)).project,
+  create: authed.projects.create.handler(({ context, input }) =>
+    createProject(context.actor, input),
   ),
-  update: authed.projects.update
-    .use(ownsProject)
-    .handler(({ context, input: { id, ...values } }) =>
-      updateProject(context.userId, id, values),
-    ),
-  // Ownership is checked inside deleteProject, under the row lock.
+  update: authed.projects.update.handler(({ context, input }) =>
+    updateProject(context.actor, input),
+  ),
+  // Moves to the domain with the accounts module (deletion is shared there).
   delete: authed.projects.delete.handler(({ context, input }) =>
-    deleteProject(context.userId, input.id, input.confirmation),
+    deleteProject(context.actor.userId, input.id, input.confirmation),
   ),
-  disconnectChannel: authed.projects.disconnectChannel
-    .use(ownsProject)
-    .handler(async ({ context, input }) => {
-      await disconnectConnector(context.userId, input.id, input.provider);
-    }),
+  disconnectChannel: authed.projects.disconnectChannel.handler(
+    ({ context, input }) => disconnectChannel(context.actor, input),
+  ),
 };

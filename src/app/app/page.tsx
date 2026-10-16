@@ -3,11 +3,13 @@ import { appPageUrl } from "@/lib/origins";
 import { projectPath } from "@/lib/route-paths";
 import { cookies } from "next/headers";
 import { workspaceSession } from "@/lib/workspace";
-import { listProjects } from "@/lib/projects";
+import { listProjects } from "@/domain/projects";
 import { ProjectEntry } from "@/components/project-entry";
 export default async function Home() {
   const session = await workspaceSession();
-  const ids = (await listProjects(session.user.id)).map((p) => p.id);
+  const ids = (await listProjects({ userId: session.user.id })).map(
+    (p) => p.id,
+  );
   const remembered = (await cookies()).get("ramblo-project")?.value;
   if (!ids.length) redirect(appPageUrl("/projects/new"));
   if (remembered && ids.includes(remembered))

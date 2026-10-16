@@ -1,271 +1,66 @@
-import { connectedAccountUrl } from "./connectors/account-url";
-import { loggedOperation } from "./logger";
-import { eq, desc, sql, and } from "drizzle-orm";
 import { z } from "zod";
-import { getDb } from "../db";
-import {
-  projects,
-  projectConnectors,
-  type ProjectRow,
-  type ConnectorRow,
-} from "../db/schema";
-import type { Project, Platform } from "./types";
-import { UserFacingError } from "./errors";
-import { projectSchema } from "./schemas/project";
-export { projectSchema };
-export type ConnectedProject = ProjectRow & {
-  connections: ConnectorRow[];
-  facebookPageId: string;
-  facebookPageToken: string;
-  instagramAccountId: string;
-  instagramAccessToken: string;
-  instagramApiHost: string;
-};
-function connected(p: ProjectRow, rows: ConnectorRow[]): ConnectedProject {
-  const fb = rows.find((c) => c.provider === "facebook");
-  const ig = rows.find((c) => c.provider === "instagram");
-  return {
-    ...p,
-    connections: rows,
-    facebookPageId: fb?.accountId || "",
-    facebookPageToken: fb?.accessToken || "",
-    instagramAccountId: ig?.accountId || "",
-    instagramAccessToken: ig?.accessToken || "",
-    instagramApiHost: ig?.metadata.apiHost || "graph.facebook.com",
-  };
+import * as projects from "@/domain/projects";
+import { UserFacingError } from "@/domain/shared/errors";
+import * as system from "@/domain/projects/system";
+import type { ConnectorValues } from "@/domain/projects/system";
+import { projectFields } from "@/shared/schemas/project";
+import type { Platform } from "./types";
+
+// Deprecated adapter: keeps the old signatures for code not yet migrated to
+// src/domain/projects. New code imports the domain module directly. Remove
+// each function when its last caller has migrated.
+
+export const projectSchema = projectFields;
+export type { ProjectRecord as ConnectedProject } from "@/domain/projects/system";
+export const isConnected = system.isConnected;
+
+async function found<T>(record: Promise<T | undefined>) {
+  const value = await record;
+  if (!value) throw new UserFacingError("Project not found", 404);
+  return value;
 }
-export function isConnected(c: ConnectorRow) {
-  return (
-    !!(c.accountId && c.accessToken) &&
-    (!c.expiresAt || c.expiresAt.getTime() > Date.now())
-  );
-}
-async function hydrateProject(p: ProjectRow) {
-  return connected(
-    p,
-    await getDb()
-      .select()
-      .from(projectConnectors)
-      .where(eq(projectConnectors.projectId, p.id)),
-  );
-}
-export function publicProject(p: ConnectedProject): Project {
-  return {
-    id: p.id,
-    name: p.name,
-    facebookPageId: p.facebookPageId,
-    instagramAccountId: p.instagramAccountId,
-    instagramApiHost: p.instagramApiHost as Project["instagramApiHost"],
-    facebookConfigured: !!(p.facebookPageId && p.facebookPageToken),
-    instagramConfigured: !!(p.instagramAccountId && p.instagramAccessToken),
-    connectors: Object.fromEntries(
-      p.connections.map((c) => [
-        c.provider,
-        {
-          accountId: c.accountId,
-          accountName: c.accountName,
-          accountUrl: connectedAccountUrl(c.provider, c),
-          configured: isConnected(c),
-          expiresAt: c.expiresAt?.toISOString() || null,
-        },
-      ]),
-    ),
-  };
-}
+
 export async function getProject(id: string) {
-  return loggedOperation("lib.projects.getProject", {}, async () => {
-    z.uuid().parse(id);
-    const [p] = await getDb()
-      .select()
-      .from(projects)
-      .where(eq(projects.id, id));
-    if (!p) throw new UserFacingError("Project not found", 404);
-    return hydrateProject(p);
-  });
+  return found(system.findProjectRecord(z.uuid().parse(id)));
 }
-export async function listProjects(userId: string) {
-  return loggedOperation("lib.projects.listProjects", { userId }, async () => {
-    const rows = await getDb()
-      .select()
-      .from(projects)
-      .where(eq(projects.userId, userId))
-      .orderBy(desc(projects.createdAt));
-    const connections = await getDb()
-      .select()
-      .from(projectConnectors)
-      .innerJoin(projects, eq(projects.id, projectConnectors.projectId))
-      .where(eq(projects.userId, userId));
-    return rows.map((p) =>
-      publicProject(
-        connected(
-          p,
-          connections
-            .filter((c) => c.projects.id === p.id)
-            .map((c) => c.project_connectors),
-        ),
-      ),
-    );
-  });
+
+export async function getOwnedProject(userId: string, id: string) {
+  return found(system.findOwnedProjectRecord(userId, z.uuid().parse(id)));
 }
+
+export function listProjects(userId: string) {
+  return projects.listProjects({ userId });
+}
+
 export async function createProject(userId: string, input: unknown) {
-  return loggedOperation("lib.projects.createProject", { userId }, async () => {
-    const values = projectSchema.parse(input);
-    const [p] = await getDb()
-      .insert(projects)
-      .values({ name: values.name, userId })
-      .returning();
-    const project = await updateProject(userId, p.id, values);
-    return { project };
-  });
+  const values = projectFields.parse(input);
+  const created = await projects.createProject({ userId }, values);
+  const project = await projects.updateProject(
+    { userId },
+    { ...values, id: created.id },
+  );
+  return { project };
 }
-export async function updateProject(
-  userId: string,
-  id: string,
-  input: unknown,
-) {
-  return loggedOperation("lib.projects.updateProject", { userId }, async () => {
-    z.uuid().parse(id);
-    const values = projectSchema.parse(input);
-    await getDb().transaction(async (tx) => {
-      const [p] = await tx
-        .update(projects)
-        .set({ name: values.name, updatedAt: sql`now()` })
-        .where(and(eq(projects.id, id), eq(projects.userId, userId)))
-        .returning();
-      if (!p) throw new UserFacingError("Project not found", 404);
-      for (const provider of ["facebook", "instagram"] as const) {
-        const accountId =
-          provider === "facebook"
-            ? values.facebookPageId
-            : values.instagramAccountId;
-        const accessToken =
-          provider === "facebook"
-            ? values.facebookPageToken
-            : values.instagramAccessToken;
-        if (
-          accountId === undefined &&
-          accessToken === undefined &&
-          !(provider === "instagram" && values.instagramApiHost !== undefined)
-        )
-          continue;
-        const [old] = await tx
-          .select()
-          .from(projectConnectors)
-          .where(
-            and(
-              eq(projectConnectors.projectId, id),
-              eq(projectConnectors.provider, provider),
-            ),
-          )
-          .for("update");
-        const data = {
-          projectId: id,
-          provider,
-          accountId: accountId ?? old?.accountId ?? "",
-          accessToken: accessToken ?? old?.accessToken ?? "",
-          metadata:
-            provider === "instagram"
-              ? {
-                  apiHost:
-                    values.instagramApiHost ??
-                    old?.metadata.apiHost ??
-                    "graph.facebook.com",
-                }
-              : {},
-          updatedAt: new Date(),
-        };
-        if (!data.accountId && !data.accessToken)
-          await tx
-            .delete(projectConnectors)
-            .where(
-              and(
-                eq(projectConnectors.projectId, id),
-                eq(projectConnectors.provider, provider),
-              ),
-            );
-        else
-          await tx
-            .insert(projectConnectors)
-            .values(data)
-            .onConflictDoUpdate({
-              target: [projectConnectors.projectId, projectConnectors.provider],
-              set: data,
-            });
-      }
-    });
-    return publicProject(await getOwnedProject(userId, id));
-  });
+
+export function updateProject(userId: string, id: string, input: unknown) {
+  return projects.updateProject(
+    { userId },
+    { ...projectFields.parse(input), id: z.uuid().parse(id) },
+  );
 }
-export async function saveConnector(
+
+export function saveConnector(
   userId: string,
   projectId: string,
-  values: Omit<typeof projectConnectors.$inferInsert, "id" | "projectId">,
+  values: ConnectorValues,
 ) {
-  return loggedOperation(
-    "lib.projects.saveConnector",
-    { userId, projectId },
-    async () => {
-      await getDb().transaction(async (tx) => {
-        const [p] = await tx
-          .select()
-          .from(projects)
-          .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
-          .for("update");
-        if (!p) throw new UserFacingError("Project not found", 404);
-        await tx
-          .insert(projectConnectors)
-          .values({ ...values, projectId })
-          .onConflictDoUpdate({
-            target: [projectConnectors.projectId, projectConnectors.provider],
-            set: {
-              ...values,
-              refreshToken: values.refreshToken ?? null,
-              expiresAt: values.expiresAt ?? null,
-              scopes: values.scopes ?? [],
-              metadata: values.metadata ?? {},
-              updatedAt: new Date(),
-            },
-          });
-      });
-    },
-  );
+  return system.saveConnector(userId, projectId, values);
 }
-export async function disconnectConnector(
+
+export function disconnectConnector(
   userId: string,
   projectId: string,
   provider: Platform,
 ) {
-  return loggedOperation(
-    "lib.projects.disconnectConnector",
-    { userId, projectId, provider },
-    async () => {
-      await getOwnedProject(userId, projectId);
-      await getDb()
-        .delete(projectConnectors)
-        .where(
-          and(
-            eq(projectConnectors.projectId, projectId),
-            eq(projectConnectors.provider, provider),
-          ),
-        );
-    },
-  );
-}
-
-export async function getOwnedProject(userId: string, id: string) {
-  return loggedOperation(
-    "lib.projects.getOwnedProject",
-    { userId },
-    async () => {
-      z.uuid().parse(id);
-      const [p] = await getDb()
-        .select()
-        .from(projects)
-        .where(and(eq(projects.id, id), eq(projects.userId, userId)));
-      if (!p) {
-        throw new UserFacingError("Project not found", 404);
-      }
-      return hydrateProject(p);
-    },
-  );
+  return projects.disconnectChannel({ userId }, { id: projectId, provider });
 }
