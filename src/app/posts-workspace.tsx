@@ -26,6 +26,10 @@ import { toast } from "@/components/ui/sonner";
 import { ORPCError } from "@orpc/client";
 import { api, userMessage } from "@/lib/api-client";
 import type { AssetInput } from "@/shared/schemas/asset";
+import {
+  uploadFileFields,
+  type StartUploadInput,
+} from "@/shared/schemas/upload";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import {
@@ -56,6 +60,12 @@ const blank: Draft = {
   platforms: ["facebook"],
   source: "Manual",
 };
+
+type UploadMimeType = StartUploadInput["mimeType"];
+const uploadMimeTypes: readonly string[] =
+  uploadFileFields.shape.mimeType.options;
+const isUploadMimeType = (type: string): type is UploadMimeType =>
+  uploadMimeTypes.includes(type);
 export default function PostsWorkspace({
   publishedView = false,
 }: {
@@ -127,16 +137,6 @@ export default function PostsWorkspace({
       clearInterval(timer);
     };
   }, [refresh]);
-  async function request(url: string, method: string, body?: unknown) {
-    const response = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Request failed");
-    return result;
-  }
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -158,11 +158,15 @@ export default function PostsWorkspace({
         toast.loading(`Uploading ${item.file.name}…`, {
           id: `post-operation-${projectId}`,
         });
-        const path = `/api/assets/uploads?projectId=${projectId}`;
         const mimeType =
           item.file.type ||
           (item.file.name.toLowerCase().endsWith(".mp4") ? "video/mp4" : "");
-        const start = await request(path, "POST", {
+        if (!isUploadMimeType(mimeType))
+          throw new Error(
+            `${item.file.name}: choose a JPEG, PNG or WebP image, or an MP4 video`,
+          );
+        const start = await api.uploads.start({
+          projectId,
           mimeType,
           fileSize: item.file.size,
         });
@@ -179,7 +183,8 @@ export default function PostsWorkspace({
           );
         }
         if (!uploaded.ok) throw new Error("Storage rejected the file upload");
-        const ready = await request(path, "PATCH", {
+        const ready = await api.uploads.complete({
+          projectId,
           uploadId: start.uploadId,
         });
         assets.push({ type: "UPLOAD_ID", uploadId: ready.assetUploadId });

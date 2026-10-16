@@ -25,11 +25,9 @@ import {
   storedAssets,
   listPosts,
 } from "../src/lib/store";
-import {
-  createDirectUpload,
-  completeDirectUpload,
-  directUploadSchema,
-} from "../src/lib/direct-uploads";
+import { uploadsService } from "../src/domain/uploads";
+import { uploadFileFields } from "../src/shared/schemas/upload";
+import { client, rejectsWith } from "./helpers/orpc";
 import { removeImage, readImage, isMp4 } from "../src/lib/storage";
 import { mcpDraftSchema, filesDraftSchema } from "../src/lib/mcp-images";
 import { validateAssetKinds } from "../src/lib/asset-inputs";
@@ -39,10 +37,6 @@ import { rotateAccountToken } from "../src/lib/mcp-account";
 import { handleAccountMcp } from "../src/lib/mcp";
 import { publishPost } from "./helpers/direct-publish";
 import { GET as previewAsset } from "../src/app/api/posts/[id]/assets/[assetId]/route";
-import {
-  POST as prepareUpload,
-  PATCH as finalizeUpload,
-} from "../src/app/api/assets/uploads/route";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -101,12 +95,12 @@ test("asset schemas support ordered sources and enforce media limits", async () 
     /single video/,
   );
   assert.equal(
-    directUploadSchema.safeParse({ mimeType: "video/mp4", fileSize: 100000001 })
+    uploadFileFields.safeParse({ mimeType: "video/mp4", fileSize: 100000001 })
       .success,
     false,
   );
   assert.equal(
-    directUploadSchema.safeParse({ mimeType: "image/jpeg", fileSize: 4500001 })
+    uploadFileFields.safeParse({ mimeType: "image/jpeg", fileSize: 4500001 })
       .success,
     false,
   );
@@ -376,18 +370,13 @@ test(
       await t.test(
         "large-file flow binds project, verifies bytes, and isolates finalized objects",
         async () => {
-          assert.equal(
-            (
-              await prepareUpload(
-                api(
-                  `/api/assets/uploads?projectId=${projectId}`,
-                  { mimeType: "video/mp4", fileSize: video.length },
-                  "POST",
-                  false,
-                ),
-              )
-            ).status,
-            401,
+          await rejectsWith(
+            client().uploads.start({
+              projectId,
+              mimeType: "video/mp4",
+              fileSize: video.length,
+            }),
+            "UNAUTHORIZED",
           );
           const start = await mcp("create_asset_upload", {
             mimeType: "video/mp4",
@@ -410,15 +399,20 @@ test(
           );
           await assert.rejects(
             () =>
-              completeDirectUpload(
-                second.project.id,
-                start.uploadId,
-                start.completionToken,
-              ),
+              uploadsService.completeWithToken({
+                projectId: second.project.id,
+                uploadId: start.uploadId,
+                completionToken: start.completionToken,
+              }),
             /not found/,
           );
           await assert.rejects(
-            () => completeDirectUpload(projectId, start.uploadId, "wrong"),
+            () =>
+              uploadsService.completeWithToken({
+                projectId: projectId,
+                uploadId: start.uploadId,
+                completionToken: "wrong",
+              }),
             /Invalid.*token/,
           );
           const ready = await mcp("complete_asset_upload", {
@@ -428,11 +422,11 @@ test(
           assert.equal(ready.kind, "VIDEO");
           await assert.rejects(
             () =>
-              completeDirectUpload(
-                projectId,
-                start.uploadId,
-                start.completionToken,
-              ),
+              uploadsService.completeWithToken({
+                projectId: projectId,
+                uploadId: start.uploadId,
+                completionToken: start.completionToken,
+              }),
             /already completed/,
           );
           await assert.rejects(
@@ -484,10 +478,10 @@ test(
             await getPostImage(projectId, videoPost.id),
           );
           assert.ok(Buffer.from(await readImage(asset)).equals(video));
-          const pending = await createDirectUpload(projectId, {
-            mimeType: "video/mp4",
-            fileSize: video.length,
-          });
+          const pending = await uploadsService.start(
+            { userId },
+            { projectId, mimeType: "video/mp4", fileSize: video.length },
+          );
           assert.ok(
             (
               await storageRequest(pending.uploadUrl, {
@@ -499,23 +493,20 @@ test(
           );
           await assert.rejects(
             () =>
-              completeDirectUpload(
-                projectId,
-                pending.uploadId,
-                pending.completionToken,
-              ),
+              uploadsService.completeWithToken({
+                projectId: projectId,
+                uploadId: pending.uploadId,
+                completionToken: pending.completionToken,
+              }),
             /valid video/,
           );
-          // Browser route can finalize an image without exposing storage secrets.
-          const response = await prepareUpload(
-            api(
-              `/api/assets/uploads?projectId=${projectId}`,
-              { mimeType: "image/jpeg", fileSize: jpeg.length },
-              "POST",
-            ),
-          );
-          assert.equal(response.status, 201);
-          const imageStart = await response.json();
+          // The browser API can finalize an image without exposing storage secrets.
+          const browser = client(cookie);
+          const imageStart = await browser.uploads.start({
+            projectId,
+            mimeType: "image/jpeg",
+            fileSize: jpeg.length,
+          });
           assert.ok(
             (
               await storageRequest(imageStart.uploadUrl, {
@@ -525,14 +516,11 @@ test(
               })
             ).ok,
           );
-          const done = await finalizeUpload(
-            api(
-              `/api/assets/uploads?projectId=${projectId}`,
-              { uploadId: imageStart.uploadId },
-              "PATCH",
-            ),
-          );
-          assert.equal(done.status, 200);
+          const done = await browser.uploads.complete({
+            projectId,
+            uploadId: imageStart.uploadId,
+          });
+          assert.equal(done.kind, "IMAGE");
         },
       );
       await t.test(
@@ -705,16 +693,19 @@ test(
         "container rejection retains Facebook delivery and blocks automatic retry",
         async () => {
           globalThis.fetch = realFetch;
-          const start = await createDirectUpload(projectId, {
-            mimeType: "video/mp4",
-            fileSize: video.length,
-          });
+          const start = await uploadsService.start(
+            { userId },
+            { projectId, mimeType: "video/mp4", fileSize: video.length },
+          );
           await storageRequest(start.uploadUrl, {
             method: "PUT",
             headers: start.headers,
             body: video,
           });
-          const ready = await completeDirectUpload(projectId, start.uploadId);
+          const ready = await uploadsService.complete(
+            { userId },
+            { projectId: projectId, uploadId: start.uploadId },
+          );
           const rejected = await insert({
             ...draft,
             assets: [{ type: "UPLOAD_ID", uploadId: ready.assetUploadId }],

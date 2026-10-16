@@ -13,12 +13,8 @@ import { listProjects } from "./projects";
 import { verifyAccountToken, resolveMcpProject } from "./mcp-account";
 import { createPost, listPosts } from "./store";
 import { mcpDraftSchema, filesDraftSchema } from "./mcp-images";
-import {
-  createDirectUpload,
-  completeDirectUpload,
-  directUploadSchema,
-} from "./direct-uploads";
-import { createUploadToken } from "./uploads";
+import { uploadsService } from "@/domain/uploads";
+import { uploadFileFields } from "@/shared/schemas/upload";
 const projectFields = {
   projectId: z
     .uuid()
@@ -271,7 +267,7 @@ export async function handleAccountMcp(req: Request) {
       {
         description:
           "Prepare a private direct-to-storage upload for an image (4.5 MB maximum) or MP4 video (100 MB maximum). Requires exact fileSize in bytes and mimeType. Returns a short-lived PUT URL and completionToken. PUT file bytes with the provided Content-Type, then call complete_asset_upload. Requires an HTTP-capable client; for ChatGPT attachments prefer create_draft_from_files.",
-        inputSchema: directUploadSchema.safeExtend(projectFields),
+        inputSchema: uploadFileFields.safeExtend(projectFields),
         _meta: draftMetadata,
         annotations: draftAnnotations,
       },
@@ -280,11 +276,16 @@ export async function handleAccountMcp(req: Request) {
           "mcp.tool",
           { tool: "create_asset_upload", userId: accountId },
           async () =>
-            scopedTool("posts:write", input, async (project) => {
-              const file = { ...input };
-              delete file.projectId;
-              return createDirectUpload(project.id, file);
-            }),
+            scopedTool("posts:write", input, (project) =>
+              uploadsService.start(
+                { userId: accountId },
+                {
+                  projectId: project.id,
+                  mimeType: input.mimeType,
+                  fileSize: input.fileSize,
+                },
+              ),
+            ),
         ),
     );
     server.registerTool(
@@ -306,10 +307,13 @@ export async function handleAccountMcp(req: Request) {
           { tool: "complete_asset_upload", userId: accountId },
           async () =>
             scopedTool("posts:write", input, (project) =>
-              completeDirectUpload(
-                project.id,
-                input.uploadId,
-                input.completionToken,
+              uploadsService.complete(
+                { userId: accountId },
+                {
+                  projectId: project.id,
+                  uploadId: input.uploadId,
+                  completionToken: input.completionToken,
+                },
               ),
             ),
         ),
@@ -336,7 +340,10 @@ export async function handleAccountMcp(req: Request) {
           { tool: "create_upload_token", userId: accountId },
           async () =>
             scopedTool("posts:write", input, (project) =>
-              createUploadToken(project.id),
+              uploadsService.createToken(
+                { userId: accountId },
+                { projectId: project.id },
+              ),
             ),
         ),
     );

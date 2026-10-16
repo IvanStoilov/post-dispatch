@@ -14,7 +14,7 @@ import { getDb } from "../db";
 import { verifications } from "../db/schema";
 import { getAuth } from "./auth";
 import { getOwnedProject, saveConnector } from "./projects";
-import { appOrigin } from "./uploads";
+import { appOrigin } from "./origins";
 import { logger, redact } from "./logger";
 import {
   pendingConnectionBelongsTo,

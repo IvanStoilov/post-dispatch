@@ -10,7 +10,6 @@ import {
   storeAsset,
 } from "@/lib/storage";
 import type { StoredAsset } from "@/lib/types";
-import { claimImageUpload } from "@/lib/uploads";
 import type { AssetInput } from "@/shared/schemas/asset";
 import type {
   CreatePostInput,
@@ -25,6 +24,7 @@ import { projectsSystemService } from "../projects";
 import type { Actor } from "../shared/actor";
 import type { Tx } from "../shared/db";
 import { UserFacingError } from "../shared/errors";
+import { uploadsSystemService } from "../uploads";
 import { toPostDto } from "./mappers";
 import * as repository from "./repository";
 import type { PostRecord } from "./types";
@@ -132,7 +132,11 @@ async function resolveAssets(
   for (const input of inputs) {
     if (!("type" in input)) result.push(input);
     else if (input.type === "UPLOAD_ID") {
-      const asset = await claimImageUpload(tx, projectId, input.uploadId);
+      const asset = await uploadsSystemService.claim(
+        tx,
+        projectId,
+        input.uploadId,
+      );
       if (input.kind && asset.kind !== input.kind)
         throw invalid("Uploaded asset has a different media type");
       result.push(asset);

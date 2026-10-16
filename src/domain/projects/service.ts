@@ -1,6 +1,5 @@
 import "server-only";
 import { getDb } from "@/db";
-import { deleteProjectUploads } from "@/lib/direct-uploads";
 import { loggedOperation, logger } from "@/lib/logger";
 import {
   queueMediaCleanup,
@@ -22,6 +21,7 @@ import { publishingSystemService } from "../publishing";
 import type { Actor } from "../shared/actor";
 import type { Tx } from "../shared/db";
 import { UserFacingError } from "../shared/errors";
+import { uploadsSystemService } from "../uploads";
 import { isConnected, toProjectDto } from "./mappers";
 import * as repository from "./repository";
 import type { ConnectorValues } from "./types";
@@ -84,7 +84,7 @@ async function deleteLocked(
   await publishingSystemService.deleteJobsInProjects(tx, ids, deleting);
   const media = [
     ...(await postsSystemService.deleteInProjects(tx, ids)),
-    ...(await deleteProjectUploads(tx, ids)),
+    ...(await uploadsSystemService.deleteInProjects(tx, ids)),
   ];
   await queueMediaCleanup(tx, ids, media, location);
   await repository.removeMany(tx, ids);

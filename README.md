@@ -171,7 +171,7 @@ File uploads use the selected storage provider with the same client flow:
 3. Call `complete_asset_upload` with `uploadId` and `completionToken`. HTTP-capable clients may instead POST those fields to `completionUrl`.
 4. Pass the returned `assetUploadId` to `create_draft.assets` with type UPLOAD_ID. Each upload is project-scoped, expires after an hour, and can be claimed once. Finalization writes a new key so reusing the PUT URL cannot alter a post.
 
-The dashboard uses authenticated `/api/assets/uploads` POST/PATCH for this same flow. S3 file bytes bypass Vercel's 4.5 MB request limit. Local PUT URLs write through an unsigned, size-checked development endpoint; completed or expired uploads cannot be overwritten through it. The old `create_upload_token` + raw HTTP endpoint remains available for small image files.
+The dashboard uses the authenticated `POST /api/v1/projects/:projectId/uploads` and `POST /api/v1/projects/:projectId/uploads/:uploadId/complete` routes for this same flow. S3 file bytes bypass Vercel's 4.5 MB request limit. Local PUT URLs write through an unsigned, size-checked development endpoint; completed or expired uploads cannot be overwritten through it. The old `create_upload_token` + raw HTTP endpoint remains available for small image files.
 
 For the S3 provider, enable S3 CORS for the app's origin, preserving existing bucket rules (not needed for local storage):
 

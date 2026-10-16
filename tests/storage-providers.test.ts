@@ -30,10 +30,7 @@ import {
   accountMediaCleanup,
 } from "../src/db/schema";
 import { createProject } from "../src/lib/projects";
-import {
-  createDirectUpload,
-  completeDirectUpload,
-} from "../src/lib/direct-uploads";
+import { uploadsService } from "../src/domain/uploads";
 import { createPost, deletePost } from "../src/lib/store";
 import { projectsService } from "../src/domain/projects";
 import { recoverMediaCleanup } from "../src/lib/media-cleanup";
@@ -233,10 +230,14 @@ test(
       })
         .png()
         .toBuffer();
-      const pending = await createDirectUpload(project.id, {
-        mimeType: "image/png",
-        fileSize: image.length,
-      });
+      const pending = await uploadsService.start(
+        { userId },
+        {
+          projectId: project.id,
+          mimeType: "image/png",
+          fileSize: image.length,
+        },
+      );
       assert.equal(
         new URL(pending.uploadUrl).searchParams.get("uploadId"),
         pending.uploadId,
@@ -296,11 +297,11 @@ test(
         },
       );
       process.env.STORAGE_PROVIDER = "s3"; // A changed default cannot move an existing staged file.
-      const ready = await completeDirectUpload(
-        project.id,
-        pending.uploadId,
-        pending.completionToken,
-      );
+      const ready = await uploadsService.completeWithToken({
+        projectId: project.id,
+        uploadId: pending.uploadId,
+        completionToken: pending.completionToken,
+      });
       const [registered] = await getDb()
         .select()
         .from(imageUploads)

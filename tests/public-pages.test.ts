@@ -131,7 +131,7 @@ test("APIs remain unprefixed and domain routing preserves host/origin checks", (
       "/api/v1/projects",
       "/api/posts/post/image",
       "/api/connections",
-      "/api/assets/uploads",
+      "/api/v1/projects/project/uploads",
     ])
       assert.equal(proxy(request(path, host)).status, 401, path);
     for (const path of [

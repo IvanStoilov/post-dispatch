@@ -15,7 +15,8 @@ import {
   uploadTokens,
   users,
 } from "../src/db/schema";
-import { createUploadToken, receiveImageUpload } from "../src/lib/uploads";
+import { uploadsService } from "../src/domain/uploads";
+import { POST as uploadRoute } from "../src/app/api/mcp/uploads/route";
 import {
   createPost as insertPost,
   listPosts,
@@ -192,41 +193,51 @@ test(
         );
       });
       await t.test("uploaded images attach to exactly one draft", async () => {
-        const { uploadUrl, token } = await createUploadToken(projectId);
-        const post = (
+        const { uploadUrl, token } = await uploadsService.createToken(
+          { userId },
+          { projectId },
+        );
+        // Assistants POST the bytes to uploadUrl, as in the token's example.
+        const upload = async (
           authorization: string,
           body = draft.imageFile.dataBase64,
-        ) =>
-          new Request(uploadUrl, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${authorization}` },
-            body: Buffer.from(body, "base64"),
-          });
+          url = uploadUrl,
+        ) => {
+          const response = await uploadRoute(
+            new Request(url, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${authorization}` },
+              body: Buffer.from(body, "base64"),
+            }),
+          );
+          const result = await response.json();
+          if (response.status !== 201)
+            throw new Error(`${response.status} ${result.error}`);
+          return result;
+        };
         await assert.rejects(
-          () => receiveImageUpload(projectId, post("wrong")),
-          /invalid, expired, or used up/,
-        );
-        await assert.rejects(
-          () => receiveImageUpload(second.project.id, post(token)),
-          /invalid, expired, or used up/,
+          () => upload("wrong"),
+          /401 Upload token is invalid, expired, or used up/,
         );
         await assert.rejects(
           () =>
-            receiveImageUpload(
-              projectId,
-              post(token, Buffer.from("not an image").toString("base64")),
+            upload(
+              token,
+              undefined,
+              uploadUrl.replace(projectId, second.project.id),
             ),
-          /valid JPEG/,
+          /401 Upload token is invalid, expired, or used up/,
+        );
+        await assert.rejects(
+          () => upload(token, Buffer.from("not an image").toString("base64")),
+          /400 Upload a valid JPEG/,
         );
         const [{ uploadsRemaining }] = await getDb()
           .select()
           .from(uploadTokens)
           .where(eq(uploadTokens.projectId, projectId));
         assert.equal(uploadsRemaining, 20);
-        const uploads = await Promise.all([
-          receiveImageUpload(projectId, post(token)),
-          receiveImageUpload(projectId, post(token)),
-        ]);
+        const uploads = await Promise.all([upload(token), upload(token)]);
         assert.notEqual(uploads[0].imageUploadId, uploads[1].imageUploadId);
         const fromUpload = {
           ...draft,
