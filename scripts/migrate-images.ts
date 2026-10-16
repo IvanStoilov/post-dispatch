@@ -35,16 +35,14 @@ async function main() {
           .where(eq(postAssets.postId, post.id))
           .limit(1);
         if (existing) return false;
-        await tx
-          .insert(postAssets)
-          .values({
-            id: randomUUID(),
-            postId: post.id,
-            position: 0,
-            kind: "IMAGE",
-            mimeType: "image/jpeg",
-            ...media,
-          });
+        await tx.insert(postAssets).values({
+          id: randomUUID(),
+          postId: post.id,
+          position: 0,
+          kind: "IMAGE",
+          mimeType: "image/jpeg",
+          ...media,
+        });
         await tx
           .update(posts)
           .set({ imageUrl: "", updatedAt: sql`now()` })

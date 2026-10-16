@@ -65,7 +65,7 @@ async function ownVerificationIds(tx: Tx, user: { id: string; email: string }) {
 // them again: `verifyPassword` (from the transport, which holds the
 // credentials) runs after the attempt is counted. Stored media is removed
 // after the response; posts already on networks stay there.
-async function remove(
+async function deleteAccount(
   actor: Actor,
   { verifyPassword }: { verifyPassword: () => Promise<boolean> },
 ): Promise<void> {
@@ -96,4 +96,4 @@ async function remove(
 }
 
 // For routers, pages and MCP tools acting for a signed-in user.
-export const accountService = { delete: remove };
+export const accountService = { deleteAccount };

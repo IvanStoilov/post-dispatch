@@ -41,7 +41,7 @@ export async function DELETE(request: Request) {
       );
     }
     try {
-      await accountService.delete(
+      await accountService.deleteAccount(
         { userId: session.user.id },
         {
           verifyPassword: () =>
