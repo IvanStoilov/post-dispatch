@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import AuthForm from "../../auth-form";
 import { parseAuthQuery } from "../../auth-query";
-import { currentTerms } from "@/lib/terms";
+import { termsService } from "@/domain/terms";
 export default async function Page({
   searchParams,
 }: {
@@ -16,7 +16,7 @@ export default async function Page({
     (await getAuth().api.getSession({ headers: await headers() }))
   )
     redirect(appPageUrl());
-  const terms = currentTerms();
+  const terms = termsService.current();
   return (
     <AuthForm
       mode="signup"

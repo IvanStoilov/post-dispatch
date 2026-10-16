@@ -23,7 +23,6 @@ import {
 import { getAuth } from "../src/lib/auth";
 import { appOrigin } from "../src/lib/origins";
 import { createPost } from "../src/lib/store";
-import { limitDeletionAttempts } from "../src/lib/account-deletion";
 import { recoverMediaCleanup } from "../src/lib/media-cleanup";
 import { breakStorage, isStored, storeFile } from "./helpers/storage";
 import { DELETE } from "../src/app/api/account/route";
@@ -377,10 +376,23 @@ test(
       await t.test(
         "deletion password attempts are limited persistently",
         async () => {
+          const guess = { password: "wrong-password", confirmation: "DELETE" };
           for (let attempt = 0; attempt < 5; attempt++)
-            await limitDeletionAttempts(b.id);
-          await assert.rejects(
-            limitDeletionAttempts(b.id),
+            assert.equal(
+              (await DELETE(req("/api/account", guess, b.cookie))).status,
+              400,
+            );
+          // Even the right password is refused once the limit is reached.
+          const limited = await DELETE(
+            req(
+              "/api/account",
+              { password: b.password, confirmation: "DELETE" },
+              b.cookie,
+            ),
+          );
+          assert.equal(limited.status, 429);
+          assert.match(
+            (await limited.json()).error,
             /Too many deletion attempts/,
           );
         },

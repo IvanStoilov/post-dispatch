@@ -18,6 +18,6 @@ Legal drafting references consulted, without representing that the draft has bee
 - [Spanish consumer protection law, including restrictions on unfair liability exclusions](https://www.boe.es/buscar/act.php?id=BOE-A-2007-20555)
 - [LSSI, including making contractual terms available for storage and reproduction](https://www.boe.es/eli/es/l/2002/07/11/34/)
 
-Canonical Markdown lives in `src/content/legal/terms.md`; its release version and server-side metadata substitution live in `src/lib/terms.ts`. Increment the version for every change, including operator details. A database guard rejects reusing a previously accepted version for different content. Never edit an existing acceptance to match new terms.
+Canonical Markdown lives in `src/content/legal/terms.md`; its release version and server-side metadata substitution live in `src/domain/terms/document.ts`. Increment the version for every change, including operator details. A database guard rejects reusing a previously accepted version for different content. Never edit an existing acceptance to match new terms.
 
 Migration `0017_terms_acceptances.sql` must run before deploying this code. Test against a disposable local database: immutable audit records intentionally survive ordinary test-user cleanup. The migration has been verified from an empty database, and local development has been migrated. Production has not been migrated or deployed by this task.

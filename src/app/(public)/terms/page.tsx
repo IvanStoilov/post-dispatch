@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { currentTerms } from "@/lib/terms";
+import { termsService } from "@/domain/terms";
 import { TermsDocument } from "@/components/terms-document";
 export const metadata: Metadata = {
   title: "Terms of service | Ramblo",
@@ -15,7 +15,7 @@ export default function TermsPage() {
       tabIndex={-1}
       className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-5 py-12 sm:px-8 sm:py-16"
     >
-      <TermsDocument content={currentTerms().content} />
+      <TermsDocument content={termsService.current().content} />
     </main>
   );
 }

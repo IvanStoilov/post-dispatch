@@ -7,10 +7,10 @@ import { eq, inArray } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
 import { users, projects, posts, uploadTokens } from "../src/db/schema";
 import { createProject } from "../src/lib/projects";
-import { rotateAccountToken, verifyAccountToken } from "../src/lib/mcp-account";
+import { assistantsService } from "../src/domain/assistants";
 import { handleMcpRequest } from "../src/server/mcp";
 import { accountResource } from "../src/lib/oauth-provider";
-import { POST as rotateRoute } from "../src/app/api/mcp-settings/token/route";
+import { client, rejectsWith } from "./helpers/orpc";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -62,7 +62,8 @@ test(
             email: `${id}@example.test`,
           })),
         );
-      const bearer = (await rotateAccountToken(owner)).mcpToken;
+      const bearer = (await assistantsService.rotateToken({ userId: owner }))
+        .mcpToken;
       await t.test(
         "zero projects produces an actionable error and an empty list",
         async () => {
@@ -202,20 +203,16 @@ test(
       await t.test(
         "rotation revokes the old account token and anonymous rotation is rejected",
         async () => {
-          assert.equal(await verifyAccountToken(`Bearer ${bearer}`), owner);
-          const replacement = (await rotateAccountToken(owner)).mcpToken;
+          assert.equal(
+            await assistantsService.verifyToken(`Bearer ${bearer}`),
+            owner,
+          );
+          const replacement = (
+            await assistantsService.rotateToken({ userId: owner })
+          ).mcpToken;
           assert.equal((await call(bearer, "list_projects")).status, 401);
           assert.equal((await call(replacement, "list_projects")).status, 200);
-          assert.equal(
-            (
-              await rotateRoute(
-                new Request(accountResource() + "-settings/token", {
-                  method: "POST",
-                }),
-              )
-            ).status,
-            401,
-          );
+          await rejectsWith(client().assistants.rotateToken(), "UNAUTHORIZED");
         },
       );
     } finally {

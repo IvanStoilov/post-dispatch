@@ -11,11 +11,9 @@ import {
   oauthClients,
 } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
-import { currentTerms } from "../src/lib/terms";
+import { termsService } from "../src/domain/terms";
 import { acceptedSignup } from "./helpers/terms";
-import { listTermsAcceptances } from "../src/lib/terms-acceptance";
-import { GET as agreement } from "../src/app/api/account/agreements/[id]/route";
-import { POST as accept } from "../src/app/api/account/agreements/route";
+import { client, rejectsWith } from "./helpers/orpc";
 import { appOrigin } from "../src/lib/origins";
 import { ensureAccountResource } from "../src/lib/oauth";
 loadEnvConfig(process.cwd());
@@ -38,7 +36,7 @@ test(
   "explicit terms acceptance, transactional signup, immutability and private original evidence",
   { skip: !process.env.DATABASE_URL },
   async (t) => {
-    const terms = currentTerms();
+    const terms = termsService.current();
     const authContext = await getAuth().$context;
     authContext.rateLimit.enabled = false;
     const draft = () => ({
@@ -230,31 +228,14 @@ test(
       await t.test(
         "own original is accessible; anonymous and cross-account requests fail",
         async () => {
-          const ctx = { params: Promise.resolve({ id: record.id }) };
-          assert.equal(
-            (await agreement(req(`/api/account/agreements/${record.id}`), ctx))
-              .status,
-            401,
+          const ref = { id: record.id };
+          await rejectsWith(client().terms.getAcceptance(ref), "UNAUTHORIZED");
+          await rejectsWith(
+            client(b.cookie).terms.getAcceptance(ref),
+            "NOT_FOUND",
           );
-          assert.equal(
-            (
-              await agreement(
-                req(
-                  `/api/account/agreements/${record.id}`,
-                  undefined,
-                  b.cookie,
-                ),
-                ctx,
-              )
-            ).status,
-            404,
-          );
-          const response = await agreement(
-            req(`/api/account/agreements/${record.id}`, undefined, a.cookie),
-            ctx,
-          );
-          assert.equal(response.status, 200);
-          assert.equal((await response.json()).termsContent, terms.content);
+          const own = await client(a.cookie).terms.getAcceptance(ref);
+          assert.equal(own.termsContent, terms.content);
         },
       );
       await t.test(
@@ -308,20 +289,16 @@ test(
               termsHash: createHash("sha256").update(nextContent).digest("hex"),
               acceptanceSource: "account",
             });
-          assert.equal((await listTermsAcceptances(a.id)).length, 2);
+          assert.equal(
+            (await termsService.listAcceptances({ userId: a.id })).length,
+            2,
+          );
         },
       );
       await t.test(
         "re-acceptance is idempotent and cannot replace original evidence",
         async () => {
-          assert.equal(
-            (
-              await accept(
-                req("/api/account/agreements", acceptedSignup({}), a.cookie),
-              )
-            ).status,
-            200,
-          );
+          await client(a.cookie).terms.accept(acceptedSignup({}));
           const [same] = await getDb()
             .select()
             .from(termsAcceptances)

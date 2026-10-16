@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { api, userMessage } from "@/lib/api-client";
 import { useAppPath } from "./app-navigation";
 import {
   Card,
@@ -69,26 +70,16 @@ export function LegalAgreements({
               if (!accepted || busy) return;
               setBusy(true);
               try {
-                const response = await fetch("/api/account/agreements", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    termsAccepted: true,
-                    termsVersion: terms.version,
-                    termsHash: terms.hash,
-                  }),
+                await api.terms.accept({
+                  termsAccepted: true,
+                  termsVersion: terms.version,
+                  termsHash: terms.hash,
                 });
-                const body = await response.json();
-                if (!response.ok) throw new Error(body.error);
                 toast.success("Terms of Service accepted.");
                 setAccepted(false);
                 router.refresh();
               } catch (error) {
-                toast.error(
-                  error instanceof Error
-                    ? error.message
-                    : "Could not record acceptance.",
-                );
+                toast.error(userMessage(error, "Could not record acceptance."));
               } finally {
                 setBusy(false);
               }

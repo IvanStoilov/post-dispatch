@@ -1,10 +1,10 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { assistantsService } from "@/domain/assistants";
 import { projectsService } from "@/domain/projects";
 import type { Actor } from "@/domain/shared/actor";
 import { UserFacingError } from "@/domain/shared/errors";
 import { getAuth } from "@/lib/auth";
 import { loggedOperation, logger, withLogContext } from "@/lib/logger";
-import { verifyAccountToken } from "@/lib/mcp-account";
 import type { ProjectDto } from "@/shared/schemas/project";
 
 export type Scope = "posts:read" | "posts:write";
@@ -14,7 +14,7 @@ export type McpContext = { actor: Actor; scopes: string[] };
 // (the scopes the user granted). Null when neither is valid.
 export async function authenticate(req: Request): Promise<McpContext | null> {
   const authorization = req.headers.get("authorization");
-  const userId = await verifyAccountToken(authorization);
+  const userId = await assistantsService.verifyToken(authorization);
   if (userId)
     return { actor: { userId }, scopes: ["posts:read", "posts:write"] };
   const token = authorization?.match(/^Bearer (.+)$/i)?.[1];

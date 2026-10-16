@@ -33,7 +33,7 @@ import { mcpDraftSchema, filesDraftSchema } from "../src/server/mcp/schemas";
 import { validateAssetKinds } from "../src/lib/asset-inputs";
 import { serveRemoteFiles } from "./helpers/remote-files";
 import { storageRequest } from "./helpers/storage";
-import { rotateAccountToken } from "../src/lib/mcp-account";
+import { assistantsService } from "../src/domain/assistants";
 import { handleMcpRequest } from "../src/server/mcp";
 import { publishPost } from "./helpers/direct-publish";
 import { GET as previewAsset } from "../src/app/api/posts/[id]/assets/[assetId]/route";
@@ -184,7 +184,7 @@ test(
         body: body ? JSON.stringify(body) : undefined,
       });
     }
-    const bearer = await rotateAccountToken(userId);
+    const bearer = await assistantsService.rotateToken({ userId: userId });
     async function mcp(name: string, args: unknown) {
       const response = await handleMcpRequest(
         new Request(origin + "/api/mcp", {

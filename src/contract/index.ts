@@ -1,3 +1,4 @@
+import { assistantsContract, termsContract } from "./account";
 import { postsContract } from "./posts";
 import { projectsContract } from "./projects";
 import { publicationsContract, publishingContract } from "./publishing";
@@ -11,5 +12,7 @@ export const contract = {
   publishing: publishingContract,
   publications: publicationsContract,
   uploads: uploadsContract,
+  terms: termsContract,
+  assistants: assistantsContract,
 };
 export type Contract = typeof contract;

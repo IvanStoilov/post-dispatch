@@ -11,9 +11,8 @@ import { eq, inArray } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
 import { users, accounts, posts, projects, sessions } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
-import { POST as rotateToken } from "../src/app/api/mcp-settings/token/route";
 import { GET as connections } from "../src/app/api/connections/route";
-import { rotateAccountToken } from "../src/lib/mcp-account";
+import { assistantsService } from "../src/domain/assistants";
 import { handleMcpRequest } from "../src/server/mcp";
 import { serveRemoteFiles } from "./helpers/remote-files";
 import { storageRequest } from "./helpers/storage";
@@ -129,11 +128,7 @@ test(
             client(b.cookie).projects.update({ id: aId, name: "Intrusion" }),
             "NOT_FOUND",
           );
-          assert.equal(
-            (await rotateToken(request("/api/mcp-settings/token", "POST", "")))
-              .status,
-            401,
-          );
+          await rejectsWith(client().assistants.rotateToken(), "UNAUTHORIZED");
           assert.equal(
             (
               await connections(
@@ -176,7 +171,7 @@ test(
           await rejectsWith(intruder.publishing.publish(ref), "NOT_FOUND");
         },
       );
-      const bearer = await rotateAccountToken(a.id);
+      const bearer = await assistantsService.rotateToken({ userId: a.id });
       await t.test(
         "MCP still works with scoped tokens without a browser session",
         async () => {

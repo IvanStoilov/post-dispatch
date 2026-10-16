@@ -1,19 +1,15 @@
 import { workspaceSession } from "@/lib/workspace";
 import { UserAccount } from "@/components/user-account";
-import { listTermsAcceptances } from "@/lib/terms-acceptance";
-import { currentTerms } from "@/lib/terms";
+import { termsService } from "@/domain/terms";
 export default async function AccountPage() {
   const { user } = await workspaceSession();
-  const records = await listTermsAcceptances(user.id),
-    terms = currentTerms();
+  const agreements = await termsService.listAcceptances({ userId: user.id }),
+    terms = termsService.current();
   return (
     <UserAccount
       name={user.name}
       email={user.email}
-      agreements={records.map((record) => ({
-        ...record,
-        acceptedAt: record.acceptedAt.toISOString(),
-      }))}
+      agreements={agreements}
       terms={{ version: terms.version, hash: terms.hash }}
     />
   );

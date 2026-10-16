@@ -8,6 +8,7 @@ import {
   rename,
   rm,
   stat,
+  rmdir,
 } from "node:fs/promises";
 import { constants } from "node:fs";
 import { resolve, dirname, relative, sep, join } from "node:path";
@@ -105,8 +106,20 @@ export function localProvider(directory: string): StorageProvider {
       for (const key of keys) {
         const path = file(bucket, key);
         try {
-          await safe(dirname(path));
+          const dir = dirname(path);
+          await safe(dir);
           await rm(path, { force: true });
+          // If the file was the last one in the directory, we should remove the directory as well
+          try {
+            const entries = await readdir(dir);
+            if (entries.length === 0) {
+              await rmdir(dir).catch((error) => {
+                if (!["ENOENT", "ENOTEMPTY"].includes(error.code)) throw error;
+              });
+            }
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          }
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }

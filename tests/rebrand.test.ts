@@ -5,7 +5,7 @@ import { loadEnvConfig } from "@next/env";
 import { eq } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
 import { users, oauthResources } from "../src/db/schema";
-import { rotateAccountToken } from "../src/lib/mcp-account";
+import { assistantsService } from "../src/domain/assistants";
 import { handleMcpRequest } from "../src/server/mcp";
 import { protectedResourceMetadata } from "../src/lib/oauth";
 import { accountResource } from "../src/lib/oauth-provider";
@@ -55,7 +55,9 @@ test(
         "posts:write",
         "offline_access",
       ]);
-      const { mcpToken: token } = await rotateAccountToken(userId);
+      const { mcpToken: token } = await assistantsService.rotateToken({
+        userId: userId,
+      });
       const response = await handleMcpRequest(
         new Request(process.env.APP_URL + "/api/mcp", {
           method: "POST",

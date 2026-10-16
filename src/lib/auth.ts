@@ -13,8 +13,27 @@ import { getDb } from "../db";
 import { randomUUID } from "node:crypto";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { getCurrentAdapter } from "@better-auth/core/context";
-import { validateTermsAcceptance } from "./terms-acceptance";
+import { termsSystemService } from "@/domain/terms";
 import { users, sessions, accounts, verifications } from "../db/schema";
+// Signup must accept the current terms. Returns them for the evidence
+// record; otherwise fails with the codes the signup form handles.
+function validateTermsAcceptance(body: Record<string, unknown> | undefined) {
+  const result = termsSystemService.check(body ?? {});
+  if (result.status === "accepted") return result.terms;
+  throw new APIError(
+    "BAD_REQUEST",
+    result.status === "required"
+      ? {
+          code: "TERMS_ACCEPTANCE_REQUIRED",
+          message: "You must read and agree to Ramblo's Terms of Service.",
+        }
+      : {
+          code: "TERMS_VERSION_CHANGED",
+          message:
+            "The Terms of Service have changed. Reload this page and review them before accepting.",
+        },
+  );
+}
 // Emails go out after the response so slow providers don't delay requests
 // and response timing doesn't reveal whether an account exists.
 function runInBackground(task: Promise<unknown>) {

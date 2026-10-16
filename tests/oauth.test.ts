@@ -1,7 +1,6 @@
 import { acceptedSignup } from "./helpers/terms";
 import { appPagePath } from "../src/lib/origins";
-import { DELETE as disconnectGrant } from "../src/app/api/mcp-settings/oauth/route";
-import { rotateAccountToken } from "../src/lib/mcp-account";
+import { assistantsService } from "../src/domain/assistants";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID, randomBytes } from "node:crypto";
@@ -22,7 +21,7 @@ import {
   protectedResourceMetadata,
   oauthConsentContext,
 } from "../src/lib/oauth";
-import { GET as listGrants } from "../src/app/api/mcp-settings/route";
+import { client } from "./helpers/orpc";
 import { accountResource } from "../src/lib/oauth-provider";
 import { POST as consentRoute } from "../src/app/api/oauth/consent/route";
 import { GET as serverMetadata } from "../src/app/.well-known/oauth-authorization-server/api/auth/route";
@@ -130,7 +129,7 @@ test(
       const secondProject = await createProject(a.user.id, {
         name: "OAuth bearer test",
       });
-      const bearer = await rotateAccountToken(a.user.id);
+      const bearer = await assistantsService.rotateToken({ userId: a.user.id });
       resource = accountResource();
       otherResource = resource + "/" + other.id;
       const metadata = await protectedResourceMetadata();
@@ -395,46 +394,19 @@ test(
           );
           assert.equal(denied.data.result.isError, true);
 
-          const grants = await checked(
-            await listGrants(
-              req("/api/mcp-settings", "GET", undefined, a.cookie),
-            ),
-          );
+          const grants = await client(a.cookie).assistants.get();
           assert.ok(
             grants.grants.some(
               (g: { clientId: string }) => g.clientId === clientId,
             ),
           );
-          assert.equal(
-            (
-              await disconnectGrant(
-                req(
-                  `/api/mcp-settings/oauth?clientId=${clientId}`,
-                  "DELETE",
-                  undefined,
-                  b.cookie,
-                ),
-              )
-            ).status,
-            200,
-          );
+          // Revoking only affects the caller's own grants.
+          await client(b.cookie).assistants.revokeGrant({ clientId });
           assert.equal(
             (await mcp(project.id, readOnly.access_token)).response.status,
             200,
           );
-          assert.equal(
-            (
-              await disconnectGrant(
-                req(
-                  `/api/mcp-settings/oauth?clientId=${clientId}`,
-                  "DELETE",
-                  undefined,
-                  a.cookie,
-                ),
-              )
-            ).status,
-            200,
-          );
+          await client(a.cookie).assistants.revokeGrant({ clientId });
           assert.equal(
             (await mcp(project.id, readOnly.access_token)).response.status,
             401,

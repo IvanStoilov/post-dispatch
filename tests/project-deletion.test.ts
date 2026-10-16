@@ -24,7 +24,7 @@ import { getAuth } from "../src/lib/auth";
 import { appOrigin } from "../src/lib/origins";
 import { createProject } from "../src/lib/projects";
 import { createPost } from "../src/lib/store";
-import { rotateAccountToken, verifyAccountToken } from "../src/lib/mcp-account";
+import { assistantsService } from "../src/domain/assistants";
 import { resolveProject } from "../src/server/mcp/context";
 import {
   startConnection,
@@ -109,7 +109,7 @@ test(
       const keep = (await createProject(a.id, { name: "Keep this project" }))
         .project;
       projectIds.push(keep.id);
-      const token = await rotateAccountToken(a.id);
+      const token = await assistantsService.rotateToken({ userId: a.id });
       // Cross-site requests are refused by the proxy for every API route
       // (tests/public-pages.test.ts).
       const remove = (confirmation = a.project.name, cookies = a.cookie) =>
@@ -316,7 +316,7 @@ test(
             a.id,
           );
           assert.equal(
-            await verifyAccountToken(`Bearer ${token.mcpToken}`),
+            await assistantsService.verifyToken(`Bearer ${token.mcpToken}`),
             a.id,
           );
           assert.equal((await resolveProject({ userId: a.id })).id, keep.id);

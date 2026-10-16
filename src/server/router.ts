@@ -1,4 +1,5 @@
 import { pub } from "./orpc";
+import { assistantsRouter, termsRouter } from "./routers/account";
 import { postsRouter } from "./routers/posts";
 import { projectsRouter } from "./routers/projects";
 import { publicationsRouter, publishingRouter } from "./routers/publishing";
@@ -12,5 +13,7 @@ export const router = pub.router({
   publishing: publishingRouter,
   publications: publicationsRouter,
   uploads: uploadsRouter,
+  terms: termsRouter,
+  assistants: assistantsRouter,
 });
 export type Router = typeof router;

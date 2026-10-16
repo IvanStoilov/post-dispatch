@@ -2,15 +2,9 @@ import { brand } from "./brand";
 import { config } from "./config";
 import { loggedOperation } from "./logger";
 import { randomUUID } from "node:crypto";
-import { and, arrayContains, eq, ne } from "drizzle-orm";
+import { ne } from "drizzle-orm";
 import { getDb } from "../db";
-import {
-  oauthResources,
-  oauthConsents,
-  oauthClients,
-  oauthAccessTokens,
-  oauthRefreshTokens,
-} from "../db/schema";
+import { oauthResources } from "../db/schema";
 
 import { getAuth } from "./auth";
 import { verifyOAuthQueryParams } from "@better-auth/oauth-provider";
@@ -121,66 +115,4 @@ export async function oauthConsentContext(
       };
     },
   );
-}
-
-export async function listOAuthConnections(userId: string) {
-  return loggedOperation(
-    "lib.oauth.listOAuthConnections",
-    { userId },
-    async () => {
-      const resource = accountResource();
-      const rows = await getDb()
-        .select({
-          clientId: oauthConsents.clientId,
-          name: oauthClients.name,
-          scopes: oauthConsents.scopes,
-        })
-        .from(oauthConsents)
-        .leftJoin(
-          oauthClients,
-          eq(oauthConsents.clientId, oauthClients.clientId),
-        )
-        .where(
-          and(
-            eq(oauthConsents.userId, userId),
-            arrayContains(oauthConsents.resources, [resource]),
-          ),
-        );
-      return [
-        ...new Map(
-          rows.map((row) => [
-            row.clientId,
-            { ...row, name: row.name || "MCP client" },
-          ]),
-        ).values(),
-      ];
-    },
-  );
-}
-export async function disconnectOAuth(userId: string, clientId: string) {
-  return loggedOperation("lib.oauth.disconnectOAuth", { userId }, async () => {
-    const resource = accountResource();
-    await getDb().transaction(async (tx) => {
-      for (const table of [oauthAccessTokens, oauthRefreshTokens])
-        await tx
-          .update(table)
-          .set({ revoked: new Date() })
-          .where(
-            and(
-              eq(table.userId, userId),
-              eq(table.clientId, clientId),
-              arrayContains(table.resources, [resource]),
-            ),
-          );
-      await tx
-        .delete(oauthConsents)
-        .where(
-          and(
-            eq(oauthConsents.userId, userId),
-            eq(oauthConsents.clientId, clientId),
-            arrayContains(oauthConsents.resources, [resource]),
-          ),
-        );
-    });
-  });
 }

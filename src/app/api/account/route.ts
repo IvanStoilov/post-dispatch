@@ -1,16 +1,22 @@
 import { z } from "zod";
+import { accountService } from "@/domain/account";
+import { UserFacingError } from "@/domain/shared/errors";
 import { getAuth } from "@/lib/auth";
-import { readBody } from "@/lib/request-body";
-import { appOrigin } from "@/lib/origins";
 import { logger, loggedRequest } from "@/lib/logger";
-import {
-  AccountDeletionError,
-  deleteOwnAccount,
-  limitDeletionAttempts,
-} from "@/lib/account-deletion";
-import { scheduleMediaCleanupRecovery } from "@/lib/media-cleanup";
+import { appOrigin } from "@/lib/origins";
+import { readBody } from "@/lib/request-body";
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+// Account deletion. A plain route rather than /api/v1: it re-checks the
+// password with the auth library and clears the session cookies.
+const deletion = z
+  .object({
+    password: z.string().min(1).max(128),
+    confirmation: z.literal("DELETE"),
+  })
+  .strict();
+
 export async function DELETE(request: Request) {
   return loggedRequest(request, "/api/account", async () => {
     if (request.headers.get("origin") !== appOrigin())
@@ -19,21 +25,15 @@ export async function DELETE(request: Request) {
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session)
       return Response.json({ error: "Sign in to continue" }, { status: 401 });
-    let body: { password: string; confirmation: "DELETE" };
+    let body: z.output<typeof deletion>;
     try {
-      body = z
-        .object({
-          password: z.string().min(1).max(128),
-          confirmation: z.literal("DELETE"),
-        })
-        .strict()
-        .parse(
-          JSON.parse(
-            (
-              await readBody(request, 4096, "Account deletion request")
-            ).toString("utf8"),
+      body = deletion.parse(
+        JSON.parse(
+          (await readBody(request, 4096, "Account deletion request")).toString(
+            "utf8",
           ),
-        );
+        ),
+      );
     } catch {
       return Response.json(
         { error: "Enter your current password and type DELETE to confirm." },
@@ -41,35 +41,31 @@ export async function DELETE(request: Request) {
       );
     }
     try {
-      await limitDeletionAttempts(session.user.id);
-      try {
-        await auth.api.verifyPassword({
-          headers: request.headers,
-          body: { password: body.password },
-        });
-      } catch {
-        return Response.json(
-          {
-            error:
-              "Your password could not be verified. Check it or sign in again.",
-          },
-          { status: 400 },
-        );
-      }
-      await deleteOwnAccount(session.user.id);
+      await accountService.delete(
+        { userId: session.user.id },
+        {
+          verifyPassword: () =>
+            auth.api
+              .verifyPassword({
+                headers: request.headers,
+                body: { password: body.password },
+              })
+              .then(
+                () => true,
+                () => false,
+              ),
+        },
+      );
     } catch (error) {
-      logger.warn("account.deletion.rejected", {
-        userId: session.user.id,
-        error,
-      });
+      logger.warn("account.deletion.rejected", { error });
+      const known = error instanceof UserFacingError;
       return Response.json(
         {
-          error:
-            error instanceof AccountDeletionError
-              ? error.message
-              : "Your account could not be deleted. Please try again or contact support.",
+          error: known
+            ? error.message
+            : "Your account could not be deleted. Please try again or contact support.",
         },
-        { status: error instanceof AccountDeletionError ? error.status : 503 },
+        { status: known ? error.status : 503 },
       );
     }
     const response = Response.json({ deleted: true });
@@ -83,7 +79,6 @@ export async function DELETE(request: Request) {
     } catch (error) {
       logger.warn("account.deletion.cookie_cleanup.failed", { error });
     }
-    await scheduleMediaCleanupRecovery("account.media_cleanup.recovery.failed");
     return response;
   });
 }

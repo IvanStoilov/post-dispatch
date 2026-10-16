@@ -1,12 +1,15 @@
+import "server-only";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { site } from "./public-site";
+import { site } from "@/lib/public-site";
 
 // Bump this version whenever the Markdown or operator details change.
-export const TERMS_VERSION = "2026-10-15.3";
-export const TERMS_REVIEW_NOTICE =
+const TERMS_VERSION = "2026-10-15.3";
+const TERMS_REVIEW_NOTICE =
   "Draft legal text — professional legal review required before production use.";
+// The current terms: the Markdown with operator details filled in, and the
+// SHA-256 of that exact text, recorded as evidence when a user accepts.
 export function currentTerms() {
   const template = readFileSync(
     join(process.cwd(), "src/content/legal/terms.md"),

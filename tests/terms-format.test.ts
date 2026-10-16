@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { currentTerms } from "../src/lib/terms";
+import { termsService } from "../src/domain/terms";
 import { TermsDocument } from "../src/components/terms-document";
 
 test("canonical terms resolve the Markdown template and hash the exact accepted source", () => {
-  const terms = currentTerms();
+  const terms = termsService.current();
   assert.match(terms.content, /^# Ramblo Terms of Service/);
   assert.equal((terms.content.match(/^## \d+\./gm) || []).length, 12);
   assert.ok(!terms.content.includes("{{"));
@@ -18,7 +18,7 @@ test("canonical terms resolve the Markdown template and hash the exact accepted 
 });
 test("terms render Markdown formatting without enabling raw HTML", () => {
   const html = renderToStaticMarkup(
-    createElement(TermsDocument, { content: currentTerms().content }),
+    createElement(TermsDocument, { content: termsService.current().content }),
   );
   assert.match(html, /<h3[^>]*>2\. Scope and human control<\/h3>/);
   assert.match(
