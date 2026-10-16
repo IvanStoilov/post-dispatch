@@ -228,7 +228,7 @@ Reference: [Meta publishing](https://developers.facebook.com/docs/instagram-plat
 
 Connections are stored in `project_connectors`, with one destination per network per project. Migration `0009` copies existing Facebook/Instagram account IDs, credentials, and Instagram API hosts before removing the old project columns. Tokens are excluded from project responses and MCP context.
 
-The shared publisher in `src/lib/publishing.ts` claims the draft once, validates all destinations, calls each provider adapter, and saves each delivery independently. Provider adapters and media capabilities live in `src/lib/connectors/registry.ts`; the frontend and MCP schemas share the platform catalog. Network-specific upload protocols stay inside their adapters. Add future networks to the platform catalog/database enum and registry, then implement their authorization and account-selection flow. Failed or uncertain submissions still require manual review to avoid duplicates.
+The publisher in `src/domain/publishing` claims the draft once, validates all destinations, queues one job per network that calls the provider adapter, and saves each delivery independently. Provider adapters and media capabilities live in `src/lib/connectors/registry.ts`; the frontend and MCP schemas share the platform catalog. Network-specific upload protocols stay inside their adapters. Add future networks to the platform catalog/database enum and registry, then implement their authorization and account-selection flow in `src/domain/connections`. Failed or uncertain submissions still require manual review to avoid duplicates.
 
 ### Configure LinkedIn
 

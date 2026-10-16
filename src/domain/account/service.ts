@@ -2,8 +2,8 @@ import "server-only";
 import { getDb } from "@/db";
 import { loggedOperation, logger } from "@/lib/logger";
 import { scheduleMediaCleanupRecovery } from "@/lib/media-cleanup";
-import { pendingConnectionBelongsTo } from "@/lib/pending-connections";
 import { newStorageLocation } from "@/lib/storage/index";
+import { connectionsSystemService } from "../connections";
 import { projectsSystemService } from "../projects";
 import type { Actor } from "../shared/actor";
 import type { Tx } from "../shared/db";
@@ -40,8 +40,8 @@ async function countAttempt(userId: string) {
   });
 }
 
-// Records that belong to the user: auth codes, deletion attempts and
-// pending connections.
+// Records that belong to the user: auth codes and deletion attempts.
+// (Pending connections are removed by the connections module.)
 async function ownVerificationIds(tx: Tx, user: { id: string; email: string }) {
   return (await repository.allVerifications(tx))
     .filter((record) => {
@@ -51,8 +51,6 @@ async function ownVerificationIds(tx: Tx, user: { id: string; email: string }) {
         record.identifier === `account-deletion-attempts:${user.id}`
       )
         return true;
-      if (record.identifier.startsWith("meta-connect:"))
-        return pendingConnectionBelongsTo(record.value, user.id);
       try {
         const value = JSON.parse(record.value);
         return value?.type === "authorization_code" && value.userId === user.id;
@@ -85,6 +83,7 @@ async function remove(
       if (!user) throw new UserFacingError("Account not found.", 404);
       // Locked rows block new projects and content while this runs.
       await projectsSystemService.deleteAllOwned(tx, user.id, location);
+      await connectionsSystemService.deletePending(tx, user.id);
       await repository.deleteVerifications(
         tx,
         await ownVerificationIds(tx, user),

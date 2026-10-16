@@ -22,6 +22,9 @@ export const projectFields = z.object({
 });
 export type ProjectFields = z.output<typeof projectFields>;
 
+export const projectRef = z.object({ id: projectId });
+export type ProjectRef = z.output<typeof projectRef>;
+
 export const createProjectInput = z.object({ name: projectName });
 export type CreateProjectInput = z.output<typeof createProjectInput>;
 

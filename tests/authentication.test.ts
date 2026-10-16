@@ -11,7 +11,6 @@ import { eq, inArray } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
 import { users, accounts, posts, projects, sessions } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
-import { GET as connections } from "../src/app/api/connections/route";
 import { assistantsService } from "../src/domain/assistants";
 import { handleMcpRequest } from "../src/server/mcp";
 import { serveRemoteFiles } from "./helpers/remote-files";
@@ -129,14 +128,6 @@ test(
             "NOT_FOUND",
           );
           await rejectsWith(client().assistants.rotateToken(), "UNAUTHORIZED");
-          assert.equal(
-            (
-              await connections(
-                request(`/api/connections?projectId=${aId}`, "GET", b.cookie),
-              )
-            ).status,
-            404,
-          );
         },
       );
       const draft = await client(a.cookie).posts.create({

@@ -12,12 +12,12 @@ import { users, verifications, projects } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
 import { createProject, getProject } from "../src/lib/projects";
 import {
-  startConnection,
   callbackConnection,
-  availablePages,
-  selectPage,
   connectionError,
-} from "../src/lib/meta-connect";
+  listAccounts,
+  selectAccount,
+  startConnection,
+} from "../src/server/connections";
 import { logger } from "../src/lib/logger";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
@@ -271,8 +271,9 @@ test(
             /expired/,
           );
           const selectionCookies = a.cookie + "; " + cookie(response);
-          const listed = await availablePages(
+          const listed = await listAccounts(
             req("/api/meta/facebook/pages", selectionCookies),
+            "facebook",
           );
           const listedText = await listed.text();
           assert.ok(!listedText.includes("secret"));
@@ -290,17 +291,19 @@ test(
           assert.equal(rows.length, 1);
           assert.ok(!JSON.stringify(rows).includes("page-secret"));
           await assert.rejects(
-            selectPage(
+            selectAccount(
               req("/api/meta/facebook/pages", selectionCookies, {
                 pageId: "forged",
               }),
+              "facebook",
             ),
             /authorized list/,
           );
-          const result = await selectPage(
+          const result = await selectAccount(
             req("/api/meta/facebook/pages", selectionCookies, {
               pageId: "page-two",
             }),
+            "facebook",
           );
           assert.ok(!(await result.text()).includes("page-secret"));
           const project = await getProject(first.project.id);
@@ -316,10 +319,11 @@ test(
             "",
           );
           await assert.rejects(
-            selectPage(
+            selectAccount(
               req("/api/meta/facebook/pages", selectionCookies, {
                 pageId: "page-one",
               }),
+              "facebook",
             ),
             /expired/,
           );

@@ -1,4 +1,5 @@
 import type { Publication } from "../types";
+
 export function publicationCapabilities(
   publication: Pick<
     Publication,

@@ -1,29 +1,17 @@
-import { loggedRequest, logger } from "@/lib/logger";
+import { loggedRequest } from "@/lib/logger";
 import {
-  availableLinkedInAccounts,
-  selectLinkedInAccount,
-  connectionError,
-} from "@/lib/connector-connect";
+  handleConnection,
+  listAccounts,
+  selectAccount,
+} from "@/server/connections";
 export const runtime = "nodejs";
 export async function GET(req: Request) {
-  return loggedRequest(req, "/api/connectors/linkedin/accounts", async () => {
-    try {
-      return await availableLinkedInAccounts(req);
-    } catch (error) {
-      logger.warn("http.handler.rejected", { error: error });
-
-      return connectionError("linkedin", error);
-    }
-  });
+  return loggedRequest(req, "/api/connectors/linkedin/accounts", () =>
+    handleConnection("linkedin", (provider) => listAccounts(req, provider)),
+  );
 }
 export async function POST(req: Request) {
-  return loggedRequest(req, "/api/connectors/linkedin/accounts", async () => {
-    try {
-      return await selectLinkedInAccount(req);
-    } catch (error) {
-      logger.warn("http.handler.rejected", { error: error });
-
-      return connectionError("linkedin", error);
-    }
-  });
+  return loggedRequest(req, "/api/connectors/linkedin/accounts", () =>
+    handleConnection("linkedin", (provider) => selectAccount(req, provider)),
+  );
 }

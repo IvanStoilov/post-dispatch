@@ -1,7 +1,7 @@
 import { acceptedSignup } from "./helpers/terms";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { loadEnvConfig } from "@next/env";
 import { eq, inArray } from "drizzle-orm";
 import { isStored, storeFile } from "./helpers/storage";
@@ -26,10 +26,7 @@ import { createProject } from "../src/lib/projects";
 import { createPost } from "../src/lib/store";
 import { assistantsService } from "../src/domain/assistants";
 import { resolveProject } from "../src/server/mcp/context";
-import {
-  startConnection,
-  pendingConnectionBelongsTo,
-} from "../src/lib/connector-connect";
+import { startConnection } from "../src/server/connections";
 import { processPublishingJob } from "../src/lib/publish-jobs";
 import { client, rejectsWith } from "./helpers/orpc";
 loadEnvConfig(process.cwd());
@@ -197,23 +194,25 @@ test(
         remotePostId: "published-copy",
         publishedAt: new Date(),
       });
-      for (const projectId of [a.project.id, keep.id])
-        assert.equal(
-          (
-            await startConnection(
-              req("/api/meta/facebook/start", { projectId }, a.cookie),
-              "facebook",
-            )
-          ).status,
-          200,
+      // One unfinished connect flow per project, found by its nonce.
+      const handshakes: Record<string, string> = {};
+      for (const projectId of [a.project.id, keep.id]) {
+        const started = await startConnection(
+          req("/api/meta/facebook/start", { projectId }, a.cookie),
+          "facebook",
         );
-      const handshakes = (await db.select().from(verifications)).filter(
-        (r) =>
-          r.identifier.startsWith("meta-connect:") &&
-          pendingConnectionBelongsTo(r.value, a.id),
-      );
-      verificationIds.push(...handshakes.map((r) => r.id));
-      assert.equal(handshakes.length, 2);
+        assert.equal(started.status, 200);
+        const nonce = new URL((await started.json()).url).searchParams.get(
+          "state",
+        )!;
+        const identifier = `meta-connect:${createHash("sha256").update(nonce).digest("hex")}`;
+        const [row] = await db
+          .select()
+          .from(verifications)
+          .where(eq(verifications.identifier, identifier));
+        handshakes[projectId] = row.id;
+      }
+      verificationIds.push(...Object.values(handshakes));
       const [job] = await db
         .insert(publishJobs)
         .values({
@@ -289,9 +288,9 @@ test(
           const remaining = (await db.select().from(verifications)).filter(
             (r) => verificationIds.includes(r.id),
           );
-          assert.equal(remaining.length, 1);
-          assert.ok(
-            pendingConnectionBelongsTo(remaining[0].value, a.id, keep.id),
+          assert.deepEqual(
+            remaining.map((r) => r.id),
+            [handshakes[keep.id]],
           );
           assert.equal(
             (await db.select().from(posts).where(eq(posts.id, keptPost.id)))

@@ -5,17 +5,18 @@ import {
   queueMediaCleanup,
   scheduleMediaCleanupRecovery,
 } from "@/lib/media-cleanup";
-import { deletePendingConnections } from "@/lib/pending-connections";
 import { newStorageLocation } from "@/lib/storage/index";
 import type { StorageLocation } from "@/lib/storage/types";
 import type {
   CreateProjectInput,
   DeleteProjectInput,
+  ProjectRef,
   DisconnectChannelInput,
   ProjectDto,
   ProjectFields,
   UpdateProjectInput,
 } from "@/shared/schemas/project";
+import { connectionsSystemService } from "../connections";
 import { postsSystemService } from "../posts";
 import { publishingSystemService } from "../publishing";
 import type { Actor } from "../shared/actor";
@@ -98,6 +99,12 @@ async function list(actor: Actor): Promise<ProjectDto[]> {
   );
 }
 
+async function get(actor: Actor, { id }: ProjectRef): Promise<ProjectDto> {
+  const project = await repository.findOwned(actor.userId, id);
+  if (!project) throw notFound();
+  return toProjectDto(project);
+}
+
 async function create(
   actor: Actor,
   input: CreateProjectInput,
@@ -171,7 +178,7 @@ async function remove(
             400,
           );
         await deleteLocked(tx, [id], location, "this project");
-        await deletePendingConnections(tx, actor.userId, id);
+        await connectionsSystemService.deletePending(tx, actor.userId, id);
       });
       logger.info("project.deleted", { ...actor, projectId: id });
       await scheduleMediaCleanupRecovery(
@@ -226,6 +233,7 @@ async function deleteAllOwned(
 // For routers, pages and MCP tools acting for a signed-in user.
 export const projectsService = {
   list,
+  get,
   create,
   update,
   disconnectChannel,

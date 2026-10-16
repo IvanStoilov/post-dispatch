@@ -7,6 +7,7 @@ import type { Platform } from "../types";
 import type { ConnectorAdapter } from "./types";
 import { publishMeta } from "./meta";
 import { publishLinkedIn } from "./linkedin";
+
 export const connectors: Record<Platform, ConnectorAdapter> = {
   facebook: {
     publications: facebookPublications,

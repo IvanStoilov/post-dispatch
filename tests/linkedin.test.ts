@@ -16,11 +16,11 @@ import {
   isConnected,
 } from "../src/lib/projects";
 import {
-  startConnection,
   callbackConnection,
-  availableLinkedInAccounts,
-  selectLinkedInAccount,
-} from "../src/lib/connector-connect";
+  listAccounts,
+  selectAccount,
+  startConnection,
+} from "../src/server/connections";
 import {
   publishLinkedIn,
   linkedinUploadUrl,
@@ -265,32 +265,36 @@ test(
       pendingIds.push(cookie(callback).split("=")[1]);
       const selectionCookie = `${sessionCookie}; ${cookie(callback)}`;
       const options = await (
-        await availableLinkedInAccounts(
+        await listAccounts(
           request("/api/connectors/linkedin/accounts", selectionCookie),
+          "linkedin",
         )
       ).json();
       assert.equal(options.pages.length, 2);
       assert.ok(!JSON.stringify(options).includes("private-linkedin-token"));
       await assert.rejects(
         () =>
-          selectLinkedInAccount(
+          selectAccount(
             request("/api/connectors/linkedin/accounts", selectionCookie, {
               pageId: "urn:li:organization:456",
             }),
+            "linkedin",
           ),
         /authorized/,
       );
-      await selectLinkedInAccount(
+      await selectAccount(
         request("/api/connectors/linkedin/accounts", selectionCookie, {
           pageId: "urn:li:organization:123",
         }),
+        "linkedin",
       );
       await assert.rejects(
         () =>
-          selectLinkedInAccount(
+          selectAccount(
             request("/api/connectors/linkedin/accounts", selectionCookie, {
               pageId: "urn:li:organization:123",
             }),
+            "linkedin",
           ),
         /expired/,
       );
