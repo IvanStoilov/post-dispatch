@@ -12,16 +12,22 @@ export async function getSession() {
 
 export async function workspaceSession() {
   const session = await getSession();
-  if (!session) redirect(appPageUrl("/signin"));
+  if (!session) {
+    redirect(appPageUrl("/signin"));
+  }
   return session;
 }
 export async function requireProject(projectId: string) {
   const session = await workspaceSession();
-  if (!z.uuid().safeParse(projectId).success) notFound();
+  if (!z.uuid().safeParse(projectId).success) {
+    notFound();
+  }
   try {
     await projectsService.get({ userId: session.user.id }, { id: projectId });
   } catch (error) {
-    if (error instanceof UserFacingError && error.status === 404) notFound();
+    if (error instanceof UserFacingError && error.status === 404) {
+      notFound();
+    }
     throw error;
   }
   return session;

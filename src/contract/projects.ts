@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { base } from "./base";
 import {
   createProjectInput,
   deleteProjectInput,
@@ -6,7 +7,6 @@ import {
   projectDto,
   updateProjectInput,
 } from "@/shared/schemas/project";
-import { base } from "./base";
 
 // Routes for projects. Inputs and outputs are the shared zod DTOs; outputs
 // are checked at runtime, and keys not in a DTO (like tokens) are dropped.

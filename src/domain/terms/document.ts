@@ -24,7 +24,9 @@ export function currentTerms() {
     email: site.email,
   };
   const content = template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
-    if (!(key in values)) throw new Error(`Unknown terms placeholder: ${key}`);
+    if (!(key in values)) {
+      throw new Error(`Unknown terms placeholder: ${key}`);
+    }
     return values[key];
   });
   return {

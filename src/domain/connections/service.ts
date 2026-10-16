@@ -1,16 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
-import { linkedinAccounts, linkedinScopes } from "@/lib/connectors/linkedin";
-import {
-  ConnectorAuthError,
-  connectorConfig,
-  facebookPages,
-  instagramAccount,
-  metaApiVersion,
-} from "@/lib/connectors/meta-oauth";
-import { loggedOperation } from "@/lib/logger";
-import type { Platform } from "@/shared/platforms";
 import { projectsSystemService } from "../projects";
 import type { Actor } from "../shared/actor";
 import type { Executor } from "../shared/db";
@@ -23,6 +13,16 @@ import {
   type PendingConnection,
 } from "./pending";
 import * as repository from "./repository";
+import type { Platform } from "@/shared/platforms";
+import { loggedOperation } from "@/lib/logger";
+import {
+  ConnectorAuthError,
+  connectorConfig,
+  facebookPages,
+  instagramAccount,
+  metaApiVersion,
+} from "@/lib/connectors/meta-oauth";
+import { linkedinAccounts, linkedinScopes } from "@/lib/connectors/linkedin";
 
 // Connecting a project's channel over OAuth. A flow is bound to the user,
 // the browser session that started it and the project:
@@ -45,15 +45,17 @@ async function withProviderErrors<T>(action: () => Promise<T>) {
   try {
     return await action();
   } catch (error) {
-    if (error instanceof ConnectorAuthError)
+    if (error instanceof ConnectorAuthError) {
       throw new UserFacingError(error.message, 400);
+    }
     throw error;
   }
 }
 
 async function assertOwned(userId: string, projectId: string) {
-  if (!(await projectsSystemService.isOwned(userId, projectId)))
+  if (!(await projectsSystemService.isOwned(userId, projectId))) {
     throw new UserFacingError("Project not found", 404);
+  }
 }
 
 async function savePending(value: PendingConnection) {
@@ -71,26 +73,32 @@ async function takePending(
   nonce: string,
   consume: boolean,
 ) {
-  if (!/^[\w-]{43}$/.test(nonce)) throw expired();
+  if (!/^[\w-]{43}$/.test(nonce)) {
+    throw expired();
+  }
   const row = await repository.findPending(nonce);
-  if (!row) throw expired();
+  if (!row) {
+    throw expired();
+  }
   const value = unseal(row.value);
   if (
     value.provider !== provider ||
     value.phase !== phase ||
     value.userId !== actor.userId ||
     value.sessionId !== actor.sessionId
-  )
+  ) {
     throw new UserFacingError(
       "Connection does not belong to this session.",
       403,
     );
+  }
   await assertOwned(value.userId, value.projectId);
-  if (consume && !(await repository.claimPending(row.id, nonce)))
+  if (consume && !(await repository.claimPending(row.id, nonce))) {
     throw new UserFacingError(
       "Connection already completed. Start again.",
       409,
     );
+  }
   return value;
 }
 
@@ -162,11 +170,12 @@ async function complete(
     "domain.connections.complete",
     { userId: actor.userId, provider },
     async () => {
-      if (!input.nonce || input.state !== input.nonce)
+      if (!input.nonce || input.state !== input.nonce) {
         throw new UserFacingError(
           "Invalid OAuth state. Start the connection again.",
           400,
         );
+      }
       const value = await takePending(
         actor,
         provider,
@@ -175,13 +184,16 @@ async function complete(
         true,
       );
       const { projectId } = value;
-      if (input.error !== null) return { projectId, outcome: "cancelled" };
+      if (input.error !== null) {
+        return { projectId, outcome: "cancelled" };
+      }
       const code = z.string().min(1).max(4096).safeParse(input.code);
-      if (!code.success)
+      if (!code.success) {
         throw new UserFacingError(
           "The provider didn't return an authorization code. Start again.",
           400,
         );
+      }
       return withProviderErrors(async () => {
         if (provider === "facebook") {
           const pages = await facebookPages(code.data);
@@ -250,11 +262,12 @@ async function selectAccount(
       const value = await takePending(actor, provider, "select", nonce, false);
       if (provider === "facebook") {
         const page = value.pages?.find((item) => item.id === accountId);
-        if (!page)
+        if (!page) {
           throw new UserFacingError(
             "Select a Page from the authorized list.",
             400,
           );
+        }
         await takePending(actor, provider, "select", nonce, true);
         await projectsSystemService.saveConnector(
           value.userId,
@@ -271,11 +284,12 @@ async function selectAccount(
         );
       } else {
         const account = value.linkedin?.find((a) => a.id === accountId);
-        if (!account)
+        if (!account) {
           throw new UserFacingError(
             "Choose an authorized LinkedIn account.",
             400,
           );
+        }
         await takePending(actor, provider, "select", nonce, true);
         await projectsSystemService.saveConnector(
           value.userId,

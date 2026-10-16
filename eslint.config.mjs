@@ -26,6 +26,16 @@ const eslintConfig = defineConfig([
   ...nextTs,
   prettierRecommended,
   {
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    rules: {
+      curly: ["error", "all"],
+      "import/newline-after-import": ["error", { count: 1 }],
+      "import/first": ["error"],
+      "import/no-duplicates": ["error"],
+      "import/order": ["error"],
+    },
+  },
+  {
     files: ["src/**", "scripts/**", "tests/**"],
     ignores: ["src/domain/**"],
     rules: {

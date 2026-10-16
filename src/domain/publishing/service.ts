@@ -1,17 +1,4 @@
 import "server-only";
-import { getDb } from "@/db";
-import type { PostRow } from "@/db/schema";
-import { connectors } from "@/lib/connectors/registry";
-import { loggedOperation } from "@/lib/logger";
-import type { StoredAsset } from "@/lib/types";
-import type { PostDto } from "@/shared/schemas/post";
-import type { PublicationDto } from "@/shared/schemas/publication";
-import type {
-  EditPublicationInput,
-  ListPublicationsInput,
-  PublicationRef,
-  PublishPostInput,
-} from "@/shared/schemas/publishing";
 import { postsSystemService as posts } from "../posts";
 import {
   projectsSystemService as projects,
@@ -28,6 +15,19 @@ import {
 } from "./jobs";
 import { listForProject, manage } from "./publications";
 import * as repository from "./repository";
+import { getDb } from "@/db";
+import type { PostRow } from "@/db/schema";
+import { connectors } from "@/lib/connectors/registry";
+import { loggedOperation } from "@/lib/logger";
+import type { StoredAsset } from "@/lib/types";
+import type { PostDto } from "@/shared/schemas/post";
+import type { PublicationDto } from "@/shared/schemas/publication";
+import type {
+  EditPublicationInput,
+  ListPublicationsInput,
+  PublicationRef,
+  PublishPostInput,
+} from "@/shared/schemas/publishing";
 
 // Business logic for publishing. Publishing authorizes once, when the user
 // asks: the jobs it creates are then run by the worker (jobs.ts) without a
@@ -42,20 +42,26 @@ function assertPublishable(
   const invalid = (message: string) => new UserFacingError(message, 400);
   for (const platform of post.platforms) {
     const connection = project.connections.find((c) => c.provider === platform);
-    if (!connection || !projects.isConnected(connection))
+    if (!connection || !projects.isConnected(connection)) {
       throw new UserFacingError(`Connect ${platform} before publishing`, 409);
+    }
     const capability = connectors[platform].capabilities;
     const count = assets.length || (post.imageUrl ? 1 : 0);
-    if (!capability.text && !count) throw invalid(`${platform} requires media`);
-    if (count > capability.images)
+    if (!capability.text && !count) {
+      throw invalid(`${platform} requires media`);
+    }
+    if (count > capability.images) {
       throw invalid(`Too many images for ${platform}`);
+    }
     if (
       assets.some((a) => a.kind === "VIDEO") &&
       (!capability.video || count !== 1)
-    )
+    ) {
       throw invalid(`Unsupported video combination for ${platform}`);
-    if (platform === "linkedin" && !assets.length && post.imageUrl)
+    }
+    if (platform === "linkedin" && !assets.length && post.imageUrl) {
       throw invalid("Re-upload the media before publishing to LinkedIn");
+    }
   }
 }
 
@@ -67,7 +73,9 @@ async function enqueue(
   { projectId, id: postId }: { projectId: string; id: string },
 ) {
   const project = await projects.findOwnedRecord(actor.userId, projectId);
-  if (!project) throw new UserFacingError("Project not found", 404);
+  if (!project) {
+    throw new UserFacingError("Project not found", 404);
+  }
   const authorization = {
     userId: actor.userId,
     authorizedAt: new Date().toISOString(),
@@ -75,17 +83,21 @@ async function enqueue(
   };
   return getDb().transaction(async (tx) => {
     // Hold the project like other writes, so deletion can't interleave.
-    if (!(await projects.lockOwned(tx, actor.userId, projectId)))
+    if (!(await projects.lockOwned(tx, actor.userId, projectId))) {
       throw new UserFacingError("Project not found", 404);
+    }
     const row = await posts.lockPost(tx, projectId, postId);
-    if (!row) throw new UserFacingError("Post not found", 404);
+    if (!row) {
+      throw new UserFacingError("Post not found", 404);
+    }
     if (row.status !== "draft") {
       const existing = await repository.jobIdsForPost(tx, postId);
-      if (existing.length)
+      if (existing.length) {
         return {
           post: posts.toPostDto((await posts.hydrate([row], tx))[0]),
           jobIds: existing.map((j) => j.id),
         };
+      }
       throw new UserFacingError(
         "This post has already been submitted. Check its publishing status.",
         409,
@@ -126,17 +138,20 @@ async function requeueFailed(
   { projectId, id: postId }: { projectId: string; id: string },
 ) {
   return getDb().transaction(async (tx) => {
-    if (!(await projects.lockOwned(tx, actor.userId, projectId)))
+    if (!(await projects.lockOwned(tx, actor.userId, projectId))) {
       throw new UserFacingError("Project not found", 404);
+    }
     const post = await posts.lockPost(tx, projectId, postId);
-    if (!post || post.status !== "needs_review")
+    if (!post || post.status !== "needs_review") {
       throw new UserFacingError("No failed publication to retry", 409);
+    }
     const jobs = await repository.resetFailedJobs(tx, postId);
-    if (!jobs.length)
+    if (!jobs.length) {
       throw new UserFacingError(
         "Uncertain submissions cannot be retried automatically. Check the accounts first.",
         409,
       );
+    }
     await posts.setPublishingState(tx, postId, { status: "publishing" });
     return jobs.map((j) => j.id);
   });
@@ -146,8 +161,9 @@ async function requeueFailed(
 
 const projectNotFound = () => new UserFacingError("Project not found", 404);
 async function assertOwned(actor: Actor, projectId: string) {
-  if (!(await projects.isOwned(actor.userId, projectId)))
+  if (!(await projects.isOwned(actor.userId, projectId))) {
     throw projectNotFound();
+  }
 }
 
 // Queues the post for every selected network; delivery continues after
@@ -231,11 +247,12 @@ async function deleteJobsInProjects(
         job.status === "submitting" ||
         (job.leaseExpiresAt && job.leaseExpiresAt > new Date()),
     )
-  )
+  ) {
     throw new UserFacingError(
       `A publication is currently being processed. Wait for it to finish before deleting ${deleting}. If it remains stuck, contact support.`,
       409,
     );
+  }
   await repository.deleteJobsInProjects(tx, projectIds);
 }
 

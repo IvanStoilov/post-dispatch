@@ -4,6 +4,7 @@ import { postAssets } from "@/db/schema";
 import { storageProvider } from "@/lib/storage/index";
 import { MAX_VIDEO_BYTES } from "@/lib/storage";
 import { loggedRequest, logger } from "@/lib/logger";
+
 export const runtime = "nodejs";
 async function serve(request: Request) {
   return loggedRequest(request, "/api/mcp/media/local", async () => {
@@ -24,7 +25,9 @@ async function serve(request: Request) {
         ),
       )
       .limit(1);
-    if (!asset) return new Response(null, { status: 404 });
+    if (!asset) {
+      return new Response(null, { status: 404 });
+    }
     try {
       const bytes = await storageProvider(asset.storageProvider).read(
         { bucket: asset.imageBucket, key: asset.imageKey },
@@ -41,7 +44,7 @@ async function serve(request: Request) {
       const range = request.headers.get("range");
       if (range) {
         const parts = /^bytes=(\d*)-(\d*)$/.exec(range);
-        if (!parts || (!parts[1] && !parts[2]))
+        if (!parts || (!parts[1] && !parts[2])) {
           return new Response(null, {
             status: 416,
             headers: {
@@ -50,6 +53,7 @@ async function serve(request: Request) {
               "Content-Range": `bytes */${bytes.length}`,
             },
           });
+        }
         const start = parts[1]
           ? Number(parts[1])
           : Math.max(0, bytes.length - Number(parts[2]));
@@ -63,7 +67,7 @@ async function serve(request: Request) {
           start < 0 ||
           start >= bytes.length ||
           end < start
-        )
+        ) {
           return new Response(null, {
             status: 416,
             headers: {
@@ -72,6 +76,7 @@ async function serve(request: Request) {
               "Content-Range": `bytes */${bytes.length}`,
             },
           });
+        }
         headers["Content-Range"] = `bytes ${start}-${end}/${bytes.length}`;
         headers["Content-Length"] = String(end - start + 1);
         return new Response(

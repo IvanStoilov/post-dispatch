@@ -1,9 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { projectTool, runTool, type McpContext } from "../context";
+import { projectFields } from "../schemas";
 import { projectsService } from "@/domain/projects";
 import { platforms } from "@/shared/platforms";
 import type { ProjectDto } from "@/shared/schemas/project";
-import { projectTool, runTool, type McpContext } from "../context";
-import { projectFields } from "../schemas";
 
 // What assistants see of a project: never connection details or tokens.
 const summary = (project: ProjectDto) => ({

@@ -36,11 +36,12 @@ export async function queueMediaCleanup(
         },
       ]),
     );
-    if (configuredLocation)
+    if (configuredLocation) {
       locations.set(
         `${configuredLocation.storageProvider}:${configuredLocation.imageBucket}`,
         configuredLocation,
       );
+    }
     return [...locations.values()].map((location) => ({
       bucket: location.imageBucket,
       storageProvider: location.storageProvider,
@@ -59,7 +60,9 @@ export async function queueMediaCleanup(
       finalSweepAfter: new Date(Date.now() + 60 * 60000),
     }));
   });
-  if (targets.length) await tx.insert(accountMediaCleanup).values(targets);
+  if (targets.length) {
+    await tx.insert(accountMediaCleanup).values(targets);
+  }
 }
 
 /** Shares the existing recovery cron/worker; requires no additional provider. */
@@ -83,7 +86,9 @@ export async function recoverMediaCleanup(limit = 10) {
             ),
           )
           .for("update", { skipLocked: true });
-        if (!target) return;
+        if (!target) {
+          return;
+        }
         const empty = await purgeProjectMedia(target);
         if (empty && new Date() >= target.finalSweepAfter) {
           await tx

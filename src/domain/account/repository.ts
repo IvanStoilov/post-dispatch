@@ -1,8 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
-import { users, verifications } from "@/db/schema";
 import type { Tx } from "../shared/db";
+import { users, verifications } from "@/db/schema";
 
 // Every query on the user row and the account's verification records
 // (deletion attempts, auth codes, pending connections).
@@ -29,8 +29,9 @@ export async function replaceVerification(
   previousId: string | undefined,
   values: { identifier: string; value: string; expiresAt: Date },
 ) {
-  if (previousId)
+  if (previousId) {
     await tx.delete(verifications).where(eq(verifications.id, previousId));
+  }
   await tx.insert(verifications).values({ id: randomUUID(), ...values });
 }
 
@@ -41,8 +42,9 @@ export function allVerifications(tx: Tx) {
 }
 
 export async function deleteVerifications(tx: Tx, ids: string[]) {
-  if (ids.length)
+  if (ids.length) {
     await tx.delete(verifications).where(inArray(verifications.id, ids));
+  }
 }
 
 // Sessions, password accounts, MCP tokens, consents, OAuth tokens and terms

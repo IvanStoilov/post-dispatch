@@ -1,4 +1,3 @@
-import { encryptedToken } from "./encrypted-token";
 import { sql, relations } from "drizzle-orm";
 import {
   pgTable,
@@ -16,6 +15,8 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import type { Platform } from "../lib/types";
+import { encryptedToken } from "./encrypted-token";
+
 export const storageProviderEnum = pgEnum("storage_provider", ["local", "s3"]);
 export const platformEnum = pgEnum("post_platform", [
   "instagram",

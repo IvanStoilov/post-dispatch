@@ -9,6 +9,7 @@
     "brand:generate": "tsx --import ./scripts/server-only-hook.mjs scripts/generate-brand.ts",
     "email:dev": "email dev --dir src/emails --port 8300",
     "lint": "eslint",
+    "lint:fix": "eslint --fix",
     "env:check": "tsx --import ./scripts/server-only-hook.mjs scripts/check-config.ts",
     "format": "prettier --write .",
     "test": "tsx --import ./scripts/server-only-hook.mjs --import ./tests/setup.mjs --test tests/*.test.ts",

@@ -3,6 +3,7 @@ import { UserFacingError } from "@/domain/shared/errors";
 import { authenticated } from "@/lib/api-auth";
 import { loggedRequest } from "@/lib/logger";
 import { postAssetRef } from "@/shared/schemas/post";
+
 export const runtime = "nodejs";
 
 // Post media for its owner, linked from PostDto.assets. Redirects to a
@@ -18,7 +19,9 @@ export async function GET(
         ...(await ctx.params),
         projectId: new URL(req.url).searchParams.get("projectId"),
       });
-      if (!ref.success) return new Response(null, { status: 404 });
+      if (!ref.success) {
+        return new Response(null, { status: 404 });
+      }
       try {
         const location = await postsService.mediaUrl({ userId }, ref.data);
         return new Response(null, {
@@ -30,7 +33,9 @@ export async function GET(
           },
         });
       } catch (error) {
-        if (!(error instanceof UserFacingError)) throw error;
+        if (!(error instanceof UserFacingError)) {
+          throw error;
+        }
         return Response.json(
           { error: error.message },
           { status: error.status },

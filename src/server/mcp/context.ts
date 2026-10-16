@@ -15,10 +15,13 @@ export type McpContext = { actor: Actor; scopes: string[] };
 export async function authenticate(req: Request): Promise<McpContext | null> {
   const authorization = req.headers.get("authorization");
   const userId = await assistantsService.verifyToken(authorization);
-  if (userId)
+  if (userId) {
     return { actor: { userId }, scopes: ["posts:read", "posts:write"] };
+  }
   const token = authorization?.match(/^Bearer (.+)$/i)?.[1];
-  if (!token) return null;
+  if (!token) {
+    return null;
+  }
   try {
     const access = await getAuth().api.verifyMcpOAuthToken({
       body: { token },
@@ -38,19 +41,23 @@ export async function resolveProject(
   const projects = await projectsService.list(actor);
   if (projectId) {
     const project = projects.find((p) => p.id === projectId);
-    if (!project) throw new UserFacingError("Project not found", 404);
+    if (!project) {
+      throw new UserFacingError("Project not found", 404);
+    }
     return project;
   }
-  if (!projects.length)
+  if (!projects.length) {
     throw new UserFacingError(
       "No projects found. Create a project in Ramblo first.",
       404,
     );
-  if (projects.length !== 1)
+  }
+  if (projects.length !== 1) {
     throw new UserFacingError(
       "projectId is required when your account has multiple projects. Call list_projects and pass the intended project's ID.",
       400,
     );
+  }
   return projects[0];
 }
 
@@ -70,8 +77,9 @@ export function runTool<T>(
 ) {
   return loggedOperation("mcp.tool", { tool, ...actor }, async () => {
     try {
-      if (!scopes.includes(scope))
+      if (!scopes.includes(scope)) {
         throw new UserFacingError(`Missing ${scope} permission`, 403);
+      }
       return text(JSON.stringify(await action()));
     } catch (error) {
       if (!(error instanceof UserFacingError)) {

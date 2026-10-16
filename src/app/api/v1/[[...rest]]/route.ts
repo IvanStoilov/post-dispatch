@@ -3,6 +3,7 @@ import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { BodyLimitPlugin } from "@orpc/server/fetch";
 import { loggedRequest, logger } from "@/lib/logger";
 import { router } from "@/server/router";
+
 export const runtime = "nodejs";
 // Creating a post can download media from URLs, which can take minutes.
 export const maxDuration = 300;
@@ -18,8 +19,9 @@ const handler = new OpenAPIHandler(router, {
       if (
         !(error instanceof ORPCError) ||
         (!error.defined && error.status >= 500)
-      )
+      ) {
         logger.error("rpc.procedure.failed", { error });
+      }
     }),
   ],
 });

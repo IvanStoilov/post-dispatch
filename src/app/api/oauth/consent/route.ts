@@ -1,9 +1,10 @@
+import { z } from "zod";
 import { loggedRequest, logger } from "@/lib/logger";
 import { authenticated } from "@/lib/api-auth";
 import { oauthConsentContext } from "@/lib/oauth";
 import { getAuth } from "@/lib/auth";
-import { z } from "zod";
 import { appOrigin } from "@/lib/oauth-provider";
+
 export async function POST(req: Request) {
   return loggedRequest(req, "/api/oauth/consent", async () => {
     return authenticated(req, async (userId) => {
@@ -26,8 +27,9 @@ export async function POST(req: Request) {
           }),
         );
         const url = response.headers.get("location");
-        if (url && response.status >= 300 && response.status < 400)
+        if (url && response.status >= 300 && response.status < 400) {
           return Response.json({ url });
+        }
         return response;
       } catch (e) {
         logger.warn("http.handler.rejected", { error: e });

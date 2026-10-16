@@ -1,13 +1,20 @@
-import { loggedOperation } from "./logger";
-import { storageProvider, newStorageLocation } from "./storage/index";
-import type { StorageLocation } from "./storage/types";
 import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { request } from "node:https";
 import ipaddr from "ipaddr.js";
 import sharp from "sharp";
 import { z } from "zod";
+import {
+  MAX_VIDEO_BYTES,
+  MAX_IMAGE_BYTES,
+  IMAGE_TOO_LARGE,
+  imageFileSchema,
+} from "../shared/media";
 import type { StoredAsset, AssetKind } from "./types";
+import type { StorageLocation } from "./storage/types";
+import { storageProvider, newStorageLocation } from "./storage/index";
+import { loggedOperation } from "./logger";
+
 export {
   MAX_VIDEO_BYTES,
   MAX_IMAGE_BYTES,
@@ -17,12 +24,6 @@ export {
   MAX_INLINE_IMAGE_BYTES,
   inlineImageFileSchema,
 } from "../shared/media";
-import {
-  MAX_VIDEO_BYTES,
-  MAX_IMAGE_BYTES,
-  IMAGE_TOO_LARGE,
-  imageFileSchema,
-} from "../shared/media";
 
 // Bad media from a client (unreachable URL, wrong type, too large). Its
 // message is safe to show; the domain turns it into a user-facing error.
@@ -31,10 +32,11 @@ export class MediaInputError extends Error {}
 
 export function assertPublicAddress(address: string) {
   const parsed = ipaddr.process(address);
-  if (parsed.range() !== "unicast")
+  if (parsed.range() !== "unicast") {
     throw new MediaInputError(
       "Image URLs must resolve to a public internet address",
     );
+  }
 }
 export async function downloadImage(
   value: string,
@@ -49,15 +51,19 @@ export async function downloadImage(
       url.username ||
       url.password ||
       (url.port && url.port !== "443")
-    )
+    ) {
       throw new MediaInputError("Use a public HTTPS image URL on port 443");
+    }
     const hostname = url.hostname.replace(/^\[|\]$/g, "");
     const addresses = await lookup(hostname, { all: true });
-    if (!addresses.length)
+    if (!addresses.length) {
       throw new MediaInputError("Image host could not be resolved");
+    }
     addresses.forEach((a) => assertPublicAddress(a.address));
     const remaining = deadline - Date.now();
-    if (remaining <= 0) throw new MediaInputError("Image download timed out");
+    if (remaining <= 0) {
+      throw new MediaInputError("Image download timed out");
+    }
     return new Promise((resolve, reject) => {
       const chosen = addresses[0];
       const req = request(
@@ -69,16 +75,20 @@ export async function downloadImage(
             "User-Agent": "Ramblo/1.0",
           },
           lookup: (_host, options, callback) => {
-            if (options.all) callback(null, [chosen]);
-            else callback(null, chosen.address, chosen.family);
+            if (options.all) {
+              callback(null, [chosen]);
+            } else {
+              callback(null, chosen.address, chosen.family);
+            }
           },
         },
         (response) => {
           const status = response.statusCode ?? 500;
           if ([301, 302, 303, 307, 308].includes(status)) {
             response.destroy();
-            if (redirects >= 3 || !response.headers.location)
+            if (redirects >= 3 || !response.headers.location) {
               return reject(new MediaInputError("Too many image redirects"));
+            }
             try {
               downloadImage(
                 new URL(response.headers.location, url).href,
@@ -146,12 +156,15 @@ export async function uploadImage(
         !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
           value,
         )
-      )
+      ) {
         throw new MediaInputError(
           "imageFile.dataBase64 must contain valid base64 file bytes",
         );
+      }
       bytes = Buffer.from(value, "base64");
-    } else bytes = await downloadImage(input.imageUrl!);
+    } else {
+      bytes = await downloadImage(input.imageUrl!);
+    }
     return storeImage(projectId, bytes);
   });
 }
@@ -161,9 +174,12 @@ export async function storeImage(
   provider?: StorageLocation["storageProvider"],
 ) {
   return loggedOperation("lib.storage.storeImage", { projectId }, async () => {
-    if (!bytes.length) throw new MediaInputError("The image is empty");
-    if (bytes.length > MAX_IMAGE_BYTES)
+    if (!bytes.length) {
+      throw new MediaInputError("The image is empty");
+    }
+    if (bytes.length > MAX_IMAGE_BYTES) {
       throw new MediaInputError(IMAGE_TOO_LARGE);
+    }
     let jpeg: Buffer;
     try {
       const image = sharp(bytes, {
@@ -174,8 +190,9 @@ export async function storeImage(
       if (
         !["jpeg", "png", "webp"].includes(metadata.format || "") ||
         (metadata.pages ?? 1) > 1
-      )
+      ) {
         throw new Error("Unsupported image");
+      }
       jpeg = await image
         .rotate()
         .resize({
@@ -187,7 +204,9 @@ export async function storeImage(
         .flatten({ background: "#ffffff" })
         .jpeg({ quality: 90 })
         .toBuffer();
-      if (jpeg.length > MAX_IMAGE_BYTES) throw new Error("Image too large");
+      if (jpeg.length > MAX_IMAGE_BYTES) {
+        throw new Error("Image too large");
+      }
     } catch {
       throw new MediaInputError(
         "Upload a valid JPEG, PNG, or WebP image (maximum 20 megapixels)",
@@ -209,10 +228,11 @@ export async function removeImage(image: {
   storageProvider: StorageLocation["storageProvider"];
 }) {
   return loggedOperation("lib.storage.removeImage", {}, async () => {
-    if (image.imageKey && image.imageBucket)
+    if (image.imageKey && image.imageBucket) {
       await storageProvider(image.storageProvider).delete(image.imageBucket, [
         image.imageKey,
       ]);
+    }
   });
 }
 export async function purgeProjectMedia(target: {
@@ -221,14 +241,17 @@ export async function purgeProjectMedia(target: {
   objectKeys: string[];
   storageProvider: StorageLocation["storageProvider"];
 }) {
-  if (!/^[a-f0-9-]{36}\/$/i.test(target.prefix))
+  if (!/^[a-f0-9-]{36}\/$/i.test(target.prefix)) {
     throw new Error("Invalid project media prefix");
+  }
   const provider = storageProvider(target.storageProvider);
   await provider.delete(target.bucket, target.objectKeys);
   for (let page = 0; page < 5; page++) {
     const result = await provider.list(target.bucket, target.prefix, 200);
     await provider.delete(target.bucket, result.keys);
-    if (!result.truncated) return true;
+    if (!result.truncated) {
+      return true;
+    }
   }
   return false;
 }
@@ -258,15 +281,29 @@ export function isMp4(bytes: Buffer) {
     let length = bytes.readUInt32BE(offset);
     const type = bytes.toString("ascii", offset + 4, offset + 8);
     if (length === 1) {
-      if (offset + 16 > bytes.length) return false;
+      if (offset + 16 > bytes.length) {
+        return false;
+      }
       const large = bytes.readBigUInt64BE(offset + 8);
-      if (large > BigInt(bytes.length)) return false;
+      if (large > BigInt(bytes.length)) {
+        return false;
+      }
       length = Number(large);
-      if (length < 16) return false;
-    } else if (length === 0) length = bytes.length - offset;
-    if (length < 8 || offset + length > bytes.length) return false;
-    if (type === "ftyp" && length < 16) return false;
-    if (type === "moov" && length < 16) return false;
+      if (length < 16) {
+        return false;
+      }
+    } else if (length === 0) {
+      length = bytes.length - offset;
+    }
+    if (length < 8 || offset + length > bytes.length) {
+      return false;
+    }
+    if (type === "ftyp" && length < 16) {
+      return false;
+    }
+    if (type === "moov" && length < 16) {
+      return false;
+    }
     boxes.add(type);
     offset += length;
   }
@@ -283,20 +320,23 @@ export async function storeAsset(
 ): Promise<StoredAsset> {
   return loggedOperation("lib.storage.storeAsset", { projectId }, async () => {
     const kind = isMp4(bytes) ? "VIDEO" : "IMAGE";
-    if (expectedKind && expectedKind !== kind)
+    if (expectedKind && expectedKind !== kind) {
       throw new MediaInputError(
         `Expected a valid ${expectedKind.toLowerCase()} file`,
       );
+    }
     const id = randomUUID();
-    if (kind === "IMAGE")
+    if (kind === "IMAGE") {
       return {
         id,
         kind,
         mimeType: "image/jpeg",
         ...(await storeImage(projectId, bytes, provider)),
       };
-    if (bytes.length > MAX_VIDEO_BYTES)
+    }
+    if (bytes.length > MAX_VIDEO_BYTES) {
       throw new MediaInputError("Video must be 100 MB or smaller");
+    }
     const imageKey = `${projectId}/${id}.mp4`;
     const location = { ...(await newStorageLocation(provider)), imageKey };
     await storageProvider(location.storageProvider).write(
@@ -333,15 +373,17 @@ export async function downloadAsset(
 export async function readStagedUpload(
   asset: StorageLocation & { fileSize: number },
 ) {
-  if (asset.fileSize > MAX_VIDEO_BYTES)
+  if (asset.fileSize > MAX_VIDEO_BYTES) {
     throw new MediaInputError("Uploaded file exceeds its size limit");
+  }
   const bytes = await storageProvider(asset.storageProvider).read(
     { bucket: asset.imageBucket, key: asset.imageKey },
     asset.fileSize,
   );
-  if (bytes.length !== asset.fileSize)
+  if (bytes.length !== asset.fileSize) {
     throw new MediaInputError(
       "Uploaded file size does not match the upload request",
     );
+  }
   return bytes;
 }

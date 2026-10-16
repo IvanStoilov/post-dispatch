@@ -1,8 +1,13 @@
-import { config } from "../config";
-import { loggedOperation, withLogSecrets } from "../logger";
-import { z } from "zod";
 import { setTimeout as delay } from "node:timers/promises";
-import { logger, logContext, redact } from "../logger";
+import { z } from "zod";
+import { config } from "../config";
+import {
+  loggedOperation,
+  withLogSecrets,
+  logger,
+  logContext,
+  redact,
+} from "../logger";
 import { readImage } from "../storage";
 import {
   MediaPending,
@@ -30,10 +35,11 @@ export function linkedinScopes() {
 export function linkedinConfig() {
   const id = config.LINKEDIN_CLIENT_ID;
   const secret = config.LINKEDIN_CLIENT_SECRET;
-  if (!id || !secret)
+  if (!id || !secret) {
     throw new Error(
       "Configure LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET on the server.",
     );
+  }
   return { id, secret };
 }
 export async function linkedinRequest<T>(
@@ -84,10 +90,11 @@ export async function linkedinRequest<T>(
           token,
         ]) as Record<string, unknown>,
       );
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(
           `LinkedIn rejected the request (${response.status}). Check permissions, account access, and token expiry.`,
         );
+      }
       return { data: data as T, response };
     }),
   );
@@ -123,8 +130,9 @@ export async function linkedinAccounts(
           signal: AbortSignal.timeout(20000),
         },
       );
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error("LinkedIn rejected the connection. Start again.");
+      }
       const token = z
         .object({
           access_token: z.string().min(1),
@@ -135,12 +143,14 @@ export async function linkedinAccounts(
       const scopes = token.scope
         ? token.scope.split(/[ ,]+/)
         : linkedinScopes();
-      if (!scopes.includes("w_member_social"))
+      if (!scopes.includes("w_member_social")) {
         throw new Error("Grant LinkedIn publishing permission and reconnect.");
-      if (!scopes.includes("openid") || !scopes.includes("profile"))
+      }
+      if (!scopes.includes("openid") || !scopes.includes("profile")) {
         throw new Error(
           "Enable 'Sign In with LinkedIn using OpenID Connect' in your LinkedIn app, then reconnect to grant openid and profile permissions.",
         );
+      }
       const signal = AbortSignal.timeout(60000);
       const { data: profile } = await linkedinRequest<{
         sub: string;
@@ -184,12 +194,15 @@ export async function linkedinAccounts(
                 "CONTENT_ADMINISTRATOR",
               ].includes(acl.role) ||
               seen.has(acl.organizationTarget)
-            )
+            ) {
               continue;
+            }
             const match = /^urn:li:organization:(\d+)$/.exec(
               acl.organizationTarget,
             );
-            if (!match) continue;
+            if (!match) {
+              continue;
+            }
             seen.add(acl.organizationTarget);
             const { data: organization } = await linkedinRequest<{
               localizedName?: string;
@@ -200,8 +213,9 @@ export async function linkedinAccounts(
               name: organization.localizedName || `Company ${match[1]}`,
             });
           }
-          if (!data.paging?.links?.some((l) => l.rel === "next"))
+          if (!data.paging?.links?.some((l) => l.rel === "next")) {
             return accounts;
+          }
         }
         throw new Error(
           "Too many LinkedIn Pages. Limit app access and reconnect.",
@@ -218,8 +232,9 @@ export function linkedinUploadUrl(value: string) {
     url.username ||
     url.password ||
     !(url.hostname === "linkedin.com" || url.hostname.endsWith(".linkedin.com"))
-  )
+  ) {
     throw new Error("LinkedIn returned an invalid upload URL.");
+  }
   return url.toString();
 }
 async function upload(
@@ -242,8 +257,9 @@ async function upload(
     status: response.status,
     bytes: bytes.length,
   });
-  if (!response.ok)
+  if (!response.ok) {
     throw new Error(`LinkedIn media upload failed (${response.status}).`);
+  }
   return response;
 }
 export async function publishLinkedIn({
@@ -258,8 +274,9 @@ export async function publishLinkedIn({
     "lib.connectors.linkedin.publishLinkedIn",
     {},
     async () => {
-      if (!/^urn:li:(person|organization):[\w-]+$/.test(connection.accountId))
+      if (!/^urn:li:(person|organization):[\w-]+$/.test(connection.accountId)) {
         throw new Error("Invalid LinkedIn account. Reconnect it.");
+      }
       const token = connection.accessToken;
       const ids: string[] = [...(progress?.state.mediaIds || [])];
       for (const asset of assets.slice(ids.length)) {
@@ -280,10 +297,11 @@ export async function publishLinkedIn({
           progress.state = state;
         }
       }
-      if (!assets.length && urls.length)
+      if (!assets.length && urls.length) {
         throw new Error(
           "Re-upload this post’s image before publishing to LinkedIn.",
         );
+      }
       await progress?.beforeSubmit();
       const { response } = await linkedinRequest("/rest/posts", token, signal, {
         author: connection.accountId,
@@ -303,10 +321,11 @@ export async function publishLinkedIn({
             : {}),
       });
       const id = response.headers.get("x-restli-id");
-      if (!id)
+      if (!id) {
         throw new Error(
           "LinkedIn did not return a post ID. Check before resubmitting.",
         );
+      }
       return id;
     },
   );
@@ -359,8 +378,9 @@ export async function uploadLinkedInAsset(
               part.firstByte !== offset ||
               part.lastByte < offset ||
               part.lastByte >= bytes.length
-            )
+            ) {
               throw new Error("Invalid LinkedIn video upload ranges.");
+            }
             const r = await upload(
               part.uploadUrl,
               bytes.subarray(part.firstByte, part.lastByte + 1),
@@ -369,15 +389,17 @@ export async function uploadLinkedInAsset(
               "application/octet-stream",
             );
             const etag = r.headers.get("etag");
-            if (!etag)
+            if (!etag) {
               throw new Error(
                 "LinkedIn did not return a video upload receipt.",
               );
+            }
             parts.push(etag.replace(/^"|"$/g, ""));
             offset = part.lastByte + 1;
           }
-          if (offset !== bytes.length)
+          if (offset !== bytes.length) {
             throw new Error("Incomplete LinkedIn video upload.");
+          }
           await linkedinRequest(
             "/rest/videos?action=finalizeUpload",
             token,
@@ -408,15 +430,19 @@ export async function uploadLinkedInAsset(
             ready = true;
             break;
           }
-          if (!["PROCESSING", "WAITING_UPLOAD"].includes(video.status))
+          if (!["PROCESSING", "WAITING_UPLOAD"].includes(video.status)) {
             throw new Error("LinkedIn video processing failed.");
-          if (progress) throw new MediaPending(15);
+          }
+          if (progress) {
+            throw new MediaPending(15);
+          }
           await delay(5000, undefined, { signal });
         }
-        if (!ready)
+        if (!ready) {
           throw new Error(
             "LinkedIn is still processing the video. Check before resubmitting.",
           );
+        }
         return videoId;
       }
     },

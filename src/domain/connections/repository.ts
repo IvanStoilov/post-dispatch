@@ -1,9 +1,9 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, like, lte } from "drizzle-orm";
+import type { Executor } from "../shared/db";
 import { getDb } from "@/db";
 import { verifications } from "@/db/schema";
-import type { Executor } from "../shared/db";
 
 // Pending connect flows live in the auth library's verifications table,
 // keyed by a hash of the flow's nonce (the browser holds the nonce).
@@ -64,6 +64,7 @@ export function listAllPending(db: Executor) {
 }
 
 export async function deleteByIds(db: Executor, ids: string[]) {
-  if (ids.length)
+  if (ids.length) {
     await db.delete(verifications).where(inArray(verifications.id, ids));
+  }
 }

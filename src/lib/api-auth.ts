@@ -1,5 +1,6 @@
 import { loggedOperation, logger, withLogContext } from "./logger";
 import { getAuth } from "./auth";
+
 class AccessError extends Error {
   constructor(
     message: string,
@@ -15,7 +16,9 @@ export async function authenticated(
   return loggedOperation("lib.api-auth.authenticated", {}, async () => {
     try {
       const session = await getAuth().api.getSession({ headers: req.headers });
-      if (!session) throw new AccessError("Sign in to continue", 401);
+      if (!session) {
+        throw new AccessError("Sign in to continue", 401);
+      }
       logger.debug("auth.session.accepted", { userId: session.user.id });
       return await withLogContext({ userId: session.user.id }, () =>
         fn(session.user.id),

@@ -1,5 +1,5 @@
-import { config } from "./config";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { config } from "./config";
 
 // This persisted encryption format predates Ramblo; changing its prefix/AAD
 // would make existing connector tokens unreadable. It is not public branding.
@@ -8,10 +8,11 @@ export type CredentialField = "access_token" | "refresh_token";
 
 function encryptionKey(): Buffer {
   const value = config.CREDENTIALS_ENCRYPTION_KEY;
-  if (!value || !/^[a-f\d]{64}$/i.test(value))
+  if (!value || !/^[a-f\d]{64}$/i.test(value)) {
     throw new Error(
       "CREDENTIALS_ENCRYPTION_KEY must be a 32-byte hexadecimal key (64 characters).",
     );
+  }
   return Buffer.from(value, "hex");
 }
 
@@ -39,14 +40,16 @@ export function decryptCredential(
   // Fail closed: plaintext, unsupported formats, wrong keys and tampering never
   // silently become credentials that could be sent to a social provider.
   const key = encryptionKey();
-  if (!value.startsWith(CREDENTIAL_PREFIX))
+  if (!value.startsWith(CREDENTIAL_PREFIX)) {
     throw new Error(
       "Stored connector credentials must be migrated to the encrypted format.",
     );
+  }
   const encoded = value.slice(CREDENTIAL_PREFIX.length);
   const bytes = Buffer.from(encoded, "base64url");
-  if (bytes.length < 28 || bytes.toString("base64url") !== encoded)
+  if (bytes.length < 28 || bytes.toString("base64url") !== encoded) {
     throw new Error("Stored connector credential is invalid.");
+  }
   try {
     const cipher = createDecipheriv("aes-256-gcm", key, bytes.subarray(0, 12));
     cipher.setAAD(Buffer.from(`postdispatch:project_connectors:${field}:v1`));

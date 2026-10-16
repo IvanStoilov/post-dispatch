@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import type { Project } from "@/lib/types";
 import { useAppPath } from "./app-navigation";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -25,6 +24,7 @@ import {
   AlertDialogCancel,
 } from "./ui/alert-dialog";
 import { toast } from "./ui/sonner";
+import type { Project } from "@/lib/types";
 import { api, userMessage } from "@/lib/api-client";
 
 export function DeleteProject({
@@ -43,7 +43,9 @@ export function DeleteProject({
   const isDeletionAllowed =
     confirmation.toLowerCase() === project.name.toLowerCase();
   function changeOpen(value: boolean) {
-    if (busy) return;
+    if (busy) {
+      return;
+    }
     setOpen(value);
     setConfirmation("");
     setError("");
@@ -92,7 +94,9 @@ export function DeleteProject({
             className="space-y-4"
             onSubmit={async (event) => {
               event.preventDefault();
-              if (busy || !isDeletionAllowed) return;
+              if (busy || !isDeletionAllowed) {
+                return;
+              }
               setBusy(true);
               setError("");
               try {

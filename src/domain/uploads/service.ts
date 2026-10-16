@@ -5,6 +5,12 @@ import {
   randomUUID,
   timingSafeEqual,
 } from "node:crypto";
+import { projectsSystemService } from "../projects";
+import type { Actor } from "../shared/actor";
+import type { Tx } from "../shared/db";
+import { UserFacingError } from "../shared/errors";
+import { toAssetUploadDto } from "./mappers";
+import * as repository from "./repository";
 import { getDb } from "@/db";
 import { loggedOperation, logger } from "@/lib/logger";
 import { appOrigin } from "@/lib/origins";
@@ -27,12 +33,6 @@ import type {
   UploadTargetDto,
   UploadTokenDto,
 } from "@/shared/schemas/upload";
-import { projectsSystemService } from "../projects";
-import type { Actor } from "../shared/actor";
-import type { Tx } from "../shared/db";
-import { UserFacingError } from "../shared/errors";
-import { toAssetUploadDto } from "./mappers";
-import * as repository from "./repository";
 
 // All business logic for media uploads. A file reaches storage in one of
 // two ways, then waits as an image upload until one draft claims it:
@@ -58,8 +58,9 @@ const invalid = (message: string) => new UserFacingError(message, 400);
 const projectNotFound = () => new UserFacingError("Project not found", 404);
 
 async function assertOwned(actor: Actor, projectId: string) {
-  if (!(await projectsSystemService.isOwned(actor.userId, projectId)))
+  if (!(await projectsSystemService.isOwned(actor.userId, projectId))) {
     throw projectNotFound();
+  }
 }
 
 // Storage's rejections of the file itself become a user-facing 400.
@@ -67,7 +68,9 @@ async function withMediaErrors<T>(action: () => Promise<T>) {
   try {
     return await action();
   } catch (error) {
-    if (error instanceof MediaInputError) throw invalid(error.message);
+    if (error instanceof MediaInputError) {
+      throw invalid(error.message);
+    }
     throw error;
   }
 }
@@ -80,19 +83,22 @@ async function cleanup(media: StorageLocation, reason: string) {
 
 // Expired uploads are removed lazily, before new ones are counted.
 async function removeExpired(projectId: string) {
-  for (const upload of await repository.deleteExpiredImageUploads(projectId))
+  for (const upload of await repository.deleteExpiredImageUploads(projectId)) {
     await cleanup(upload, "Could not clean up an expired image upload");
-  for (const upload of await repository.deleteExpiredDirectUploads(projectId))
+  }
+  for (const upload of await repository.deleteExpiredDirectUploads(projectId)) {
     await cleanup(upload, "Could not clean up an expired media upload");
+  }
 }
 
 async function assertRoom(projectId: string) {
   await removeExpired(projectId);
-  if ((await repository.countUnused(projectId)) >= MAX_UNUSED_UPLOADS)
+  if ((await repository.countUnused(projectId)) >= MAX_UNUSED_UPLOADS) {
     throw new UserFacingError(
       "Too many unused media uploads. Use them in drafts or let them expire.",
       429,
     );
+  }
 }
 
 // Re-encodes images and copies videos from the staged file to a NEW key,
@@ -110,19 +116,21 @@ async function finish(
         const upload = await repository.lockOpenDirectUpload(tx, uploadId, {
           projectId,
         });
-        if (!upload)
+        if (!upload) {
           throw new UserFacingError(
             "Upload not found, expired, or already completed",
             404,
           );
+        }
         if (
           completionToken !== undefined &&
           !timingSafeEqual(
             Buffer.from(hash(completionToken)),
             Buffer.from(upload.completionTokenHash),
           )
-        )
+        ) {
           throw new UserFacingError("Invalid upload completion token", 403);
+        }
         stored = await storeAsset(
           projectId,
           await readStagedUpload(upload),
@@ -146,10 +154,14 @@ async function finish(
         return ready;
       }),
     );
-    if (staged) await cleanup(staged, "Could not clean up staged media");
+    if (staged) {
+      await cleanup(staged, "Could not clean up staged media");
+    }
     return toAssetUploadDto(ready);
   } catch (error) {
-    if (stored) await cleanup(stored, "Could not clean up rejected media");
+    if (stored) {
+      await cleanup(stored, "Could not clean up rejected media");
+    }
     throw error;
   }
 }
@@ -284,13 +296,14 @@ async function receiveWithToken(
       const spent = token
         ? await repository.spendToken(projectId, hash(token))
         : undefined;
-      if (!spent)
+      if (!spent) {
         throw new UserFacingError(
           token
             ? "Upload token is invalid, expired, or used up. Call create_upload_token for a new one."
             : "Missing upload token",
           401,
         );
+      }
       try {
         await assertRoom(projectId);
         const image = await withMediaErrors(async () =>
@@ -335,12 +348,16 @@ async function writeLocalFile(
       const upload = await repository.lockOpenDirectUpload(tx, uploadId, {
         storageProvider: "local",
       });
-      if (!upload) throw new UserFacingError("Upload unavailable", 404);
-      if (contentType !== upload.mimeType)
+      if (!upload) {
+        throw new UserFacingError("Upload unavailable", 404);
+      }
+      if (contentType !== upload.mimeType) {
         throw invalid("Upload content type does not match");
+      }
       const bytes = await readBytes(upload.fileSize);
-      if (bytes.length !== upload.fileSize)
+      if (bytes.length !== upload.fileSize) {
         throw invalid("Upload size does not match");
+      }
       await storageProvider(upload.storageProvider).write(
         { bucket: upload.imageBucket, key: upload.imageKey },
         bytes,
@@ -361,8 +378,9 @@ async function claim(
   uploadId: string,
 ): Promise<StoredAsset> {
   const upload = await repository.claimImageUpload(tx, projectId, uploadId);
-  if (!upload)
+  if (!upload) {
     throw invalid("Image upload not found, expired, or already used");
+  }
   return {
     id: upload.id,
     kind: upload.kind,

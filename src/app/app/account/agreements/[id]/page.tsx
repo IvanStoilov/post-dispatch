@@ -4,6 +4,7 @@ import { workspaceSession } from "@/app/workspace";
 import { termsService } from "@/domain/terms";
 import { UserFacingError } from "@/domain/shared/errors";
 import { TermsDocument } from "@/components/terms-document";
+
 export default async function AgreementPage({
   params,
 }: {
@@ -11,11 +12,15 @@ export default async function AgreementPage({
 }) {
   const { user } = await workspaceSession();
   const { id } = await params;
-  if (!z.uuid().safeParse(id).success) notFound();
+  if (!z.uuid().safeParse(id).success) {
+    notFound();
+  }
   const record = await termsService
     .getAcceptance({ userId: user.id }, { id })
     .catch((error) => {
-      if (error instanceof UserFacingError && error.status === 404) notFound();
+      if (error instanceof UserFacingError && error.status === 404) {
+        notFound();
+      }
       throw error;
     });
   return (

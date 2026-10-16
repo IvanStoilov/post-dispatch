@@ -14,23 +14,26 @@ const providers: Record<string, () => MailProvider> = {
   resend: () => resendProvider(requireConfig("RESEND_API_KEY")),
   sendgrid: () => sendgridProvider(requireConfig("SENDGRID_API_KEY")),
   console: () => {
-    if (config.NODE_ENV === "production")
+    if (config.NODE_ENV === "production") {
       throw new Error("MAIL_PROVIDER=console cannot be used in production");
+    }
     return consoleProvider();
   },
   maildev: () => maildevProvider(),
 };
 export function mailProvider(): MailProvider {
   const name = config.MAIL_PROVIDER;
-  if (!name)
+  if (!name) {
     throw new Error(
       `Set MAIL_PROVIDER to one of: ${Object.keys(providers).join(", ")}`,
     );
+  }
   const create = providers[name];
-  if (!create)
+  if (!create) {
     throw new Error(
       `Unknown MAIL_PROVIDER "${name}". Use one of: ${Object.keys(providers).join(", ")}`,
     );
+  }
   return create();
 }
 export function mailFrom() {

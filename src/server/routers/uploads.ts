@@ -1,5 +1,5 @@
-import { uploadsService } from "@/domain/uploads";
 import { authed } from "../orpc";
+import { uploadsService } from "@/domain/uploads";
 
 // Routes, input and output come from src/contract/uploads.ts; access is
 // enforced by the domain, scoped to context.actor.

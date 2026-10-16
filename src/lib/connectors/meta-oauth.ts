@@ -46,10 +46,11 @@ export function connectorConfig(provider: Platform) {
     provider === "facebook"
       ? config.FACEBOOK_APP_SECRET
       : config.INSTAGRAM_APP_SECRET;
-  if (!id || !secret)
+  if (!id || !secret) {
     throw new ConnectorAuthError(
       `${prefix}_APP_ID and ${prefix}_APP_SECRET must be configured on the server.`,
     );
+  }
   return {
     id,
     secret,
@@ -98,10 +99,11 @@ async function meta(
       durationMs: Math.round(performance.now() - started),
       body: data,
     });
-    if (!response.ok || data.error)
+    if (!response.ok || data.error) {
       throw new ConnectorAuthError(
         "Meta rejected the connection. Check permissions and try again.",
       );
+    }
     return data;
   } catch (error) {
     debug("meta.failure", {
@@ -144,16 +146,18 @@ export async function facebookPages(code: string) {
     "pages_show_list",
     "pages_read_engagement",
     "pages_manage_posts",
-  ])
+  ]) {
     if (
       !permissions.data?.some(
         (item: { permission: string; status: string }) =>
           item.permission === permission && item.status === "granted",
       )
-    )
+    ) {
       throw new ConnectorAuthError(
         "Grant Page listing, reading, and publishing permissions to connect Facebook.",
       );
+    }
+  }
   const pages: MetaPage[] = [];
   let next: string | undefined =
     `https://graph.facebook.com/${metaApiVersion()}/me/accounts?fields=id,name,access_token,tasks&limit=100`;
@@ -162,8 +166,9 @@ export async function facebookPages(code: string) {
     if (
       url.origin !== "https://graph.facebook.com" ||
       url.pathname !== `/${metaApiVersion()}/me/accounts`
-    )
+    ) {
       throw new ConnectorAuthError("Invalid Meta pagination response.");
+    }
     const data = await meta(next, { headers: bearer(access) }, [access]);
     for (const page of z
       .array(
@@ -184,19 +189,22 @@ export async function facebookPages(code: string) {
             "PROFILE_PLUS_FULL_CONTROL",
           ].includes(task),
         )
-      )
+      ) {
         pages.push(page);
+      }
     }
     next = data.paging?.next;
   }
-  if (next)
+  if (next) {
     throw new ConnectorAuthError(
       "Too many Pages. Limit the Pages granted to this app and reconnect.",
     );
-  if (!pages.length)
+  }
+  if (!pages.length) {
     throw new ConnectorAuthError(
       "No Pages with publishing access were granted. Check your Page access and reconnect.",
     );
+  }
   return pages;
 }
 export async function instagramAccount(code: string) {
@@ -223,11 +231,13 @@ export async function instagramAccount(code: string) {
   for (const scope of [
     "instagram_business_basic",
     "instagram_business_content_publish",
-  ])
-    if (!permissions.includes(scope))
+  ]) {
+    if (!permissions.includes(scope)) {
       throw new ConnectorAuthError(
         "Grant Instagram profile and publishing permissions, then reconnect.",
       );
+    }
+  }
   const url = new URL("https://graph.instagram.com/access_token");
   url.search = new URLSearchParams({
     grant_type: "ig_exchange_token",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { base } from "./base";
 import {
   assistantAccessDto,
   assistantGrantRef,
@@ -10,7 +11,6 @@ import {
   termsAcceptanceRef,
   termsAcceptanceSummaryDto,
 } from "@/shared/schemas/terms";
-import { base } from "./base";
 
 // The signed-in user's account settings. Account deletion is a plain route
 // (/api/account): it re-checks the password and clears session cookies.

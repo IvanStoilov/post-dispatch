@@ -1,5 +1,3 @@
-import { brand } from "../../lib/brand";
-import { appOrigin } from "../../lib/origins";
 import {
   Body,
   Button,
@@ -17,6 +15,8 @@ import {
   pixelBasedPreset,
   type TailwindConfig,
 } from "react-email";
+import { brand } from "../../lib/brand";
+import { appOrigin } from "../../lib/origins";
 
 // Mirrors the app tokens in src/app/globals.css. Emails need pixel units,
 // so the preset swaps Tailwind's rem scale for px.

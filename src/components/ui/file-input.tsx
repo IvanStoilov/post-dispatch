@@ -43,7 +43,9 @@ function FileInput({
           const files = Array.from(event.currentTarget.files || []);
           // Allow choosing the same file again after removing it from a draft.
           event.currentTarget.value = "";
-          if (files.length) onFilesSelected(files);
+          if (files.length) {
+            onFilesSelected(files);
+          }
         }}
       />
       <Button

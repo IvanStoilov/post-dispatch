@@ -6,6 +6,7 @@ import {
   PolicyDate,
 } from "@/components/public/site-shell";
 import { site } from "@/lib/public-site";
+
 export const metadata: Metadata = {
   title: "Privacy policy | Ramblo",
   description:

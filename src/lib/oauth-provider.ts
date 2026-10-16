@@ -1,5 +1,3 @@
-import { appOrigin, appPagePath } from "./origins";
-export { appOrigin } from "./origins";
 import {
   oauthProvider,
   getOAuthProviderApi,
@@ -7,16 +5,21 @@ import {
 } from "@better-auth/oauth-provider";
 import { createAuthEndpoint, APIError } from "better-auth/api";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { users } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { appOrigin, appPagePath } from "./origins";
+
+export { appOrigin } from "./origins";
 
 export const MCP_SCOPES = ["posts:read", "posts:write"] as const;
 export function accountResource() {
   return `${appOrigin()}/api/mcp`;
 }
 export function validateAccountResource(resource: string) {
-  if (resource !== accountResource()) throw new Error("Invalid MCP resource");
+  if (resource !== accountResource()) {
+    throw new Error("Invalid MCP resource");
+  }
 }
 export function oauthPlugins() {
   const opts: OAuthOptions<string[]> = {
@@ -35,8 +38,9 @@ export function oauthPlugins() {
     resourcePrivileges: async () => false,
     clientPrivileges: async () => false,
     customAccessTokenClaims: async ({ user, resources }) => {
-      if (!user || resources?.length !== 1)
+      if (!user || resources?.length !== 1) {
         throw new APIError("BAD_REQUEST", { error: "invalid_target" });
+      }
       try {
         validateAccountResource(resources[0]);
       } catch {
@@ -74,16 +78,18 @@ export function oauthPlugins() {
               payload.accountId !== payload.sub ||
               typeof payload.sub !== "string" ||
               payload.cnf
-            )
+            ) {
               throw new APIError("UNAUTHORIZED", { error: "invalid_token" });
+            }
             const scopes =
               typeof payload.scope === "string" ? payload.scope.split(" ") : [];
             const [user] = await getDb()
               .select({ id: users.id })
               .from(users)
               .where(eq(users.id, payload.sub));
-            if (!user)
+            if (!user) {
               throw new APIError("UNAUTHORIZED", { error: "invalid_token" });
+            }
             return { userId: payload.sub, scopes };
           },
         ),

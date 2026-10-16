@@ -1,10 +1,10 @@
 "use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useWorkspace } from "@/components/workspace-shell";
 import { projectPath } from "@/lib/route-paths";
 import { useAppPath } from "@/components/app-navigation";
 import { LinkedIn } from "@/components/channel-icons";
-import { useEffect, useState } from "react";
-import Link from "next/link";
 import {
   Card,
   CardHeader,
@@ -39,20 +39,24 @@ export default function SelectLinkedInPage() {
     void fetch("/api/connectors/linkedin/accounts", { cache: "no-store" })
       .then(async (response) => {
         const data = await response.json();
-        if (!response.ok)
+        if (!response.ok) {
           throw new Error(data.error || "Could not load Pages.");
+        }
         if (active) {
-          if (data.projectId !== activeProject?.id)
+          if (data.projectId !== activeProject?.id) {
             throw new Error(
               "This connection belongs to another project. Start again from Connections.",
             );
+          }
           setPages(data.pages);
           setProject(data.projectName);
           setSelected(data.pages[0]?.id || "");
         }
       })
       .catch((error) => {
-        if (active) setError(error.message);
+        if (active) {
+          setError(error.message);
+        }
       });
     return () => {
       active = false;
@@ -69,8 +73,9 @@ export default function SelectLinkedInPage() {
         body: JSON.stringify({ pageId: selected }),
       });
       const data = await response.json();
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(data.error || "Could not connect Page.");
+      }
       window.location.assign(data.url);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Connection failed.");

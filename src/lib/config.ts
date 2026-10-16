@@ -1,11 +1,13 @@
-import { brand } from "./brand";
 import process from "node:process";
 import { z } from "zod";
+import { brand } from "./brand";
 
 // Node-only by design. Never import this module into a Client Component.
 const optionalText = z.string().min(1).optional();
 const webUrl = z.url().refine((value) => {
-  if (!URL.canParse(value)) return false;
+  if (!URL.canParse(value)) {
+    return false;
+  }
   const url = new URL(value);
   return (
     ["http:", "https:"].includes(url.protocol) && !url.username && !url.password
@@ -13,7 +15,9 @@ const webUrl = z.url().refine((value) => {
 }, "must be an HTTP(S) URL without embedded credentials");
 const originUrl = webUrl
   .refine((value) => {
-    if (!URL.canParse(value)) return false;
+    if (!URL.canParse(value)) {
+      return false;
+    }
     const url = new URL(value);
     return url.pathname === "/" && !url.search && !url.hash;
   }, "must be an origin without a path, query, or fragment")
@@ -125,18 +129,27 @@ function normalized(value: string | undefined) {
 function environmentValue(key: string, environment: Environment) {
   if (key === "APP_URL") {
     const vercelUrl = normalized(environment.VERCEL_URL);
-    if (vercelUrl) return withUrlScheme(vercelUrl);
+    if (vercelUrl) {
+      return withUrlScheme(vercelUrl);
+    }
   }
   const value = normalized(environment[key]);
-  if (value !== undefined) return value;
+  if (value !== undefined) {
+    return value;
+  }
   const production = environment.NODE_ENV === "production";
-  if (key === "QUEUE_DRIVER")
+  if (key === "QUEUE_DRIVER") {
     return production || environment.VERCEL === "1" ? "vercel" : "local";
-  if (key === "STORAGE_PROVIDER")
+  }
+  if (key === "STORAGE_PROVIDER") {
     return production || environment.VERCEL === "1" ? "s3" : "local";
-  if (key === "MAIL_PROVIDER") return production ? undefined : "console";
-  if (key === "MAIL_FROM")
+  }
+  if (key === "MAIL_PROVIDER") {
+    return production ? undefined : "console";
+  }
+  if (key === "MAIL_FROM") {
     return production ? undefined : `${brand.name} <${brand.email}>`;
+  }
   return undefined;
 }
 export class ConfigError extends Error {
@@ -161,7 +174,9 @@ export function parseConfig(environment: Environment): Config {
     ]),
   );
   const result = configSchema.safeParse(input);
-  if (!result.success) throw new ConfigError(result.error.issues);
+  if (!result.success) {
+    throw new ConfigError(result.error.issues);
+  }
   return Object.freeze(result.data);
 }
 
@@ -179,13 +194,14 @@ export const config: Readonly<Config> = Object.freeze(
           enumerable: true,
           get() {
             const result = schema.safeParse(environmentValue(key, process.env));
-            if (!result.success)
+            if (!result.success) {
               throw new ConfigError(
                 result.error.issues.map((issue) => ({
                   ...issue,
                   path: [key, ...issue.path],
                 })),
               );
+            }
             return result.data;
           },
         },
@@ -198,7 +214,9 @@ export function requireConfig<K extends ConfigKey>(
   key: K,
 ): NonNullable<Config[K]> {
   const value = config[key];
-  if (value === undefined) throw new Error(`${key} is required`);
+  if (value === undefined) {
+    throw new Error(`${key} is required`);
+  }
   return value as NonNullable<Config[K]>;
 }
 

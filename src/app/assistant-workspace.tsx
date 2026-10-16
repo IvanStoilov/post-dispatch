@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
+import AssistantSettings from "./assistant-settings";
 import { useWorkspace } from "@/components/workspace-shell";
 import { toast } from "@/components/ui/sonner";
 import { api, userMessage } from "@/lib/api-client";
 import type { AssistantAccessDto } from "@/shared/schemas/assistants";
-import AssistantSettings from "./assistant-settings";
+
 export default function AssistantPage() {
   const { project } = useWorkspace();
   const [settings, setSettings] = useState<AssistantAccessDto>({
@@ -23,11 +24,14 @@ export default function AssistantPage() {
         setOrigin(window.location.origin);
       })
       .catch((e) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
           toast.error(userMessage(e, "Could not load assistant settings"));
+        }
       })
       .finally(() => {
-        if (!controller.signal.aborted) setBusy(false);
+        if (!controller.signal.aborted) {
+          setBusy(false);
+        }
       });
     return () => controller.abort();
   }, []);

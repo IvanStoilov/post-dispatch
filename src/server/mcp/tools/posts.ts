@@ -1,10 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { projectTool, type McpContext } from "../context";
+import { filesDraftSchema, mcpDraftSchema, projectFields } from "../schemas";
 import { postsService } from "@/domain/posts";
 import { appPageUrl } from "@/lib/origins";
 import { projectPath } from "@/lib/route-paths";
 import { submitDraftInput } from "@/shared/schemas/post";
-import { projectTool, type McpContext } from "../context";
-import { filesDraftSchema, mcpDraftSchema, projectFields } from "../schemas";
 
 const writeMeta = {
   securitySchemes: [{ type: "oauth2", scopes: ["posts:write"] }],

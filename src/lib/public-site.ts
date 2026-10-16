@@ -1,6 +1,7 @@
 import { brand } from "./brand";
 import { config } from "./config";
 import { publicOrigin } from "./origins";
+
 export const site = {
   name: brand.name,
   operator: "Ivan Sashov Stoilov",

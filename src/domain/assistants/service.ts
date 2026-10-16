@@ -1,5 +1,7 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
+import type { Actor } from "../shared/actor";
+import * as repository from "./repository";
 import { loggedOperation } from "@/lib/logger";
 import { accountResource } from "@/lib/oauth-provider";
 import type {
@@ -7,8 +9,6 @@ import type {
   AssistantGrantRef,
   AssistantTokenDto,
 } from "@/shared/schemas/assistants";
-import type { Actor } from "../shared/actor";
-import * as repository from "./repository";
 
 // Which assistants may act on the account over MCP: the account MCP token
 // (one per user, shown once, stored hashed) and OAuth clients the user
@@ -58,7 +58,9 @@ async function revokeGrant(
 // authenticates with it.
 async function verifyToken(authorization: string | null) {
   const token = authorization?.match(/^Bearer (.+)$/i)?.[1];
-  if (!token) return null;
+  if (!token) {
+    return null;
+  }
   return (await repository.findUserByTokenHash(hash(token))) ?? null;
 }
 

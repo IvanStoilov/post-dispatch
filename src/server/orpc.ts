@@ -26,13 +26,16 @@ export const pub = api.use(async ({ next, path, errors }) => {
   try {
     return await next();
   } catch (error) {
-    if (error instanceof ORPCError && error.cause instanceof ValidationError)
+    if (error instanceof ORPCError && error.cause instanceof ValidationError) {
       throw errors.BAD_REQUEST({
         message: error.message,
         data: error.data,
         cause: error.cause,
       });
-    if (!(error instanceof UserFacingError)) throw error;
+    }
+    if (!(error instanceof UserFacingError)) {
+      throw error;
+    }
     logger.warn("rpc.request.rejected", {
       procedure: path.join("."),
       status: error.status,
@@ -46,7 +49,9 @@ export const pub = api.use(async ({ next, path, errors }) => {
 // context, and the domain enforces what that actor may access.
 export const authed = pub.use(async ({ context, next }) => {
   const session = await getAuth().api.getSession({ headers: context.headers });
-  if (!session) throw new UserFacingError("Sign in to continue", 401);
+  if (!session) {
+    throw new UserFacingError("Sign in to continue", 401);
+  }
   const actor: Actor = { userId: session.user.id };
   return withLogContext(actor, () => next({ context: { actor } }));
 });

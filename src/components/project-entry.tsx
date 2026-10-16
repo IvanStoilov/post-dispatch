@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppPath } from "./app-navigation";
 import { projectPath } from "@/lib/route-paths";
+
 export function ProjectEntry({
   ids,
   remembered,

@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { brand } from "@/lib/brand";
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: brand.name,

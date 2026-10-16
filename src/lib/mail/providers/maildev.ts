@@ -19,12 +19,13 @@ export function maildevProvider(): MailProvider {
         ...(mail.replyTo ? { replyTo: mail.replyTo } : {}),
       });
 
-      if (!response.messageId)
+      if (!response.messageId) {
         throw new MailError(
           `Maildev rejected the email: ${response.rejectedErrors}`,
           "maildev",
           response.status,
         );
+      }
       return { id: response.messageId };
     },
   };

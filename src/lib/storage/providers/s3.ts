@@ -6,8 +6,8 @@ import {
   DeleteObjectsCommand,
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
-import { requireConfig } from "../../config";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { requireConfig } from "../../config";
 import type { StorageProvider } from "../types";
 
 let cached: { configuration: string; client: S3Client } | undefined;
@@ -78,7 +78,9 @@ export const s3Provider: StorageProvider = {
       new GetObjectCommand({ Bucket: object.bucket, Key: object.key }),
       { abortSignal: AbortSignal.timeout(120000) },
     );
-    if (!response.Body) throw new Error("Stored file not found");
+    if (!response.Body) {
+      throw new Error("Stored file not found");
+    }
     if (
       response.ContentLength !== undefined &&
       response.ContentLength > maxBytes
@@ -92,7 +94,9 @@ export const s3Provider: StorageProvider = {
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
         length += value.length;
         if (length > maxBytes) {
           await reader.cancel();
@@ -123,8 +127,9 @@ export const s3Provider: StorageProvider = {
         }),
         { abortSignal: AbortSignal.timeout(30000) },
       );
-      if (result.Errors?.length)
+      if (result.Errors?.length) {
         throw new Error("Some stored files could not be removed");
+      }
     }
   },
   async list(bucket, prefix, limit) {

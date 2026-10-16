@@ -1,9 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, userMessage } from "@/lib/api-client";
 import { useAppPath } from "./app-navigation";
-import { projectPath } from "@/lib/route-paths";
 import { toast } from "./ui/sonner";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -16,6 +14,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "./ui/dialog";
+import { projectPath } from "@/lib/route-paths";
+import { api, userMessage } from "@/lib/api-client";
 
 export function CreateProjectDialog({
   open,
@@ -33,7 +33,9 @@ export function CreateProjectDialog({
     <Dialog
       open={open}
       onOpenChange={(value) => {
-        if (!busy) onOpenChange(value);
+        if (!busy) {
+          onOpenChange(value);
+        }
       }}
     >
       <DialogContent showCloseButton={!busy}>
@@ -48,7 +50,9 @@ export function CreateProjectDialog({
           className="flex flex-col gap-4"
           onSubmit={async (event) => {
             event.preventDefault();
-            if (busy || !name.trim()) return;
+            if (busy || !name.trim()) {
+              return;
+            }
             setBusy(true);
             setError("");
             try {

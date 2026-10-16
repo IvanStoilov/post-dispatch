@@ -1,8 +1,8 @@
 import "server-only";
+import type { ProjectRecord } from "./types";
 import { connectedAccountUrl } from "@/lib/connectors/account-url";
 import type { ProjectDto } from "@/shared/schemas/project";
 import type { ConnectorRow } from "@/db/schema";
-import type { ProjectRecord } from "./types";
 
 export function toProjectDto(project: ProjectRecord): ProjectDto {
   return {

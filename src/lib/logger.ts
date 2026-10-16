@@ -1,8 +1,8 @@
-import { config, environmentSecrets } from "./config";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
-import winston from "winston";
 import { inspect } from "node:util";
+import winston from "winston";
+import { config, environmentSecrets } from "./config";
 
 export type LogContext = {
   requestId?: string;
@@ -49,7 +49,9 @@ const sanitize = winston.format((info) => {
     string,
     unknown
   >;
-  for (const key of Object.keys(info)) delete info[key];
+  for (const key of Object.keys(info)) {
+    delete info[key];
+  }
   Object.assign(info, safe);
   return info;
 });
@@ -221,7 +223,9 @@ export function redact(
   secrets: string[] = [],
   depth = 0,
 ): unknown {
-  if (depth > 12) return "[depth limit]";
+  if (depth > 12) {
+    return "[depth limit]";
+  }
   if (typeof value === "string") {
     let result = value;
     for (const secret of secrets.filter(Boolean)) {
@@ -248,9 +252,10 @@ export function redact(
       ? result.slice(0, 8192) + "[truncated]"
       : result;
   }
-  if (value instanceof SyntaxError)
+  if (value instanceof SyntaxError) {
     return { name: value.name, message: "Malformed data" };
-  if (value instanceof Error)
+  }
+  if (value instanceof Error) {
     return redact(
       {
         name: value.name,
@@ -261,9 +266,11 @@ export function redact(
       secrets,
       depth + 1,
     );
-  if (Array.isArray(value))
+  }
+  if (Array.isArray(value)) {
     return value.map((item) => redact(item, secrets, depth + 1));
-  if (value && typeof value === "object")
+  }
+  if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
         key,
@@ -274,5 +281,6 @@ export function redact(
           : redact(item, secrets, depth + 1),
       ]),
     );
+  }
   return value;
 }

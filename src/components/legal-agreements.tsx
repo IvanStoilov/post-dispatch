@@ -2,7 +2,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, userMessage } from "@/lib/api-client";
 import { useAppPath } from "./app-navigation";
 import {
   Card,
@@ -14,6 +13,8 @@ import {
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import { toast } from "./ui/sonner";
+import { api, userMessage } from "@/lib/api-client";
+
 export function LegalAgreements({
   records,
   terms,
@@ -67,7 +68,9 @@ export function LegalAgreements({
             className="space-y-4 border-t pt-4"
             onSubmit={async (event) => {
               event.preventDefault();
-              if (!accepted || busy) return;
+              if (!accepted || busy) {
+                return;
+              }
               setBusy(true);
               try {
                 await api.terms.accept({

@@ -1,6 +1,6 @@
-import { appPageUrl } from "@/lib/origins";
 import Link from "next/link";
 import { FileQuestion } from "lucide-react";
+import { appPageUrl } from "@/lib/origins";
 import { ConnectionShell } from "@/components/connection-shell";
 import {
   Empty,
@@ -11,6 +11,7 @@ import {
   EmptyContent,
 } from "@/components/ui/empty";
 import { Button } from "@/components/ui/button";
+
 export default function NotFound() {
   return (
     <ConnectionShell>

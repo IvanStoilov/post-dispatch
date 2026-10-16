@@ -1,10 +1,13 @@
 "use client";
-import { platforms, channelLabels } from "@/lib/connectors/catalog";
-import { channelIcons } from "@/components/channel-catalog";
 import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { Post, PostAsset } from "@/lib/types";
+import { ArrowUp, ArrowDown, Trash2, Save, Images } from "lucide-react";
+import { cn } from "cn";
+import Image from "next/image";
 import MediaGallery from "./media-gallery";
+import { platforms, channelLabels } from "@/lib/connectors/catalog";
+import { channelIcons } from "@/components/channel-catalog";
+import type { Post, PostAsset } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FileInput } from "@/components/ui/file-input";
@@ -42,9 +45,6 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowUp, ArrowDown, Trash2, Save, Images } from "lucide-react";
-import { cn } from "cn";
-import Image from "next/image";
 
 export type MediaItem = {
   id: string;
@@ -61,8 +61,12 @@ function FilePreviews({ items, title }: { items: MediaItem[]; title: string }) {
   useEffect(() => {
     const urls: string[] = [];
     const previews = items.flatMap((item) => {
-      if (item.asset) return [item.asset];
-      if (!item.file) return [];
+      if (item.asset) {
+        return [item.asset];
+      }
+      if (!item.file) {
+        return [];
+      }
       const url = URL.createObjectURL(item.file);
       urls.push(url);
       return [
@@ -118,7 +122,9 @@ export default function DraftEditor({
     JSON.stringify({ form, assets: items.map((item) => item.id) }) !==
       initialSnapshot;
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty) {
+      return;
+    }
     function warn(event: BeforeUnloadEvent) {
       event.preventDefault();
       event.returnValue = "";
@@ -127,25 +133,32 @@ export default function DraftEditor({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
   function attemptClose() {
-    if (dirty) setDiscarding(true);
-    else onClose();
+    if (dirty) {
+      setDiscarding(true);
+    } else {
+      onClose();
+    }
   }
   function addFiles(files: File[]) {
-    if (!files.length) return;
+    if (!files.length) {
+      return;
+    }
     const videos = files.filter(
       (file) =>
         file.type === "video/mp4" || file.name.toLowerCase().endsWith(".mp4"),
     );
-    if (videos.length && files.length !== 1)
+    if (videos.length && files.length !== 1) {
       return onNotice("Choose multiple images or a single video.");
+    }
     if (
       files.some(
         (file) => file.size > (videos.length ? 100_000_000 : 4_500_000),
       )
-    )
+    ) {
       return onNotice(
         "Images must be 4.5 MB or smaller; videos must be 100 MB or smaller.",
       );
+    }
     const previous =
       videos.length ||
       items.some(
@@ -156,14 +169,17 @@ export default function DraftEditor({
       )
         ? []
         : items;
-    if (previous.length + files.length > 10)
+    if (previous.length + files.length > 10) {
       return onNotice("A post supports up to 10 images.");
+    }
     setItems([
       ...previous,
       ...files.map((file) => ({ id: crypto.randomUUID(), file })),
     ]);
     onNotice("");
-    if (videos.length) setForm((value) => ({ ...value, imageUrl: "" }));
+    if (videos.length) {
+      setForm((value) => ({ ...value, imageUrl: "" }));
+    }
   }
   function move(index: number, offset: number) {
     setItems((previous) => {
@@ -177,7 +193,9 @@ export default function DraftEditor({
       <Dialog
         open={!!editing}
         onOpenChange={(open) => {
-          if (!open && !busy) attemptClose();
+          if (!open && !busy) {
+            attemptClose();
+          }
         }}
       >
         <DialogContent
@@ -185,7 +203,9 @@ export default function DraftEditor({
           showCloseButton={!busy}
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => {
-            if (busy) event.preventDefault();
+            if (busy) {
+              event.preventDefault();
+            }
           }}
         >
           <DialogHeader>

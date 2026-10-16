@@ -1,5 +1,6 @@
 import { loggedRequest } from "@/lib/logger";
 import { callbackConnection, handleConnection } from "@/server/connections";
+
 export const runtime = "nodejs";
 export const maxDuration = 120;
 export async function GET(

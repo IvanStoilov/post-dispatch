@@ -1,5 +1,5 @@
-import { projectsService } from "@/domain/projects";
 import { authed } from "../orpc";
+import { projectsService } from "@/domain/projects";
 
 // Routes, input and output come from src/contract/projects.ts; access is
 // enforced by the domain, scoped to context.actor.

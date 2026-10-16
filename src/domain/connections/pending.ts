@@ -26,8 +26,9 @@ export type PendingConnection = {
 export const PENDING_LIFETIME_SECONDS = 10 * 60;
 
 function key() {
-  if (!config.BETTER_AUTH_SECRET)
+  if (!config.BETTER_AUTH_SECRET) {
     throw new Error("BETTER_AUTH_SECRET is required");
+  }
   return (
     createHash("sha256")
       // Preserve the context so in-flight connector handshakes survive the rebrand.

@@ -1,19 +1,21 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { brand } from "@/lib/brand";
-import { withLogContext } from "@/lib/logger";
-import { oauthChallenge } from "@/lib/oauth";
 import { authenticate } from "./context";
 import { registerPostTools } from "./tools/posts";
 import { registerProjectTools } from "./tools/projects";
 import { registerUploadTools } from "./tools/uploads";
+import { oauthChallenge } from "@/lib/oauth";
+import { withLogContext } from "@/lib/logger";
+import { brand } from "@/lib/brand";
 
 // The MCP endpoint (/api/mcp): authenticates the assistant, then serves
 // tools that call the domain as that user. Stateless: one server per
 // request.
 export async function handleMcpRequest(req: Request) {
   const context = await authenticate(req);
-  if (!context) return oauthChallenge();
+  if (!context) {
+    return oauthChallenge();
+  }
   return withLogContext(context.actor, async () => {
     const server = new McpServer(
       { name: brand.name.toLowerCase(), version: "0.5.0" },

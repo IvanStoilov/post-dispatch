@@ -4,6 +4,7 @@ import { uploadsService } from "@/domain/uploads";
 import { loggedRequest, logger } from "@/lib/logger";
 import { readBody } from "@/lib/request-body";
 import { storageProvider } from "@/lib/storage/index";
+
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
@@ -20,8 +21,9 @@ export async function PUT(request: Request) {
       return new Response(null, { status: 404 });
     }
     const uploadId = new URL(request.url).searchParams.get("uploadId");
-    if (!z.uuid().safeParse(uploadId).success)
+    if (!z.uuid().safeParse(uploadId).success) {
       return Response.json({ error: "Invalid upload ID" }, { status: 400 });
+    }
     try {
       await uploadsService.writeLocalFile(
         {
@@ -35,16 +37,18 @@ export async function PUT(request: Request) {
       );
       return new Response(null, { status: 204 });
     } catch (error) {
-      if (error instanceof TooLarge)
+      if (error instanceof TooLarge) {
         return Response.json(
           { error: "Upload exceeds its declared size" },
           { status: 413 },
         );
-      if (error instanceof UserFacingError)
+      }
+      if (error instanceof UserFacingError) {
         return Response.json(
           { error: error.message },
           { status: error.status },
         );
+      }
       logger.error("storage.local.upload.failed", { error });
       return Response.json(
         { error: "Could not store uploaded file" },

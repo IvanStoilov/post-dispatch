@@ -5,6 +5,7 @@ import { getAuth } from "@/lib/auth";
 import { logger, loggedRequest } from "@/lib/logger";
 import { appOrigin } from "@/lib/origins";
 import { readBody } from "@/lib/request-body";
+
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
@@ -19,12 +20,14 @@ const deletion = z
 
 export async function DELETE(request: Request) {
   return loggedRequest(request, "/api/account", async () => {
-    if (request.headers.get("origin") !== appOrigin())
+    if (request.headers.get("origin") !== appOrigin()) {
       return Response.json({ error: "Invalid origin" }, { status: 403 });
+    }
     const auth = getAuth();
     const session = await auth.api.getSession({ headers: request.headers });
-    if (!session)
+    if (!session) {
       return Response.json({ error: "Sign in to continue" }, { status: 401 });
+    }
     let body: z.output<typeof deletion>;
     try {
       body = deletion.parse(
@@ -74,8 +77,9 @@ export async function DELETE(request: Request) {
         headers: request.headers,
         asResponse: true,
       });
-      for (const cookie of signedOut.headers.getSetCookie())
+      for (const cookie of signedOut.headers.getSetCookie()) {
         response.headers.append("set-cookie", cookie);
+      }
     } catch (error) {
       logger.warn("account.deletion.cookie_cleanup.failed", { error });
     }

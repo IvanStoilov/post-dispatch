@@ -9,10 +9,10 @@ import {
   Send,
   ShieldCheck,
 } from "lucide-react";
-import { appPageUrl } from "@/lib/origins";
-import { brand } from "@/lib/brand";
 import { CopyText } from "./copy-text";
 import { PlatformMark, platformNames } from "./platform-marks";
+import { appPageUrl } from "@/lib/origins";
+import { brand } from "@/lib/brand";
 
 // Built from design/ramblo-homepage (desktop light, desktop dark, phone).
 // Sizes and spacing follow the design; colours come from the theme tokens,

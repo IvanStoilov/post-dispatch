@@ -1,6 +1,6 @@
-import { appPageUrl } from "@/lib/origins";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
+import { appPageUrl } from "@/lib/origins";
 import { ConnectionShell } from "@/components/connection-shell";
 import {
   Card,
@@ -11,6 +11,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+
 export default function ConnectionError() {
   return (
     <ConnectionShell>

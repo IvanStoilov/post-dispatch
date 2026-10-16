@@ -1,5 +1,6 @@
 import { requireProject } from "@/app/workspace";
 import PostsWorkspace from "@/app/posts-workspace";
+
 export default async function Page({
   params,
 }: {

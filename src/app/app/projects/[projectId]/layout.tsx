@@ -1,4 +1,5 @@
 import { requireProject } from "@/app/workspace";
+
 export default async function Layout({
   children,
   params,

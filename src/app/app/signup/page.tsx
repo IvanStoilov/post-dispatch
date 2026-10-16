@@ -1,10 +1,11 @@
-import { appPageUrl } from "@/lib/origins";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { getAuth } from "@/lib/auth";
 import AuthForm from "../../auth-form";
 import { parseAuthQuery } from "../../auth-query";
+import { getAuth } from "@/lib/auth";
+import { appPageUrl } from "@/lib/origins";
 import { termsService } from "@/domain/terms";
+
 export default async function Page({
   searchParams,
 }: {
@@ -14,8 +15,9 @@ export default async function Page({
   if (
     !oauthQuery &&
     (await getAuth().api.getSession({ headers: await headers() }))
-  )
+  ) {
     redirect(appPageUrl());
+  }
   const terms = termsService.current();
   return (
     <AuthForm

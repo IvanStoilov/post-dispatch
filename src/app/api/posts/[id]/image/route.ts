@@ -3,6 +3,7 @@ import { UserFacingError } from "@/domain/shared/errors";
 import { authenticated } from "@/lib/api-auth";
 import { loggedRequest } from "@/lib/logger";
 import { postRef } from "@/shared/schemas/post";
+
 export const runtime = "nodejs";
 
 // The post's preview image for its owner, linked from PostDto.imageUrl.
@@ -16,7 +17,9 @@ export async function GET(
         ...(await ctx.params),
         projectId: new URL(req.url).searchParams.get("projectId"),
       });
-      if (!ref.success) return new Response(null, { status: 404 });
+      if (!ref.success) {
+        return new Response(null, { status: 404 });
+      }
       try {
         const bytes = await postsService.previewImage({ userId }, ref.data);
         return new Response(bytes, {
@@ -27,7 +30,9 @@ export async function GET(
           },
         });
       } catch (error) {
-        if (!(error instanceof UserFacingError)) throw error;
+        if (!(error instanceof UserFacingError)) {
+          throw error;
+        }
         return Response.json(
           { error: error.message },
           { status: error.status },

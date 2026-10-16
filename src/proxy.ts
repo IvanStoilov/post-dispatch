@@ -1,10 +1,10 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSessionCookie } from "better-auth/cookies";
 import { config as appConfig } from "./lib/config";
 import { appOrigin, publicOrigin, isCleanAppHost } from "./lib/origins";
 import { applicationPath } from "./lib/route-paths";
 import { logger } from "@/lib/logger";
-import { NextRequest, NextResponse } from "next/server";
 import { publicPages, publicAssets } from "@/lib/public-routes";
-import { getSessionCookie } from "better-auth/cookies";
 
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -35,8 +35,9 @@ export function proxy(req: NextRequest) {
   if (
     !publicHost &&
     ["/api/queues/publishing", "/api/cron/publishing"].includes(path)
-  )
+  ) {
     return NextResponse.next();
+  }
 
   const expectedOrigin = publicHost
     ? marketing.origin
@@ -71,7 +72,9 @@ export function proxy(req: NextRequest) {
   };
 
   if (publicHost) {
-    if (api) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (api) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     if (
       prefixed ||
       protocol ||
@@ -79,8 +82,9 @@ export function proxy(req: NextRequest) {
         path,
       )
     ) {
-      if (!["GET", "HEAD"].includes(req.method))
+      if (!["GET", "HEAD"].includes(req.method)) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
       return redirect(
         prefixed ? path.slice(4) || "/" : path,
         appConfig.APPLICATION_URL,
@@ -88,15 +92,20 @@ export function proxy(req: NextRequest) {
     }
     return NextResponse.next();
   }
-  if (cleanHost && prefixed)
+  if (cleanHost && prefixed) {
     return redirect(path.slice(4) || "/", appConfig.APPLICATION_URL);
-  if (cleanHost && publicPage && path !== "/")
+  }
+  if (cleanHost && publicPage && path !== "/") {
     return redirect(path, publicOrigin());
-  if (asset) return NextResponse.next();
+  }
+  if (asset) {
+    return NextResponse.next();
+  }
 
   // Production aliases canonicalize browser app pages; previews remain self-contained.
-  if (!cleanHost && prefixed && appConfig.VERCEL_ENV === "production")
+  if (!cleanHost && prefixed && appConfig.VERCEL_ENV === "production") {
     return redirect(path.slice(4) || "/", application.origin);
+  }
 
   const applicationPage = (cleanHost && !api && !protocol) || prefixed;
   const pagePath = cleanHost ? path : path.slice(4) || "/";
@@ -118,11 +127,12 @@ export function proxy(req: NextRequest) {
       method: req.method,
       isApi: api,
     });
-    if (api)
+    if (api) {
       return NextResponse.json(
         { error: "Sign in to continue" },
         { status: 401 },
       );
+    }
     return redirect(applicationPath("/signin", cleanHost), expectedOrigin);
   }
   if (cleanHost && applicationPage) {
@@ -130,8 +140,9 @@ export function proxy(req: NextRequest) {
     target.pathname = applicationPath(path);
     return appResponse(NextResponse.rewrite(target));
   }
-  if (applicationPage || api || protocol)
+  if (applicationPage || api || protocol) {
     return appResponse(NextResponse.next());
+  }
   return NextResponse.next();
 }
 function appResponse(response: NextResponse) {

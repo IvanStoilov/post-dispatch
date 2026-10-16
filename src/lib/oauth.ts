@@ -1,19 +1,20 @@
+import { randomUUID } from "node:crypto";
+import { ne } from "drizzle-orm";
+import { verifyOAuthQueryParams } from "@better-auth/oauth-provider";
+import { getDb } from "../db";
+import { oauthResources } from "../db/schema";
 import { brand } from "./brand";
 import { config } from "./config";
 import { loggedOperation } from "./logger";
-import { randomUUID } from "node:crypto";
-import { ne } from "drizzle-orm";
-import { getDb } from "../db";
-import { oauthResources } from "../db/schema";
 
 import { getAuth } from "./auth";
-import { verifyOAuthQueryParams } from "@better-auth/oauth-provider";
 import {
   appOrigin,
   accountResource,
   validateAccountResource,
   MCP_SCOPES,
 } from "./oauth-provider";
+
 export async function ensureAccountResource() {
   return loggedOperation("lib.oauth.ensureAccountResource", {}, async () => {
     await getDb()
@@ -86,24 +87,28 @@ export async function oauthConsentContext(
     "lib.oauth.oauthConsentContext",
     { userId },
     async () => {
-      if (!(await verifyOAuthQueryParams(query, config.BETTER_AUTH_SECRET!)))
+      if (!(await verifyOAuthQueryParams(query, config.BETTER_AUTH_SECRET!))) {
         throw new Error(
           "This connection request is invalid or has expired. Start again from your MCP client.",
         );
+      }
       const session = await getAuth().api.getSession({ headers });
-      if (!session || session.user.id !== userId)
+      if (!session || session.user.id !== userId) {
         throw new Error("Sign in to connect your account");
+      }
       const params = new URLSearchParams(query);
       const resources = params.getAll("resource");
-      if (resources.length !== 1)
+      if (resources.length !== 1) {
         throw new Error("Connect the account MCP resource");
+      }
       validateAccountResource(resources[0]);
       const requested = (params.get("scope") || "").split(" ").filter(Boolean);
       if (
         !requested.length ||
         requested.some((s) => ![...MCP_SCOPES, "offline_access"].includes(s))
-      )
+      ) {
         throw new Error("Unsupported permissions requested");
+      }
       const client = await getAuth().api.getOAuthClientPublic({
         query: { client_id: params.get("client_id") || "" },
         headers,

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { Button } from "@/components/ui/button";
+
 export default function NewProject() {
   const [open, setOpen] = useState(true);
   return (

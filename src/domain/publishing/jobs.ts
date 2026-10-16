@@ -2,6 +2,11 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
 import { z } from "zod";
+import { postsSystemService as posts } from "../posts";
+import { projectsSystemService as projects } from "../projects";
+import * as repository from "./repository";
+import { activeStatuses } from "./repository";
+import type { PublishJobPatch } from "./types";
 import { getDb } from "@/db";
 import type { PublishJob } from "@/db/schema";
 import { reconcileSubmission } from "@/lib/connectors/reconcile";
@@ -10,11 +15,6 @@ import { MediaPending, type PublishState } from "@/lib/connectors/types";
 import { loggedOperation, logger, redact, withLogContext } from "@/lib/logger";
 import { createQueue, queueDriver } from "@/lib/queue";
 import { getAssetUrl } from "@/lib/storage";
-import { postsSystemService as posts } from "../posts";
-import { projectsSystemService as projects } from "../projects";
-import * as repository from "./repository";
-import { activeStatuses } from "./repository";
-import type { PublishJobPatch } from "./types";
 
 // Durable publishing: one job per post and network, delivered through the
 // queue, claimed with a lease, checkpointed before anything irreversible,
@@ -93,8 +93,9 @@ async function checkpoint(
   token: string,
   patch: PublishJobPatch,
 ) {
-  if (!(await repository.checkpointLeased(jobId, token, patch)))
+  if (!(await repository.checkpointLeased(jobId, token, patch))) {
     throw new Error("Publishing job lease was lost");
+  }
   logger.debug("publishing.job.checkpoint", {
     jobId,
     phase: patch.status,
@@ -125,9 +126,12 @@ async function finishJob(
       leaseToken: null,
       leaseExpiresAt: null,
     });
-    if (!updated.length) throw new Error("Publishing job lease was lost");
-    if (status === "published" && remoteId)
+    if (!updated.length) {
+      throw new Error("Publishing job lease was lost");
+    }
+    if (status === "published" && remoteId) {
       await repository.insertPublication(tx, publishedCopy(job, remoteId));
+    }
     await posts.setPublishingState(
       tx,
       job.postId,
@@ -150,7 +154,9 @@ async function finishJob(
 
 async function connectionFor(job: PublishJob) {
   const project = await projects.findRecord(job.projectId);
-  if (!project) throw new Error("Project not found");
+  if (!project) {
+    throw new Error("Project not found");
+  }
   return project.connections.find(
     (c) => c.provider === job.platform && c.accountId === job.accountId,
   );
@@ -165,11 +171,14 @@ export async function processPublishingJob(jobId: string) {
       const token = randomUUID();
       const job = await getDb().transaction(async (tx) => {
         const row = await repository.lockJob(tx, jobId);
-        if (!row || !isActive(row.status) || row.nextAttemptAt > now()) return;
-        if (row.leaseExpiresAt && row.leaseExpiresAt > now())
+        if (!row || !isActive(row.status) || row.nextAttemptAt > now()) {
+          return;
+        }
+        if (row.leaseExpiresAt && row.leaseExpiresAt > now()) {
           throw new Error(
             "Publishing job is already leased; retry delivery later",
           );
+        }
         return repository.updateJob(tx, jobId, {
           leaseToken: token,
           leaseExpiresAt: later(leaseSeconds),
@@ -240,10 +249,12 @@ export async function processPublishingJob(jobId: string) {
               return;
             }
             const urls: string[] = [];
-            for (const asset of job.snapshot.assets)
+            for (const asset of job.snapshot.assets) {
               urls.push(await getAssetUrl(asset));
-            if (!urls.length && job.snapshot.externalUrl)
+            }
+            if (!urls.length && job.snapshot.externalUrl) {
               urls.push(job.snapshot.externalUrl);
+            }
             const progress = {
               state: job.state,
               checkpoint: async (state: PublishState) =>
@@ -267,7 +278,9 @@ export async function processPublishingJob(jobId: string) {
             // Read durable phase, not an in-memory flag: submission may have started
             // before a timeout or before writing its response failed.
             const current = await repository.findLeased(job.id, token);
-            if (!current) throw error;
+            if (!current) {
+              throw error;
+            }
             const description = String(
               redact(
                 error instanceof Error ? error.message : "Publishing failed",
@@ -291,12 +304,13 @@ export async function processPublishingJob(jobId: string) {
                 "Outcome uncertain. Check the account before taking further action.";
               try {
                 const connection = await connectionFor(job);
-                if (connection)
+                if (connection) {
                   evidence = await reconcileSubmission(
                     connection,
                     current.state,
                     AbortSignal.timeout(30000),
                   );
+                }
               } catch (error) {
                 logger.warn("publishing.reconciliation.failure", {
                   error: redact(error, secrets),
@@ -363,8 +377,9 @@ async function dispatchPublishingJob(jobId: string) {
           row.dispatchAt > now() ||
           (row.leaseExpiresAt && row.leaseExpiresAt > now()) ||
           (local && row.nextAttemptAt > now())
-        )
+        ) {
           return;
+        }
         await repository.updateJob(tx, jobId, {
           dispatchAt: new Date(
             Math.max(Date.now(), row.nextAttemptAt.getTime()) +
@@ -373,7 +388,9 @@ async function dispatchPublishingJob(jobId: string) {
         });
         return row;
       });
-      if (!job) return;
+      if (!job) {
+        return;
+      }
       try {
         await publishingQueue.send(
           { jobId },
@@ -413,7 +430,9 @@ export async function recoverPublishingJobs(limit = 20, projectId?: string) {
         limit,
         driver: queueDriver(),
       });
-      for (const job of jobs) await dispatchPublishingJob(job.id);
+      for (const job of jobs) {
+        await dispatchPublishingJob(job.id);
+      }
       return jobs.length;
     },
   );
@@ -424,7 +443,9 @@ export async function recoverPublishingJobs(limit = 20, projectId?: string) {
 // up anything that never reaches the queue.
 export async function scheduleDispatch(jobIds: string[]) {
   const dispatch = async () => {
-    for (const id of jobIds) await dispatchPublishingJob(id);
+    for (const id of jobIds) {
+      await dispatchPublishingJob(id);
+    }
   };
   try {
     after(dispatch);

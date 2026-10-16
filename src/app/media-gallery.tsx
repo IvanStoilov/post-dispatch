@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Images } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { PostAsset } from "@/lib/types";
+
 export default function MediaGallery({
   assets,
   title,
@@ -15,7 +16,9 @@ export default function MediaGallery({
   const [selected, setSelected] = useState(0);
   const index = Math.min(selected, assets.length - 1);
   const asset = assets[index];
-  if (!asset) return null;
+  if (!asset) {
+    return null;
+  }
   return (
     <div className="relative flex aspect-4/3 w-full items-center justify-center overflow-hidden bg-muted">
       {asset.kind === "VIDEO" ? (

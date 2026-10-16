@@ -1,5 +1,6 @@
 import { requireProject } from "@/app/workspace";
 import AssistantPage from "@/app/assistant-workspace";
+
 export default async function Page({
   params,
 }: {

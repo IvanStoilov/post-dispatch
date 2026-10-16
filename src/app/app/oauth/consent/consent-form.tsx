@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Check, ShieldCheck } from "lucide-react";
 import { ConnectionShell } from "@/components/connection-shell";
 import {
   Card,
@@ -12,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, ShieldCheck } from "lucide-react";
+
 export default function ConsentForm({
   query,
   clientName,
@@ -36,7 +37,9 @@ export default function ConsentForm({
         body: JSON.stringify({ accept, oauth_query: query }),
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error || "Unable to connect");
+      if (!r.ok) {
+        throw new Error(data.error || "Unable to connect");
+      }
       window.location.assign(data.url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to connect");

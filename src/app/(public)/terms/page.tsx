@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { termsService } from "@/domain/terms";
 import { TermsDocument } from "@/components/terms-document";
+
 export const metadata: Metadata = {
   title: "Terms of service | Ramblo",
   description:

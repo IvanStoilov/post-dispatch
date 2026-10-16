@@ -1,5 +1,5 @@
-import { brand } from "@/lib/brand";
 import type { Metadata, Viewport } from "next";
+import { brand } from "@/lib/brand";
 import { siteOrigin } from "@/lib/public-site";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "@fontsource-variable/fredoka/wght.css";

@@ -10,6 +10,7 @@ import {
   EmptyContent,
 } from "@/components/ui/empty";
 import { Button } from "@/components/ui/button";
+
 export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
     <ConnectionShell>

@@ -1,5 +1,5 @@
-import { publishingService } from "@/domain/publishing";
 import { authed } from "../orpc";
+import { publishingService } from "@/domain/publishing";
 
 // Routes, input and output come from src/contract/publishing.ts; access is
 // enforced by the domain, scoped to context.actor.

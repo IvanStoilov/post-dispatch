@@ -3,6 +3,7 @@ import { loggedRequest } from "@/lib/logger";
 import { internalRequestAuthorized } from "@/lib/internal-auth";
 import { publishingSystemService } from "@/domain/publishing";
 import { recoverMediaCleanup } from "@/lib/media-cleanup";
+
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export async function GET(request: Request) {
@@ -14,8 +15,9 @@ export async function GET(request: Request) {
         "authorization",
         secret ? `Bearer ${secret}` : undefined,
       )
-    )
+    ) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const mediaCleanup = await recoverMediaCleanup();
     return Response.json({
       dispatched: await publishingSystemService.recoverJobs(100),

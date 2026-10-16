@@ -1,25 +1,27 @@
+import { randomUUID } from "node:crypto";
+import { after } from "next/server";
+import { jwt } from "better-auth/plugins";
+import { betterAuth } from "better-auth/minimal";
+import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { APIError, createAuthMiddleware } from "better-auth/api";
+import { getCurrentAdapter } from "@better-auth/core/context";
+import * as schema from "../db/schema";
+import { getDb } from "../db";
+import { users, sessions, accounts, verifications } from "../db/schema";
 import { brand } from "./brand";
 import { config } from "./config";
 import { logger } from "./logger";
-import { after } from "next/server";
 import { sendMail } from "./mail";
 import { passwordResetEmail, verificationEmail } from "./mail/templates";
-import { jwt } from "better-auth/plugins";
 import { oauthPlugins, appOrigin } from "./oauth-provider";
-import * as schema from "../db/schema";
-import { betterAuth } from "better-auth/minimal";
-import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { getDb } from "../db";
-import { randomUUID } from "node:crypto";
-import { APIError, createAuthMiddleware } from "better-auth/api";
-import { getCurrentAdapter } from "@better-auth/core/context";
 import { termsSystemService } from "@/domain/terms";
-import { users, sessions, accounts, verifications } from "../db/schema";
 // Signup must accept the current terms. Returns them for the evidence
 // record; otherwise fails with the codes the signup form handles.
 function validateTermsAcceptance(body: Record<string, unknown> | undefined) {
   const result = termsSystemService.check(body ?? {});
-  if (result.status === "accepted") return result.terms;
+  if (result.status === "accepted") {
+    return result.terms;
+  }
   throw new APIError(
     "BAD_REQUEST",
     result.status === "required"
@@ -48,8 +50,9 @@ function runInBackground(task: Promise<unknown>) {
   }
 }
 function makeAuth() {
-  if (!config.BETTER_AUTH_SECRET)
+  if (!config.BETTER_AUTH_SECRET) {
     throw new Error("BETTER_AUTH_SECRET is required");
+  }
   return betterAuth({
     appName: brand.name,
     logger: {
@@ -132,7 +135,9 @@ function makeAuth() {
     rateLimit: { enabled: true },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
-        if (ctx.path === "/sign-up/email") validateTermsAcceptance(ctx.body);
+        if (ctx.path === "/sign-up/email") {
+          validateTermsAcceptance(ctx.body);
+        }
       }),
     },
     databaseHooks: {
@@ -140,12 +145,13 @@ function makeAuth() {
         create: {
           before: async (user, ctx) => {
             // Also fail closed if a future auth provider introduces another signup path.
-            if (ctx?.path !== "/sign-up/email")
+            if (ctx?.path !== "/sign-up/email") {
               throw new APIError("BAD_REQUEST", {
                 code: "TERMS_ACCEPTANCE_REQUIRED",
                 message:
                   "Create your account using the signup form and accept the Terms of Service first.",
               });
+            }
             validateTermsAcceptance(ctx.body);
             return { data: user };
           },

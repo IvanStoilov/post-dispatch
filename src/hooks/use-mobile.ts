@@ -1,5 +1,6 @@
 "use client";
 import { useSyncExternalStore } from "react";
+
 const query = "(max-width: 767px)";
 function subscribe(onChange: () => void) {
   const media = window.matchMedia(query);

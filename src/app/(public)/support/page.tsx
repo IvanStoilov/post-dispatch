@@ -12,6 +12,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { site } from "@/lib/public-site";
+
 export const metadata: Metadata = {
   title: "Support | Ramblo",
   description:

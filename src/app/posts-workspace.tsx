@@ -1,15 +1,16 @@
 "use client";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState, useRef, useCallback } from "react";
+import Link from "next/link";
+import { ORPCError } from "@orpc/client";
+import { Inbox, Send, Plus, Search, Check, Trash2 } from "lucide-react";
+import DraftEditor, { type Draft, type MediaItem } from "./draft-editor";
 import { useWorkspace } from "@/components/workspace-shell";
 import { projectPath } from "@/lib/route-paths";
-import { useSearchParams } from "next/navigation";
 import { PublicationPanel } from "@/components/publication-panel";
 import { useAppPath } from "@/components/app-navigation";
 import { platforms, channelLabels } from "@/lib/connectors/catalog";
-import { useEffect, useState, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 
-import DraftEditor, { type Draft, type MediaItem } from "./draft-editor";
 import { PostCard } from "@/components/post-card";
 
 import { FlowPanel } from "@/components/flow-panel";
@@ -23,7 +24,6 @@ import {
 } from "@/components/ui/input-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "@/components/ui/sonner";
-import { ORPCError } from "@orpc/client";
 import { api, userMessage } from "@/lib/api-client";
 import type { AssetInput } from "@/shared/schemas/asset";
 import {
@@ -51,8 +51,8 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 
-import { Inbox, Send, Plus, Search, Check, Trash2 } from "lucide-react";
 import type { Post, Platform } from "@/lib/types";
+
 const blank: Draft = {
   title: "",
   caption: "",
@@ -72,7 +72,9 @@ export default function PostsWorkspace({
   publishedView?: boolean;
 }) {
   const { project, setCounts } = useWorkspace();
-  if (!project) throw new Error("No active project");
+  if (!project) {
+    throw new Error("No active project");
+  }
   const projectId = project.id;
   const appPath = useAppPath();
   const router = useRouter();
@@ -112,19 +114,24 @@ export default function PostsWorkspace({
         }
         throw new Error("Could not load project workspace");
       }
-      if (sequence !== requestSequence.current) return;
+      if (sequence !== requestSequence.current) {
+        return;
+      }
       setPosts(data);
       setCounts({
         drafts: data.filter((p: Post) => p.status !== "published").length,
         published: data.filter((p: Post) => p.status === "published").length,
       });
     } catch (e) {
-      if (sequence === requestSequence.current)
+      if (sequence === requestSequence.current) {
         toast.error(e instanceof Error ? e.message : "Could not load posts", {
           id: `posts-load-${projectId}`,
         });
+      }
     } finally {
-      if (sequence === requestSequence.current) setLoading(false);
+      if (sequence === requestSequence.current) {
+        setLoading(false);
+      }
     }
   }, [projectId, router, appPath, setCounts, setLoading, setPosts]);
   useEffect(() => {
@@ -143,8 +150,9 @@ export default function PostsWorkspace({
     try {
       const assets: AssetInput[] = [];
       const urls = form.imageUrl.split(/\s+/).filter(Boolean);
-      if (mediaItems.length + urls.length > 10)
+      if (mediaItems.length + urls.length > 10) {
         throw new Error("Choose up to 10 images or one video");
+      }
       for (const item of mediaItems) {
         if (item.asset) {
           assets.push({ type: "EXISTING", assetId: item.asset.id });
@@ -154,17 +162,20 @@ export default function PostsWorkspace({
           assets.push({ type: "UPLOAD_ID", uploadId: item.uploadId });
           continue;
         }
-        if (!item.file) continue;
+        if (!item.file) {
+          continue;
+        }
         toast.loading(`Uploading ${item.file.name}…`, {
           id: `post-operation-${projectId}`,
         });
         const mimeType =
           item.file.type ||
           (item.file.name.toLowerCase().endsWith(".mp4") ? "video/mp4" : "");
-        if (!isUploadMimeType(mimeType))
+        if (!isUploadMimeType(mimeType)) {
           throw new Error(
             `${item.file.name}: choose a JPEG, PNG or WebP image, or an MP4 video`,
           );
+        }
         const start = await api.uploads.start({
           projectId,
           mimeType,
@@ -182,7 +193,9 @@ export default function PostsWorkspace({
             "Could not upload to storage. Check the bucket's CORS configuration for this app's origin.",
           );
         }
-        if (!uploaded.ok) throw new Error("Storage rejected the file upload");
+        if (!uploaded.ok) {
+          throw new Error("Storage rejected the file upload");
+        }
         const ready = await api.uploads.complete({
           projectId,
           uploadId: start.uploadId,
@@ -197,7 +210,9 @@ export default function PostsWorkspace({
           ),
         );
       }
-      for (const url of urls) assets.push({ type: "EXTERNAL_URL", url });
+      for (const url of urls) {
+        assets.push({ type: "EXTERNAL_URL", url });
+      }
       const draft = {
         projectId,
         title: form.title,
@@ -206,8 +221,11 @@ export default function PostsWorkspace({
         source: form.source,
         assets,
       };
-      if (editing === "new") await api.posts.create(draft);
-      else await api.posts.update({ ...draft, id: editing! });
+      if (editing === "new") {
+        await api.posts.create(draft);
+      } else {
+        await api.posts.update({ ...draft, id: editing! });
+      }
       setEditing(null);
       toast.success("Draft saved. Ready when you are.", {
         id: `post-operation-${projectId}`,
@@ -229,7 +247,9 @@ export default function PostsWorkspace({
     }
   }
   async function publish() {
-    if (!confirm) return;
+    if (!confirm) {
+      return;
+    }
     setBusy(true);
     const p = confirm;
     setPublishError("");
@@ -326,8 +346,11 @@ export default function PostsWorkspace({
   }
   function updateQuery(key: string, value: string) {
     const next = new URLSearchParams(window.location.search);
-    if (value && value !== "all") next.set(key, value);
-    else next.delete(key);
+    if (value && value !== "all") {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
     const path = window.location.pathname;
     window.history.replaceState(
       null,
@@ -372,7 +395,9 @@ export default function PostsWorkspace({
               type="single"
               value={filter}
               onValueChange={(value) => {
-                if (value) updateFilter(value);
+                if (value) {
+                  updateFilter(value);
+                }
               }}
               aria-label="Filter by channel"
               variant="outline"
@@ -472,7 +497,9 @@ export default function PostsWorkspace({
                     if (search || filter !== "all") {
                       updateSearch("");
                       updateFilter("all");
-                    } else navigate("Inbox");
+                    } else {
+                      navigate("Inbox");
+                    }
                   }}
                 >
                   {search || filter !== "all"
@@ -544,7 +571,9 @@ export default function PostsWorkspace({
       <AlertDialog
         open={!!deleteConfirm}
         onOpenChange={(open) => {
-          if (!open && !busy) setDeleteConfirm(null);
+          if (!open && !busy) {
+            setDeleteConfirm(null);
+          }
         }}
       >
         <AlertDialogContent>
@@ -563,7 +592,9 @@ export default function PostsWorkspace({
               disabled={busy}
               onClick={(event) => {
                 event.preventDefault();
-                if (deleteConfirm) void remove(deleteConfirm.id);
+                if (deleteConfirm) {
+                  void remove(deleteConfirm.id);
+                }
               }}
             >
               <Trash2 data-icon="inline-start" aria-hidden="true" />
@@ -575,7 +606,9 @@ export default function PostsWorkspace({
       <AlertDialog
         open={!!confirm}
         onOpenChange={(open) => {
-          if (!open && !busy) setConfirm(null);
+          if (!open && !busy) {
+            setConfirm(null);
+          }
         }}
       >
         <AlertDialogContent>

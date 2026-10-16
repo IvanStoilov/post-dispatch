@@ -49,25 +49,30 @@ function redirect(path: string) {
 
 async function sessionActor(req: Request): Promise<SessionActor> {
   const session = await getAuth().api.getSession({ headers: req.headers });
-  if (!session)
+  if (!session) {
     throw new UserFacingError("Sign in again to connect an account.", 401);
+  }
   return { userId: session.user.id, sessionId: session.session.id };
 }
 
 function sameOrigin(req: Request) {
-  if (req.headers.get("origin") !== appOrigin())
+  if (req.headers.get("origin") !== appOrigin()) {
     throw new UserFacingError("Invalid origin", 403);
+  }
 }
 
 async function body<T>(req: Request, schema: z.ZodType<T>, message: string) {
   const parsed = schema.safeParse(await req.json().catch(() => undefined));
-  if (!parsed.success) throw new UserFacingError(message, 400);
+  if (!parsed.success) {
+    throw new UserFacingError(message, 400);
+  }
   return parsed.data;
 }
 
 const selectable = (provider: Platform) => {
-  if (provider === "instagram")
+  if (provider === "instagram") {
     throw new UserFacingError("Instagram has no account to choose.", 404);
+  }
   return provider;
 };
 
@@ -98,8 +103,9 @@ export async function callbackConnection(req: Request, provider: Platform) {
     error: params.get("error"),
   });
   const page = `/projects/${result.projectId}/connections`;
-  if (result.outcome === "select")
+  if (result.outcome === "select") {
     return withCookie(redirect(`${page}/${provider}`), provider, result.nonce);
+  }
   return withCookie(
     redirect(
       `${page}?connection=${result.outcome === "cancelled" ? "cancelled" : provider}`,
@@ -152,9 +158,14 @@ export function connectionError(
 ) {
   const known = error instanceof UserFacingError;
   const message = known ? error.message : "Connection failed. Start again.";
-  if (known) logger.warn("connection.rejected", { provider, reason: message });
-  else logger.error("connection.failed", { provider, error });
-  if (callback) return withCookie(redirect("/connections/error"), provider);
+  if (known) {
+    logger.warn("connection.rejected", { provider, reason: message });
+  } else {
+    logger.error("connection.failed", { provider, error });
+  }
+  if (callback) {
+    return withCookie(redirect("/connections/error"), provider);
+  }
   return Response.json(
     { error: message },
     {
@@ -171,8 +182,9 @@ export async function handleConnection(
   { callback = false } = {},
 ) {
   const parsed = providerSchema.safeParse(provider);
-  if (!parsed.success)
+  if (!parsed.success) {
     return Response.json({ error: "Unknown provider" }, { status: 404 });
+  }
   try {
     return await step(parsed.data);
   } catch (error) {

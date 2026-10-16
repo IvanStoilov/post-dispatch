@@ -1,9 +1,9 @@
+import type { Platform } from "../types";
 import {
   facebookPublications,
   instagramPublications,
   linkedinPublications,
 } from "./publication-adapters";
-import type { Platform } from "../types";
 import type { ConnectorAdapter } from "./types";
 import { publishMeta } from "./meta";
 import { publishLinkedIn } from "./linkedin";

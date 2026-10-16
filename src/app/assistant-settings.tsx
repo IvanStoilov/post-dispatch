@@ -1,6 +1,6 @@
 "use client";
-import { toast } from "@/components/ui/sonner";
 import { Copy, KeyRound, Plug } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import { useAppPath } from "./app-navigation";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -23,7 +24,6 @@ import {
   AlertDialogCancel,
 } from "./ui/alert-dialog";
 import { toast } from "./ui/sonner";
-import { Trash2 } from "lucide-react";
 import { LegalAgreements } from "./legal-agreements";
 
 export function UserAccount({
@@ -44,7 +44,9 @@ export function UserAccount({
     [confirmation, setConfirmation] = useState(""),
     [error, setError] = useState("");
   function changeOpen(value: boolean) {
-    if (busy) return;
+    if (busy) {
+      return;
+    }
     setOpen(value);
     setPassword("");
     setConfirmation("");
@@ -114,7 +116,9 @@ export function UserAccount({
             className="space-y-4"
             onSubmit={async (event) => {
               event.preventDefault();
-              if (busy || confirmation !== "DELETE" || !password) return;
+              if (busy || confirmation !== "DELETE" || !password) {
+                return;
+              }
               setBusy(true);
               setError("");
               try {
@@ -124,10 +128,11 @@ export function UserAccount({
                   body: JSON.stringify({ password, confirmation }),
                 });
                 const data = await response.json();
-                if (!response.ok)
+                if (!response.ok) {
                   throw new Error(
                     data.error || "Could not delete your account.",
                   );
+                }
                 localStorage.removeItem("ramblo-project");
                 document.cookie = "ramblo-project=; Path=/; Max-Age=0";
                 window.location.replace(appPath("/signin?account=deleted"));

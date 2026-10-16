@@ -1,13 +1,15 @@
 import "server-only";
-import { connectors } from "@/lib/connectors/registry";
-import { publicationCapabilities } from "@/lib/connectors/publication-capabilities";
-import { safePublicationLink } from "@/lib/connectors/publication-capabilities";
-import { logger, redact, withLogSecrets } from "@/lib/logger";
-import type { PublicationDto } from "@/shared/schemas/publication";
 import { projectsSystemService as projects } from "../projects";
 import { UserFacingError } from "../shared/errors";
 import { toPublicationDto } from "./mappers";
 import * as repository from "./repository";
+import { connectors } from "@/lib/connectors/registry";
+import {
+  publicationCapabilities,
+  safePublicationLink,
+} from "@/lib/connectors/publication-capabilities";
+import { logger, redact, withLogSecrets } from "@/lib/logger";
+import type { PublicationDto } from "@/shared/schemas/publication";
 
 // Managing a post's published copies on their networks, for a project the
 // caller has already authorized. Internal to the module: see service.ts.
@@ -33,23 +35,29 @@ export async function manage(
   action: Action,
 ): Promise<PublicationDto> {
   const row = await repository.findPublication(projectId, id);
-  if (!row) throw new UserFacingError("Published copy not found", 404);
+  if (!row) {
+    throw new UserFacingError("Published copy not found", 404);
+  }
   const publication = toPublicationDto(row);
-  if (action.type === "delete" && row.status === "deleted") return publication;
-  if (!publicationCapabilities(publication)[action.type])
+  if (action.type === "delete" && row.status === "deleted") {
+    return publication;
+  }
+  if (!publicationCapabilities(publication)[action.type]) {
     throw new UserFacingError(
       "This action is not supported for this published copy.",
       400,
     );
+  }
   const project = await projects.findRecord(projectId);
   const connection = project?.connections.find(
     (c) => c.provider === row.platform && c.accountId === row.accountId,
   );
-  if (!connection || !projects.isConnected(connection))
+  if (!connection || !projects.isConnected(connection)) {
     throw new UserFacingError(
       "Reconnect the original publishing account before managing this copy.",
       409,
     );
+  }
   const adapter = connectors[row.platform].publications;
   const context = {
     connection,
@@ -77,7 +85,9 @@ export async function manage(
   return withLogSecrets([connection.accessToken], async () => {
     let patch: Parameters<typeof repository.updatePublication>[2];
     if (action.type === "refresh") {
-      if (!adapter?.get) throw unsupported("Refreshing");
+      if (!adapter?.get) {
+        throw unsupported("Refreshing");
+      }
       const details = await confirm(adapter.get(context));
       patch = {
         permalink:
@@ -86,11 +96,15 @@ export async function manage(
         refreshedAt: new Date(),
       };
     } else if (action.type === "edit") {
-      if (!adapter?.update) throw unsupported("Editing");
+      if (!adapter?.update) {
+        throw unsupported("Editing");
+      }
       await confirm(adapter.update(context, action.caption));
       patch = { caption: action.caption };
     } else {
-      if (!adapter?.delete) throw unsupported("Deleting");
+      if (!adapter?.delete) {
+        throw unsupported("Deleting");
+      }
       await confirm(adapter.delete(context));
       patch = { status: "deleted" };
     }

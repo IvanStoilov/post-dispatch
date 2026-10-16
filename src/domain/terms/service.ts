@@ -1,5 +1,8 @@
 import "server-only";
-import { loggedOperation } from "@/lib/logger";
+import type { Actor } from "../shared/actor";
+import { UserFacingError } from "../shared/errors";
+import { currentTerms } from "./document";
+import * as repository from "./repository";
 import type {
   AcceptTermsInput,
   TermsAcceptanceDto,
@@ -7,10 +10,7 @@ import type {
   TermsAcceptanceSummaryDto,
   TermsDto,
 } from "@/shared/schemas/terms";
-import type { Actor } from "../shared/actor";
-import { UserFacingError } from "../shared/errors";
-import { currentTerms } from "./document";
-import * as repository from "./repository";
+import { loggedOperation } from "@/lib/logger";
 
 // The Terms of Service and the evidence of each user's acceptance: the
 // exact text, its version and hash, when, and from where. Accepting is only
@@ -27,9 +27,12 @@ function check(input: {
   termsHash?: unknown;
 }): Check {
   const terms = currentTerms();
-  if (input.termsAccepted !== true) return { status: "required" };
-  if (input.termsVersion !== terms.version || input.termsHash !== terms.hash)
+  if (input.termsAccepted !== true) {
+    return { status: "required" };
+  }
+  if (input.termsVersion !== terms.version || input.termsHash !== terms.hash) {
     return { status: "changed" };
+  }
   return { status: "accepted", terms };
 }
 
@@ -41,11 +44,12 @@ function current(): TermsDto {
 async function accept(actor: Actor, input: AcceptTermsInput): Promise<void> {
   return loggedOperation("domain.terms.accept", actor, async () => {
     const result = check(input);
-    if (result.status !== "accepted")
+    if (result.status !== "accepted") {
       throw new UserFacingError(
         "Review and accept the current Terms of Service. Reload if they have changed.",
         400,
       );
+    }
     await repository.insertAcceptance({
       userId: actor.userId,
       termsVersion: result.terms.version,
@@ -70,7 +74,9 @@ async function getAcceptance(
   { id }: TermsAcceptanceRef,
 ): Promise<TermsAcceptanceDto> {
   const record = await repository.findOwned(actor.userId, id);
-  if (!record) throw new UserFacingError("Agreement not found", 404);
+  if (!record) {
+    throw new UserFacingError("Agreement not found", 404);
+  }
   return {
     id: record.id,
     termsVersion: record.termsVersion,

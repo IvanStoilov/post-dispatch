@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import { Mail } from "lucide-react";
+import Link from "next/link";
 import { PageIntro, DocumentSection } from "@/components/public/site-shell";
 import { Button } from "@/components/ui/button";
-import { Mail } from "lucide-react";
 import { site } from "@/lib/public-site";
-import Link from "next/link";
 import { appPageUrl } from "@/lib/origins";
+
 export const metadata: Metadata = {
   title: "Data deletion | Ramblo",
   description:

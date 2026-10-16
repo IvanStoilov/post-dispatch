@@ -1,6 +1,6 @@
+import { authed } from "../orpc";
 import { assistantsService } from "@/domain/assistants";
 import { termsService } from "@/domain/terms";
-import { authed } from "../orpc";
 
 // Routes, input and output come from src/contract/account.ts; access is
 // enforced by the domain, scoped to context.actor.

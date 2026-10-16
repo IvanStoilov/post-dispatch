@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageIntro } from "@/components/public/site-shell";
 import { site } from "@/lib/public-site";
+
 export const metadata: Metadata = {
   title: "Company details | Ramblo",
   description:

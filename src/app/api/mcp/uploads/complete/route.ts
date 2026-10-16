@@ -3,6 +3,7 @@ import { uploadsService } from "@/domain/uploads";
 import { loggedRequest, logger } from "@/lib/logger";
 import { readBody } from "@/lib/request-body";
 import { completeUploadWithTokenInput } from "@/shared/schemas/upload";
+
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
@@ -22,15 +23,18 @@ export async function POST(req: Request) {
       ...(body as object),
       projectId: new URL(req.url).searchParams.get("projectId"),
     });
-    if (!input.success)
+    if (!input.success) {
       return Response.json(
         { error: "Provide projectId, uploadId and completionToken" },
         { status: 400 },
       );
+    }
     try {
       return Response.json(await uploadsService.completeWithToken(input.data));
     } catch (error) {
-      if (!(error instanceof UserFacingError)) throw error;
+      if (!(error instanceof UserFacingError)) {
+        throw error;
+      }
       logger.warn("http.handler.rejected", { error });
       return Response.json({ error: error.message }, { status: error.status });
     }

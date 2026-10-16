@@ -17,7 +17,7 @@ async function meta(
   const url = new URL(
     `https://${host}/${config.META_API_VERSION}/${encodeURIComponent(publication.remotePostId)}`,
   );
-  if (!method)
+  if (!method) {
     url.searchParams.set(
       "fields",
       publication.platform === "instagram"
@@ -29,6 +29,7 @@ async function meta(
             ? "id"
             : "id,permalink_url,reactions.limit(0).summary(true),comments.limit(0).summary(true)",
     );
+  }
   const { response, data } = await metaRequest(
     url.href,
     connection.accessToken,
@@ -36,11 +37,12 @@ async function meta(
     fields,
     method,
   );
-  if (!response.ok || data.error)
+  if (!response.ok || data.error) {
     throw new Error(
       data.error?.message ||
         "The network rejected the request. Check account permissions.",
     );
+  }
   return data as Record<string, unknown>;
 }
 function count(value: unknown): number | undefined {
@@ -64,8 +66,11 @@ const getMeta: NonNullable<PublicationAdapter["get"]> = async (context) => {
           reactions: summary(data.reactions),
           comments: summary(data.comments),
         };
-  for (const [key, value] of Object.entries(values))
-    if (value !== undefined) metrics[key] = value;
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) {
+      metrics[key] = value;
+    }
+  }
   const link = data.permalink || data.permalink_url || data.link;
   return {
     permalink:
@@ -91,17 +96,19 @@ function confirmed(data: unknown): boolean {
 export const facebookPublications: PublicationAdapter = {
   get: getMeta,
   update: async (context, caption) => {
-    if (!confirmed(await meta(context, { message: caption }, "POST")))
+    if (!confirmed(await meta(context, { message: caption }, "POST"))) {
       throw new Error(
         "Facebook did not confirm the update. Check the original post.",
       );
+    }
   },
   delete: async (context) => {
     const data = await meta(context, undefined, "DELETE");
-    if (!confirmed(data))
+    if (!confirmed(data)) {
       throw new Error(
         "Facebook did not confirm deletion. Check the original post.",
       );
+    }
   },
 };
 export const instagramPublications: PublicationAdapter = { get: getMeta };

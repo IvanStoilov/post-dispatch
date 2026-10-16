@@ -21,12 +21,13 @@ export function resendProvider(apiKey: string): MailProvider {
         signal: AbortSignal.timeout(10_000),
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok)
+      if (!response.ok) {
         throw new MailError(
           `Resend rejected the email: ${body.message || response.statusText}`,
           "resend",
           response.status,
         );
+      }
       return { id: body.id };
     },
   };

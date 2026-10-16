@@ -1,11 +1,12 @@
-import { appPageUrl } from "@/lib/origins";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Clock, ArrowRight } from "lucide-react";
+import { appPageUrl } from "@/lib/origins";
 import { PageIntro, DocumentSection } from "@/components/public/site-shell";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, ArrowRight } from "lucide-react";
+
 export const metadata: Metadata = {
   title: "Setup and daily AI drafts | Ramblo",
   description:

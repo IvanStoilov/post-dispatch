@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { base } from "./base";
 import { postDto } from "@/shared/schemas/post";
 import { publicationDto } from "@/shared/schemas/publication";
 import {
@@ -7,7 +8,6 @@ import {
   publicationRef,
   publishPostInput,
 } from "@/shared/schemas/publishing";
-import { base } from "./base";
 
 // Publishing a post (202: delivery continues after the response).
 export const publishingContract = {

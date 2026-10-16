@@ -1,8 +1,8 @@
 "use client";
-import { useAppPath } from "./app-navigation";
 import Link from "next/link";
-import { brand } from "@/lib/brand";
 import { cn } from "cn";
+import { useAppPath } from "./app-navigation";
+import { brand } from "@/lib/brand";
 
 /** Symbol plus wordmark; swaps to the sun symbol and cream type in dark mode. */
 export function Logo({ className }: { className?: string }) {

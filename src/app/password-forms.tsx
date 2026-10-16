@@ -1,8 +1,10 @@
 "use client";
-import { useAppPath } from "@/components/app-navigation";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AlertCircle, ArrowRight, MailCheck } from "lucide-react";
+import { AuthShell } from "./auth-shell";
+import { useAppPath } from "@/components/app-navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,8 +25,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle, ArrowRight, MailCheck } from "lucide-react";
-import { AuthShell } from "./auth-shell";
 
 function BackToSignIn() {
   const appPath = useAppPath();
@@ -51,9 +51,11 @@ export function ForgotPasswordForm() {
         email: email.trim(),
         redirectTo: appPath("/reset-password"),
       });
-      if (result.error)
+      if (result.error) {
         setError(result.error.message || "Could not send the email.");
-      else setSent(true);
+      } else {
+        setSent(true);
+      }
     } catch {
       setError("Could not connect. Please try again.");
     }
@@ -135,7 +137,9 @@ export function ResetPasswordForm({ token }: { token?: string }) {
   const mismatch = error === "Your passwords do not match.";
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!token) return;
+    if (!token) {
+      return;
+    }
     setError("");
     if (password !== confirmation) {
       setError("Your passwords do not match.");

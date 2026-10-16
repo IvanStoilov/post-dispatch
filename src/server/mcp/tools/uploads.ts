@@ -1,10 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { uploadsService } from "@/domain/uploads";
-import { uploadFileFields } from "@/shared/schemas/upload";
 import { projectTool, type McpContext } from "../context";
 import { projectFields } from "../schemas";
 import { writeAnnotations } from "./posts";
+import { uploadFileFields } from "@/shared/schemas/upload";
+import { uploadsService } from "@/domain/uploads";
 
 const writeMeta = {
   securitySchemes: [{ type: "oauth2", scopes: ["posts:write"] }],

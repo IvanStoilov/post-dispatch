@@ -1,5 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
+import type { Executor, Tx } from "../shared/db";
+import type { PostRecord } from "./types";
 import { getDb } from "@/db";
 import {
   postAssets,
@@ -10,8 +12,6 @@ import {
 } from "@/db/schema";
 import { loggedOperation } from "@/lib/logger";
 import type { StoredAsset } from "@/lib/types";
-import type { Executor, Tx } from "../shared/db";
-import type { PostRecord } from "./types";
 
 // Every query on posts and their media. Rows never leave the domain.
 
@@ -21,7 +21,9 @@ export async function hydrate(
   db: Executor = getDb(),
 ): Promise<PostRecord[]> {
   return loggedOperation("domain.posts.hydrate", {}, async () => {
-    if (!rows.length) return [];
+    if (!rows.length) {
+      return [];
+    }
     const ids = rows.map((row) => row.id);
     const media = await db
       .select()
@@ -190,7 +192,9 @@ export async function lockMediaInProjects(tx: Tx, projectIds: string[]) {
     .where(inArray(posts.projectId, projectIds))
     .orderBy(posts.id)
     .for("update");
-  if (!rows.length) return [];
+  if (!rows.length) {
+    return [];
+  }
   return tx
     .select({
       projectId: posts.projectId,

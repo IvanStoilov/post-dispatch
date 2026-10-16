@@ -1,9 +1,9 @@
-import { config } from "../config";
-import { logger } from "../logger";
 import {
   send as vercelSend,
   handleCallback as vercelHandleCallback,
 } from "@vercel/queue";
+import { config } from "../config";
+import { logger } from "../logger";
 import type { QueueHandler } from "./index";
 
 export async function send<T>(

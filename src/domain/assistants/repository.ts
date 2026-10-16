@@ -63,7 +63,7 @@ export async function revokeClient(
   resource: string,
 ) {
   await getDb().transaction(async (tx) => {
-    for (const table of [oauthAccessTokens, oauthRefreshTokens])
+    for (const table of [oauthAccessTokens, oauthRefreshTokens]) {
       await tx
         .update(table)
         .set({ revoked: new Date() })
@@ -74,6 +74,7 @@ export async function revokeClient(
             arrayContains(table.resources, [resource]),
           ),
         );
+    }
     await tx
       .delete(oauthConsents)
       .where(

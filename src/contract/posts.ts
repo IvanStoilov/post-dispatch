@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { base } from "./base";
 import {
   createPostInput,
   listPostsInput,
@@ -6,7 +7,6 @@ import {
   postRef,
   updatePostInput,
 } from "@/shared/schemas/post";
-import { base } from "./base";
 
 // Routes for a project's posts. Publishing (publish, retry) is not here
 // yet; it moves with the publishing module.

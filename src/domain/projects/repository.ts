@@ -1,5 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import type { Executor, Tx } from "../shared/db";
+import type { ConnectorValues, ProjectRecord } from "./types";
 import { getDb } from "@/db";
 import {
   projectConnectors,
@@ -9,8 +11,6 @@ import {
   type ProjectRow,
 } from "@/db/schema";
 import type { Platform } from "@/shared/platforms";
-import type { Executor, Tx } from "../shared/db";
-import type { ConnectorValues, ProjectRecord } from "./types";
 
 // Every query on projects and their connectors. Rows never leave the
 // domain: services map them to DTOs.

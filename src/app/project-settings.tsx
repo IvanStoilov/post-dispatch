@@ -1,7 +1,8 @@
 "use client";
+import { useEffect, useState } from "react";
+import { ExternalLink, Save } from "lucide-react";
 import { platforms, channelLabels } from "@/lib/connectors/catalog";
 import { channelIcons } from "@/components/channel-catalog";
-import { useEffect, useState } from "react";
 import type { Project, Platform } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,8 +49,8 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { ExternalLink, Save } from "lucide-react";
 import { DeleteProject } from "@/components/delete-project";
+
 export default function ProjectSettings({
   project,
   onSaved,
@@ -70,12 +71,13 @@ export default function ProjectSettings({
       const status = new URLSearchParams(window.location.search).get(
         "connection",
       );
-      if (platforms.some((p) => p === status))
+      if (platforms.some((p) => p === status)) {
         toast.success(`${channelLabels[status as Platform]} connected.`);
-      else if (status === "cancelled")
+      } else if (status === "cancelled") {
         toast.info("Connection cancelled. Your saved accounts were kept.");
-      else if (status === "failed")
+      } else if (status === "failed") {
         toast.error("Connection failed. Try connecting again.");
+      }
       if (status) {
         const url = new URL(window.location.href);
         url.searchParams.delete("connection");
@@ -102,8 +104,9 @@ export default function ProjectSettings({
         },
       );
       const result = await response.json();
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(result.error || "Could not start connection");
+      }
       window.location.assign(result.url);
     } catch (error) {
       toast.error(
@@ -421,7 +424,9 @@ export default function ProjectSettings({
       <AlertDialog
         open={!!disconnecting}
         onOpenChange={(open) => {
-          if (!open && !busy) setDisconnecting(null);
+          if (!open && !busy) {
+            setDisconnecting(null);
+          }
         }}
       >
         <AlertDialogContent>
@@ -442,7 +447,9 @@ export default function ProjectSettings({
               disabled={busy}
               onClick={(event) => {
                 event.preventDefault();
-                if (disconnecting) void disconnect(disconnecting);
+                if (disconnecting) {
+                  void disconnect(disconnecting);
+                }
               }}
             >
               Disconnect

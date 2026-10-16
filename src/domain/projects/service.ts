@@ -1,21 +1,4 @@
 import "server-only";
-import { getDb } from "@/db";
-import { loggedOperation, logger } from "@/lib/logger";
-import {
-  queueMediaCleanup,
-  scheduleMediaCleanupRecovery,
-} from "@/lib/media-cleanup";
-import { newStorageLocation } from "@/lib/storage/index";
-import type { StorageLocation } from "@/lib/storage/types";
-import type {
-  CreateProjectInput,
-  DeleteProjectInput,
-  ProjectRef,
-  DisconnectChannelInput,
-  ProjectDto,
-  ProjectFields,
-  UpdateProjectInput,
-} from "@/shared/schemas/project";
 import { connectionsSystemService } from "../connections";
 import { postsSystemService } from "../posts";
 import { publishingSystemService } from "../publishing";
@@ -26,6 +9,23 @@ import { uploadsSystemService } from "../uploads";
 import { isConnected, toProjectDto } from "./mappers";
 import * as repository from "./repository";
 import type { ConnectorValues } from "./types";
+import type {
+  CreateProjectInput,
+  DeleteProjectInput,
+  ProjectRef,
+  DisconnectChannelInput,
+  ProjectDto,
+  ProjectFields,
+  UpdateProjectInput,
+} from "@/shared/schemas/project";
+import type { StorageLocation } from "@/lib/storage/types";
+import { newStorageLocation } from "@/lib/storage/index";
+import {
+  queueMediaCleanup,
+  scheduleMediaCleanupRecovery,
+} from "@/lib/media-cleanup";
+import { loggedOperation, logger } from "@/lib/logger";
+import { getDb } from "@/db";
 
 // All business logic for projects. User use cases take an Actor and enforce
 // access by scoping every query to it; system operations take IDs the
@@ -49,8 +49,9 @@ async function applyChanges(tx: Tx, projectId: string, changes: ProjectFields) {
         : changes.instagramAccessToken;
     const hostChanged =
       provider === "instagram" && changes.instagramApiHost !== undefined;
-    if (accountId === undefined && accessToken === undefined && !hostChanged)
+    if (accountId === undefined && accessToken === undefined && !hostChanged) {
       continue;
+    }
     const old = await repository.lockConnector(tx, projectId, provider);
     const next = {
       provider,
@@ -66,9 +67,11 @@ async function applyChanges(tx: Tx, projectId: string, changes: ProjectFields) {
             }
           : {},
     };
-    if (!next.accountId && !next.accessToken)
+    if (!next.accountId && !next.accessToken) {
       await repository.deleteConnector(tx, projectId, provider);
-    else await repository.upsertConnector(tx, projectId, next);
+    } else {
+      await repository.upsertConnector(tx, projectId, next);
+    }
   }
 }
 
@@ -81,7 +84,9 @@ async function deleteLocked(
   location: Omit<StorageLocation, "imageKey">,
   deleting: "this project" | "your account",
 ) {
-  if (!ids.length) return;
+  if (!ids.length) {
+    return;
+  }
   await publishingSystemService.deleteJobsInProjects(tx, ids, deleting);
   const media = [
     ...(await postsSystemService.deleteInProjects(tx, ids)),
@@ -101,7 +106,9 @@ async function list(actor: Actor): Promise<ProjectDto[]> {
 
 async function get(actor: Actor, { id }: ProjectRef): Promise<ProjectDto> {
   const project = await repository.findOwned(actor.userId, id);
-  if (!project) throw notFound();
+  if (!project) {
+    throw notFound();
+  }
   return toProjectDto(project);
 }
 
@@ -130,8 +137,9 @@ async function update(
     { ...actor, projectId: id },
     () =>
       getDb().transaction(async (tx) => {
-        if (!(await repository.lockOwned(tx, actor.userId, id)))
+        if (!(await repository.lockOwned(tx, actor.userId, id))) {
           throw notFound();
+        }
         await applyChanges(tx, id, changes);
         return toProjectDto((await repository.findById(id, tx))!);
       }),
@@ -147,8 +155,9 @@ async function disconnectChannel(
     { ...actor, projectId: id, provider },
     () =>
       getDb().transaction(async (tx) => {
-        if (!(await repository.lockOwned(tx, actor.userId, id)))
+        if (!(await repository.lockOwned(tx, actor.userId, id))) {
           throw notFound();
+        }
         await repository.deleteConnector(tx, id, provider);
       }),
   );
@@ -168,15 +177,19 @@ async function remove(
       // Include the configured bucket to catch objects whose DB insert failed.
       const location = await newStorageLocation();
       await getDb().transaction(async (tx) => {
-        if (!(await repository.lockUser(tx, actor.userId)))
+        if (!(await repository.lockUser(tx, actor.userId))) {
           throw new UserFacingError("Sign in to continue.", 401);
+        }
         const project = await repository.lockOwned(tx, actor.userId, id);
-        if (!project) throw notFound();
-        if (confirmation !== project.name)
+        if (!project) {
+          throw notFound();
+        }
+        if (confirmation !== project.name) {
           throw new UserFacingError(
             "Enter the current project name exactly to confirm deletion.",
             400,
           );
+        }
         await deleteLocked(tx, [id], location, "this project");
         await connectionsSystemService.deletePending(tx, actor.userId, id);
       });
@@ -201,8 +214,9 @@ async function saveConnector(
     { userId, projectId },
     () =>
       getDb().transaction(async (tx) => {
-        if (!(await repository.lockOwned(tx, userId, projectId)))
+        if (!(await repository.lockOwned(tx, userId, projectId))) {
           throw notFound();
+        }
         await repository.upsertConnector(tx, projectId, {
           ...values,
           refreshToken: values.refreshToken ?? null,

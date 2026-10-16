@@ -8,11 +8,16 @@ import {
 } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  Inbox,
+  Send,
+  Code2,
+  Plus,
+  LogOut,
+  ShieldCheck,
+  Cog,
+} from "lucide-react";
 import { useAppPath } from "./app-navigation";
-import { api } from "@/lib/api-client";
-import { projectPath, type ProjectSection } from "@/lib/route-paths";
-import { authClient } from "@/lib/auth-client";
-import type { Project } from "@/lib/types";
 import { Brand } from "./brand";
 import { CreateProjectDialog } from "./create-project-dialog";
 import { Button } from "./ui/button";
@@ -39,15 +44,11 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "./ui/sidebar";
-import {
-  Inbox,
-  Send,
-  Code2,
-  Plus,
-  LogOut,
-  ShieldCheck,
-  Cog,
-} from "lucide-react";
+import type { Project } from "@/lib/types";
+import { authClient } from "@/lib/auth-client";
+import { projectPath, type ProjectSection } from "@/lib/route-paths";
+import { api } from "@/lib/api-client";
+
 type Counts = { drafts: number; published: number };
 const Workspace = createContext<{
   project?: Project;
@@ -55,7 +56,9 @@ const Workspace = createContext<{
 } | null>(null);
 export function useWorkspace() {
   const value = useContext(Workspace);
-  if (!value) throw new Error("Workspace layout missing");
+  if (!value) {
+    throw new Error("Workspace layout missing");
+  }
   return value;
 }
 const navigation = [
@@ -137,7 +140,9 @@ export function WorkspaceShell({
       ? countState.values
       : { drafts: 0, published: 0 };
   useEffect(() => {
-    if (!project) return;
+    if (!project) {
+      return;
+    }
     localStorage.setItem("ramblo-project", project.id);
     document.cookie = `ramblo-project=${project.id}; Path=/; Max-Age=31536000; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
     const controller = new AbortController();

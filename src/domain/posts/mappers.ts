@@ -1,6 +1,6 @@
 import "server-only";
-import type { PostDto } from "@/shared/schemas/post";
 import type { PostRecord } from "./types";
+import type { PostDto } from "@/shared/schemas/post";
 
 // Media is served by owner-only routes; `v` busts caches after edits.
 export function toPostDto(post: PostRecord): PostDto {

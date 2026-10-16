@@ -1,11 +1,14 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useWorkspace } from "@/components/workspace-shell";
 import ProjectSettings from "./project-settings";
+import { useWorkspace } from "@/components/workspace-shell";
+
 export default function ConnectionsPage() {
   const { project } = useWorkspace();
   const router = useRouter();
-  if (!project) throw new Error("No active project");
+  if (!project) {
+    throw new Error("No active project");
+  }
   return (
     <>
       <div>

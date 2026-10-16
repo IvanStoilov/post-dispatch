@@ -1,6 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { config } from "../config";
 import { loggedOperation, logger } from "../logger";
-import { randomUUID } from "node:crypto";
 
 export type QueueDriver = "local" | "vercel";
 export type QueueHandler<T> = (payload: T) => Promise<void>;
@@ -18,7 +18,9 @@ export function queueDriver(): QueueDriver {
 
 /** Keep the same handler for inline local execution and hosted delivery. */
 export function createQueue<T>(topic: string, handler: QueueHandler<T>) {
-  if (!topic.trim()) throw new Error("Queue topic is required");
+  if (!topic.trim()) {
+    throw new Error("Queue topic is required");
+  }
 
   async function send(
     payload: T,
@@ -38,10 +40,11 @@ export function createQueue<T>(topic: string, handler: QueueHandler<T>) {
         delaySeconds: options?.delaySeconds ?? 0,
       });
       if (queueDriver() === "local") {
-        if (options?.delaySeconds && options.delaySeconds > 0)
+        if (options?.delaySeconds && options.delaySeconds > 0) {
           throw new Error(
             "Local delayed jobs must be scheduled in Postgres and run by jobs:work",
           );
+        }
         const messageId = `local-${randomUUID()}`;
         await handler(message);
         logger.debug("queue.message.completed", {

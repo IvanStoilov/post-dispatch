@@ -1,14 +1,14 @@
 import "server-only";
-import { getDb } from "@/db";
-import { loggedOperation, logger } from "@/lib/logger";
-import { scheduleMediaCleanupRecovery } from "@/lib/media-cleanup";
-import { newStorageLocation } from "@/lib/storage/index";
 import { connectionsSystemService } from "../connections";
 import { projectsSystemService } from "../projects";
 import type { Actor } from "../shared/actor";
 import type { Tx } from "../shared/db";
 import { UserFacingError } from "../shared/errors";
 import * as repository from "./repository";
+import { newStorageLocation } from "@/lib/storage/index";
+import { scheduleMediaCleanupRecovery } from "@/lib/media-cleanup";
+import { loggedOperation, logger } from "@/lib/logger";
+import { getDb } from "@/db";
 
 // The user's account as a whole. Signing up and signing in belong to the
 // auth library (src/lib/auth.ts); this module deletes accounts.
@@ -25,11 +25,12 @@ async function countAttempt(userId: string) {
     const previous = await repository.findVerification(tx, identifier);
     const live = previous && previous.expiresAt > new Date();
     const attempts = live ? Number(previous.value) : 0;
-    if (attempts >= MAX_DELETION_ATTEMPTS)
+    if (attempts >= MAX_DELETION_ATTEMPTS) {
       throw new UserFacingError(
         "Too many deletion attempts. Try again in 15 minutes.",
         429,
       );
+    }
     await repository.replaceVerification(tx, previous?.id, {
       identifier,
       value: String(attempts + 1),
@@ -49,8 +50,9 @@ async function ownVerificationIds(tx: Tx, user: { id: string; email: string }) {
         record.value === user.id ||
         record.identifier === user.email ||
         record.identifier === `account-deletion-attempts:${user.id}`
-      )
+      ) {
         return true;
+      }
       try {
         const value = JSON.parse(record.value);
         return value?.type === "authorization_code" && value.userId === user.id;
@@ -71,16 +73,19 @@ async function deleteAccount(
 ): Promise<void> {
   return loggedOperation("domain.account.delete", actor, async () => {
     await countAttempt(actor.userId);
-    if (!(await verifyPassword()))
+    if (!(await verifyPassword())) {
       throw new UserFacingError(
         "Your password could not be verified. Check it or sign in again.",
         400,
       );
+    }
     // Include the configured bucket to catch objects whose DB insert failed.
     const location = await newStorageLocation();
     await getDb().transaction(async (tx) => {
       const user = await repository.lockUser(tx, actor.userId);
-      if (!user) throw new UserFacingError("Account not found.", 404);
+      if (!user) {
+        throw new UserFacingError("Account not found.", 404);
+      }
       // Locked rows block new projects and content while this runs.
       await projectsSystemService.deleteAllOwned(tx, user.id, location);
       await connectionsSystemService.deletePending(tx, user.id);

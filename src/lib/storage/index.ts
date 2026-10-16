@@ -2,6 +2,7 @@ import { config } from "../config";
 import { localProvider } from "./providers/local";
 import { s3Provider } from "./providers/s3";
 import type { StorageProviderName, StorageProvider } from "./types";
+
 export type {
   StorageProviderName,
   StorageProvider,

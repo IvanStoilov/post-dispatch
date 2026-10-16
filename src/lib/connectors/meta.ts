@@ -1,8 +1,9 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { config } from "../config";
 import { loggedOperation, withLogSecrets } from "../logger";
-import { setTimeout as delay } from "node:timers/promises";
 import { metaRequest } from "../meta-client";
 import { MediaPending, type PublishContext } from "./types";
+
 function endpoint(host: string, id: string, edge = "") {
   return `https://${host}/${config.META_API_VERSION}/${id}${edge ? `/${edge}` : ""}`;
 }
@@ -20,9 +21,12 @@ async function graph(
     signal,
     fields,
   );
-  if (!response.ok || data.error)
+  if (!response.ok || data.error) {
     throw new Error(data.error?.message || "Meta rejected the request");
-  if (!data.id) throw new Error("Meta did not return a post ID");
+  }
+  if (!data.id) {
+    throw new Error("Meta did not return a post ID");
+  }
   // Published Facebook photos return both the media object and Page post ID.
   return data.post_id || (data.id as string);
 }
@@ -42,18 +46,26 @@ export async function waitForInstagramContainer(
         token,
         signal,
       );
-      if (!response.ok || data.error)
+      if (!response.ok || data.error) {
         throw new Error(
           data.error?.message || "Could not check Instagram media processing",
         );
-      if (data.status_code === "FINISHED") return;
-      if (data.status_code !== "IN_PROGRESS")
+      }
+      if (data.status_code === "FINISHED") {
+        return;
+      }
+      if (data.status_code !== "IN_PROGRESS") {
         throw new Error(
           data.status ||
             `Instagram media processing failed (${data.status_code || "unknown status"})`,
         );
-      if (durable) throw new MediaPending(60);
-      if (attempt < 3) await delay(60000, undefined, { signal });
+      }
+      if (durable) {
+        throw new MediaPending(60);
+      }
+      if (attempt < 3) {
+        await delay(60000, undefined, { signal });
+      }
     }
     throw new Error(
       "Instagram is still processing the media. Check Meta before submitting again.",
@@ -96,11 +108,12 @@ export async function publishMeta({
         if (connection.provider === "facebook") {
           const page = connection.accountId,
             token = connection.accessToken;
-          if (video)
+          if (video) {
             return submit("graph-video.facebook.com", page, "videos", {
               file_url: urls[0],
               description: post.caption,
             });
+          }
           if (urls.length > 1) {
             const photos = [...(progress?.state.mediaIds || [])];
             for (let i = photos.length; i < urls.length; i++) {
@@ -194,7 +207,7 @@ export async function publishMeta({
           }
           await checkpoint({ ...progress?.state, containerId: container });
         }
-        if (video || urls.length > 1 || progress)
+        if (video || urls.length > 1 || progress) {
           await waitForInstagramContainer(
             host,
             container,
@@ -202,6 +215,7 @@ export async function publishMeta({
             signal,
             !!progress,
           );
+        }
         return submit(host, account, "media_publish", {
           creation_id: container,
         });

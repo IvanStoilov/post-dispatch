@@ -1,5 +1,6 @@
 import { Brand } from "@/components/brand";
 import { FlowPanel } from "@/components/flow-panel";
+
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="grid min-h-svh lg:grid-cols-2">

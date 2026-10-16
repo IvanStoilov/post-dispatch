@@ -1,6 +1,6 @@
-import { brand } from "../brand";
 import { render } from "react-email";
 import type { ReactElement } from "react";
+import { brand } from "../brand";
 import ResetPassword from "../../emails/reset-password";
 import VerifyEmail from "../../emails/verify-email";
 import type { MailMessage } from "./types";

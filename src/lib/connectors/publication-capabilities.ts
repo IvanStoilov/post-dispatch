@@ -21,7 +21,9 @@ export function safePublicationLink(
   platform: Publication["platform"],
   value: string | null | undefined,
 ): string | null {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
   try {
     const url = new URL(value);
     const domain = {

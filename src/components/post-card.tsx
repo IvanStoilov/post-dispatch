@@ -1,8 +1,4 @@
 "use client";
-import { PublicationPanel } from "./publication-panel";
-import { PostPlaceholder } from "./post-placeholder";
-import { channelLabels } from "@/lib/connectors/catalog";
-import { channelIcons } from "./channel-catalog";
 import {
   Check,
   Sparkles,
@@ -12,6 +8,21 @@ import {
   AlertCircle,
   CircleAlert,
 } from "lucide-react";
+import { cn } from "cn";
+import { PublicationPanel } from "./publication-panel";
+import { PostPlaceholder } from "./post-placeholder";
+import { channelIcons } from "./channel-catalog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
+import { PlatformName } from "./platform-name";
+import { channelLabels } from "@/lib/connectors/catalog";
 import {
   Card,
   CardHeader,
@@ -31,17 +42,6 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import MediaGallery from "@/app/media-gallery";
 import type { Post, Platform } from "@/lib/types";
-import { cn } from "cn";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "./ui/dialog";
-import { PlatformName } from "./platform-name";
 
 export function PlatformBadge({ platform }: { platform: Platform }) {
   const Icon = channelIcons[platform];

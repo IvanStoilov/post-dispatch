@@ -5,7 +5,9 @@ export function internalRequestAuthorized(
   header: string,
   expected: string | undefined,
 ) {
-  if (!expected) return false;
+  if (!expected) {
+    return false;
+  }
   const actualBytes = Buffer.from(request.headers.get(header) || "");
   const expectedBytes = Buffer.from(expected);
   return (

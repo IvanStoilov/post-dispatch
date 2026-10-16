@@ -1,10 +1,7 @@
 "use client";
-import { toast } from "./ui/sonner";
-import { api, userMessage } from "@/lib/api-client";
 import { useState } from "react";
-import type { Publication } from "@/lib/types";
-import { channelLabels } from "@/lib/connectors/catalog";
-import { publicationCapabilities } from "@/lib/connectors/publication-capabilities";
+import { ExternalLink, RefreshCw } from "lucide-react";
+import { toast } from "./ui/sonner";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -26,7 +23,11 @@ import {
 } from "./ui/alert-dialog";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { publicationCapabilities } from "@/lib/connectors/publication-capabilities";
+import { channelLabels } from "@/lib/connectors/catalog";
+import type { Publication } from "@/lib/types";
+import { api, userMessage } from "@/lib/api-client";
+
 export function PublicationPanel({
   projectId,
   postId,
@@ -89,7 +90,9 @@ export function PublicationPanel({
     <>
       <Dialog
         onOpenChange={(open) => {
-          if (open) void load();
+          if (open) {
+            void load();
+          }
         }}
       >
         <DialogTrigger asChild>
@@ -262,7 +265,9 @@ export function PublicationPanel({
       <AlertDialog
         open={!!deleting}
         onOpenChange={(open) => {
-          if (!open && !busy) setDeleting(null);
+          if (!open && !busy) {
+            setDeleting(null);
+          }
         }}
       >
         <AlertDialogContent>
@@ -286,7 +291,9 @@ export function PublicationPanel({
               disabled={busy}
               onClick={(e) => {
                 e.preventDefault();
-                if (deleting) void act(deleting, "DELETE");
+                if (deleting) {
+                  void act(deleting, "DELETE");
+                }
               }}
             >
               {busy ? "Deleting…" : "Delete published copy"}

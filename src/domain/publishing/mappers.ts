@@ -1,7 +1,7 @@
 import "server-only";
+import type { PublicationRow } from "./types";
 import { safePublicationLink } from "@/lib/connectors/publication-capabilities";
 import type { PublicationDto } from "@/shared/schemas/publication";
-import type { PublicationRow } from "./types";
 
 export function toPublicationDto(row: PublicationRow): PublicationDto {
   return {

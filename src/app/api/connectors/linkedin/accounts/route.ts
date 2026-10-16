@@ -4,6 +4,7 @@ import {
   listAccounts,
   selectAccount,
 } from "@/server/connections";
+
 export const runtime = "nodejs";
 export async function GET(req: Request) {
   return loggedRequest(req, "/api/connectors/linkedin/accounts", () =>

@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+
 export default function Loading() {
   return (
     <div role="status" aria-label="Loading project" className="space-y-6">

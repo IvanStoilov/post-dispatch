@@ -1,16 +1,12 @@
 import "server-only";
-import { getDb } from "@/db";
-import { logger, loggedOperation } from "@/lib/logger";
-import {
-  downloadAsset,
-  getAssetUrl,
-  MediaInputError,
-  readImage,
-  removeImage,
-  storeAsset,
-} from "@/lib/storage";
-import type { StoredAsset } from "@/lib/types";
-import type { AssetInput } from "@/shared/schemas/asset";
+import { projectsSystemService } from "../projects";
+import type { Actor } from "../shared/actor";
+import type { Tx } from "../shared/db";
+import { UserFacingError } from "../shared/errors";
+import { uploadsSystemService } from "../uploads";
+import { toPostDto } from "./mappers";
+import * as repository from "./repository";
+import type { PostRecord } from "./types";
 import type {
   CreatePostInput,
   DraftFields,
@@ -21,14 +17,18 @@ import type {
   SubmitDraftInput,
   UpdatePostInput,
 } from "@/shared/schemas/post";
-import { projectsSystemService } from "../projects";
-import type { Actor } from "../shared/actor";
-import type { Tx } from "../shared/db";
-import { UserFacingError } from "../shared/errors";
-import { uploadsSystemService } from "../uploads";
-import { toPostDto } from "./mappers";
-import * as repository from "./repository";
-import type { PostRecord } from "./types";
+import type { AssetInput } from "@/shared/schemas/asset";
+import type { StoredAsset } from "@/lib/types";
+import {
+  downloadAsset,
+  getAssetUrl,
+  MediaInputError,
+  readImage,
+  removeImage,
+  storeAsset,
+} from "@/lib/storage";
+import { logger, loggedOperation } from "@/lib/logger";
+import { getDb } from "@/db";
 
 // All business logic for posts. Posts belong to projects, so access means
 // owning the project: checked before slow media work, and again under a lock
@@ -50,38 +50,46 @@ async function withMediaErrors<T>(action: () => Promise<T>) {
   try {
     return await action();
   } catch (error) {
-    if (error instanceof MediaInputError) throw invalid(error.message);
+    if (error instanceof MediaInputError) {
+      throw invalid(error.message);
+    }
     throw error;
   }
 }
 
 const projectNotFound = () => new UserFacingError("Project not found", 404);
 async function assertOwned(actor: Actor, projectId: string) {
-  if (!(await projectsSystemService.isOwned(actor.userId, projectId)))
+  if (!(await projectsSystemService.isOwned(actor.userId, projectId))) {
     throw projectNotFound();
+  }
 }
 // Holds the actor's project for the rest of the write transaction.
 async function lockProject(tx: Tx, actor: Actor, projectId: string) {
-  if (!(await projectsSystemService.lockOwned(tx, actor.userId, projectId)))
+  if (!(await projectsSystemService.lockOwned(tx, actor.userId, projectId))) {
     throw projectNotFound();
+  }
 }
 
 function validateAssetKinds(assets: { kind: "IMAGE" | "VIDEO" }[]) {
-  if (assets.length > 10) throw invalid("A post supports up to 10 images");
-  if (assets.some((asset) => asset.kind === "VIDEO") && assets.length !== 1)
+  if (assets.length > 10) {
+    throw invalid("A post supports up to 10 images");
+  }
+  if (assets.some((asset) => asset.kind === "VIDEO") && assets.length !== 1) {
     throw invalid(
       "Choose up to 10 images or a single video; videos cannot be mixed with images",
     );
+  }
 }
 
 async function cleanupAssets(assets: StoredAsset[]) {
-  for (const asset of assets)
+  for (const asset of assets) {
     await removeImage(asset).catch((error) =>
       logger.warn("storage.cleanup.failure", {
         reason: "Could not clean up unused post media",
         error,
       }),
     );
+  }
 }
 
 // Downloads and stores new media before the transaction (it can take
@@ -93,7 +101,7 @@ async function prepareAssets(projectId: string, assets: AssetInput[] = []) {
   try {
     for (const input of assets) {
       let asset: StoredAsset | undefined;
-      if (input.type === "EXTERNAL_URL" || input.type === "OPENAPI_FILE")
+      if (input.type === "EXTERNAL_URL" || input.type === "OPENAPI_FILE") {
         asset = await downloadAsset(
           projectId,
           input.type === "EXTERNAL_URL" ? input.url : input.download_url,
@@ -103,13 +111,15 @@ async function prepareAssets(projectId: string, assets: AssetInput[] = []) {
             Date.now() + (input.kind === "IMAGE" ? 20000 : 120000),
           ),
         );
+      }
       if (input.type === "INLINE_BASE64") {
         if (
           !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
             input.dataBase64,
           )
-        )
+        ) {
           throw invalid("Invalid base64 image data");
+        }
         asset = await storeAsset(
           projectId,
           Buffer.from(input.dataBase64, "base64"),
@@ -119,7 +129,9 @@ async function prepareAssets(projectId: string, assets: AssetInput[] = []) {
       if (asset) {
         created.push(asset);
         inputs.push(asset);
-      } else inputs.push(input);
+      } else {
+        inputs.push(input);
+      }
     }
     return { created, inputs };
   } catch (error) {
@@ -138,24 +150,31 @@ async function resolveAssets(
 ) {
   const result: StoredAsset[] = [];
   for (const input of inputs) {
-    if (!("type" in input)) result.push(input);
-    else if (input.type === "UPLOAD_ID") {
+    if (!("type" in input)) {
+      result.push(input);
+    } else if (input.type === "UPLOAD_ID") {
       const asset = await uploadsSystemService.claim(
         tx,
         projectId,
         input.uploadId,
       );
-      if (input.kind && asset.kind !== input.kind)
+      if (input.kind && asset.kind !== input.kind) {
         throw invalid("Uploaded asset has a different media type");
+      }
       result.push(asset);
     } else if (input.type === "EXISTING") {
       const asset = existing.find((asset) => asset.id === input.assetId);
-      if (!asset) throw invalid("Existing asset does not belong to this draft");
+      if (!asset) {
+        throw invalid("Existing asset does not belong to this draft");
+      }
       result.push(asset);
-    } else throw invalid("Asset was not prepared");
+    } else {
+      throw invalid("Asset was not prepared");
+    }
   }
-  if (new Set(result.map((asset) => asset.id)).size !== result.length)
+  if (new Set(result.map((asset) => asset.id)).size !== result.length) {
     throw invalid("Each asset may appear only once in a post");
+  }
   validateAssetKinds(result);
   return result;
 }
@@ -168,14 +187,16 @@ async function createDraft(
   draft: Draft,
   options: { allowMissingMedia?: boolean } = {},
 ): Promise<PostRecord> {
-  if (draft.assets?.some((asset) => asset.type === "EXISTING"))
+  if (draft.assets?.some((asset) => asset.type === "EXISTING")) {
     throw invalid("New posts cannot reference existing assets");
+  }
   if (
     !options.allowMissingMedia &&
     draft.platforms.includes("instagram") &&
     !draft.assets?.length
-  )
+  ) {
     throw invalid("Instagram requires an image or video");
+  }
   return withMediaErrors(async () => {
     const prepared = await prepareAssets(projectId, draft.assets);
     try {
@@ -212,7 +233,9 @@ async function editDraft(
 ): Promise<PostRecord> {
   return withMediaErrors(async () => {
     const existing = await repository.findInProject(projectId, id);
-    if (!existing || existing.status !== "draft") throw notEditable(!!existing);
+    if (!existing || existing.status !== "draft") {
+      throw notEditable(!!existing);
+    }
     const prepared = await prepareAssets(projectId, draft.assets);
     let previous: StoredAsset[] = [];
     let updated: PostRecord;
@@ -220,15 +243,17 @@ async function editDraft(
       updated = await getDb().transaction(async (tx) => {
         await lockProject(tx, actor, projectId);
         const current = await repository.lockInProject(tx, projectId, id);
-        if (!current || current.status !== "draft")
+        if (!current || current.status !== "draft") {
           throw notEditable(!!current);
+        }
         previous = (await repository.hydrate([current], tx))[0].assets;
         const assets =
           draft.assets === undefined
             ? previous
             : await resolveAssets(tx, projectId, prepared.inputs, previous);
-        if (draft.platforms.includes("instagram") && !assets.length)
+        if (draft.platforms.includes("instagram") && !assets.length) {
           throw invalid("Instagram requires an image or video");
+        }
         const row = await repository.updateDraft(tx, id, draftValues(draft));
         await repository.writeAssets(tx, row.id, assets, previous);
         return (await repository.hydrate([row], tx))[0];
@@ -252,11 +277,12 @@ async function deleteDraft(actor: Actor, projectId: string, id: string) {
   const media = await getDb().transaction(async (tx) => {
     await lockProject(tx, actor, projectId);
     const row = await repository.lockInProject(tx, projectId, id);
-    if (!row || row.status === "publishing")
+    if (!row || row.status === "publishing") {
       throw new UserFacingError(
         "Post not found or currently publishing",
         row ? 409 : 404,
       );
+    }
     const [post] = await repository.hydrate([row], tx);
     await repository.remove(tx, id);
     return post.assets;
@@ -343,7 +369,9 @@ const mediaNotFound = () => new UserFacingError("Media not found", 404);
 async function ownedRecord(actor: Actor, { projectId, id }: PostRef) {
   await assertOwned(actor, projectId);
   const row = await repository.findInProject(projectId, id);
-  if (!row) throw mediaNotFound();
+  if (!row) {
+    throw mediaNotFound();
+  }
   return (await repository.hydrate([row]))[0];
 }
 const unavailable = (error: unknown) => {
@@ -355,7 +383,9 @@ const unavailable = (error: unknown) => {
 async function mediaUrl(actor: Actor, ref: PostAssetRef): Promise<string> {
   const post = await ownedRecord(actor, ref);
   const asset = post.assets.find((asset) => asset.id === ref.assetId);
-  if (!asset) throw mediaNotFound();
+  if (!asset) {
+    throw mediaNotFound();
+  }
   return getAssetUrl(asset, 300).catch((error) => {
     throw unavailable(error);
   });
@@ -364,8 +394,9 @@ async function mediaUrl(actor: Actor, ref: PostAssetRef): Promise<string> {
 // The post's preview image (its first image), as JPEG bytes.
 async function previewImage(actor: Actor, ref: PostRef) {
   const post = await ownedRecord(actor, ref);
-  if (!post.imageKey || !post.imageBucket || !post.storageProvider)
+  if (!post.imageKey || !post.imageBucket || !post.storageProvider) {
     throw mediaNotFound();
+  }
   const bytes = await readImage({
     imageKey: post.imageKey,
     imageBucket: post.imageBucket,

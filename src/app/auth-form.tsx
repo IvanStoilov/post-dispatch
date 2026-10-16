@@ -1,10 +1,11 @@
 "use client";
-import { useAppPath } from "@/components/app-navigation";
 import { useState, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
+import { ArrowRight, AlertCircle, CheckCircle2, MailCheck } from "lucide-react";
 import { AuthShell } from "./auth-shell";
+import { useAppPath } from "@/components/app-navigation";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,7 +26,6 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowRight, AlertCircle, CheckCircle2, MailCheck } from "lucide-react";
 // The server-rendered form must not submit before its client handler is ready.
 const subscribeToHydration = () => () => {};
 const clientHydrated = () => true;
@@ -157,12 +157,14 @@ export default function AuthForm({
       ),
     });
     setBusy(false);
-    if (result.error)
+    if (result.error) {
       setError(result.error.message || "Could not send the email. Try again.");
-    else setResent(true);
+    } else {
+      setResent(true);
+    }
   }
   const mismatch = signup && error === "Your passwords do not match.";
-  if (sentTo)
+  if (sentTo) {
     return (
       <AuthShell>
         <Card className="w-full max-w-sm ring-0">
@@ -220,6 +222,7 @@ export default function AuthForm({
         </Card>
       </AuthShell>
     );
+  }
   return (
     <AuthShell>
       <Card className="w-full max-w-sm ring-0">

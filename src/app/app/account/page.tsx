@@ -1,6 +1,7 @@
 import { workspaceSession } from "@/app/workspace";
 import { UserAccount } from "@/components/user-account";
 import { termsService } from "@/domain/terms";
+
 export default async function AccountPage() {
   const { user } = await workspaceSession();
   const agreements = await termsService.listAcceptances({ userId: user.id }),

@@ -2,12 +2,13 @@ import Markdown from "react-markdown";
 
 export function TermsDocument({ content }: { content: string }) {
   // Previously accepted plain-text snapshots remain exactly as originally stored.
-  if (!content.startsWith("# "))
+  if (!content.startsWith("# ")) {
     return (
       <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-foreground">
         {content}
       </pre>
     );
+  }
   return (
     <div className="space-y-5 text-sm leading-7 text-foreground">
       <Markdown
