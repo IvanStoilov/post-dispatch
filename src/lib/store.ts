@@ -2,8 +2,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import { posts } from "../db/schema";
-import * as postsSystem from "@/domain/posts/system";
-import type { PostRecord } from "@/domain/posts/system";
+import {
+  postsSystemService as postsSystem,
+  type PostRecord,
+} from "@/domain/posts";
 import { imageFileSchema } from "@/shared/media";
 import { editableAssetSchema, type AssetInput } from "@/shared/schemas/asset";
 import { loggedOperation } from "./logger";
@@ -88,11 +90,11 @@ const validId = (id: string) => z.uuid().parse(id);
 export function storedAssets(row: { assets: StoredAsset[] }): StoredAsset[] {
   return row.assets;
 }
-export const hydrate = postsSystem.hydratePosts;
+export const hydrate = postsSystem.hydrate;
 export const toPost = postsSystem.toPostDto;
 
 export function listPosts(projectId: string): Promise<Post[]> {
-  return postsSystem.listProjectPosts(validId(projectId));
+  return postsSystem.listForProject(validId(projectId));
 }
 
 export async function createPost(
@@ -104,7 +106,7 @@ export async function createPost(
   const parsed = (allowMissingImage ? draftFields : draftSchema).parse(input);
   if (parsed.keepImage)
     throw new Error("A new draft cannot keep an existing image");
-  return postsSystem.createProjectPost(
+  return postsSystem.createForProject(
     projectId,
     draftFor(parsed, legacyAssets(parsed)),
     { allowMissingMedia: allowMissingImage },
@@ -121,21 +123,18 @@ export async function editPost(
   const parsed = draftSchema.parse(input);
   // No media in the request: keepImage keeps it, otherwise it is removed.
   const assets = legacyAssets(parsed) ?? (parsed.keepImage ? undefined : []);
-  return postsSystem.editProjectPost(projectId, id, draftFor(parsed, assets));
+  return postsSystem.editForProject(projectId, id, draftFor(parsed, assets));
 }
 
 export async function deletePost(projectId: string, id: string) {
-  return postsSystem.deleteProjectPost(validId(projectId), validId(id));
+  return postsSystem.deleteForProject(validId(projectId), validId(id));
 }
 
 export async function getPostImage(
   projectId: string,
   id: string,
 ): Promise<PostRecord> {
-  const post = await postsSystem.findPostRecord(
-    validId(projectId),
-    validId(id),
-  );
+  const post = await postsSystem.findRecord(validId(projectId), validId(id));
   if (!post) throw new Error("Post not found");
   return post;
 }

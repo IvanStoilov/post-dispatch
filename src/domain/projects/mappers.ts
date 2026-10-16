@@ -1,7 +1,7 @@
 import "server-only";
 import { connectedAccountUrl } from "@/lib/connectors/account-url";
 import type { ProjectDto } from "@/shared/schemas/project";
-import { isConnected } from "./rules";
+import type { ConnectorRow } from "@/db/schema";
 import type { ProjectRecord } from "./types";
 
 export function toProjectDto(project: ProjectRecord): ProjectDto {
@@ -29,4 +29,14 @@ export function toProjectDto(project: ProjectRecord): ProjectDto {
       ]),
     ),
   };
+}
+
+// Whether a channel connection can publish: it has an account and a token,
+// and the token hasn't expired. Lives here because the DTO's `configured`
+// flag needs it; publishing uses it through projectsSystemService.
+export function isConnected(connector: ConnectorRow) {
+  return (
+    !!(connector.accountId && connector.accessToken) &&
+    (!connector.expiresAt || connector.expiresAt.getTime() > Date.now())
+  );
 }

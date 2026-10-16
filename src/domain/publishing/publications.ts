@@ -4,13 +4,13 @@ import { publicationCapabilities } from "@/lib/connectors/publication-capabiliti
 import { safePublicationLink } from "@/lib/connectors/publication-capabilities";
 import { logger, redact, withLogSecrets } from "@/lib/logger";
 import type { PublicationDto } from "@/shared/schemas/publication";
-import { findProjectRecord, isConnected } from "../projects/system";
+import { projectsSystemService as projects } from "../projects";
 import { UserFacingError } from "../shared/errors";
 import { toPublicationDto } from "./mappers";
 import * as repository from "./repository";
 
 // Managing a post's published copies on their networks, for a project the
-// caller has already authorized.
+// caller has already authorized. Internal to the module: see service.ts.
 
 export async function listForProject(projectId: string, postId?: string) {
   return (await repository.listPublications(projectId, postId)).map(
@@ -41,11 +41,11 @@ export async function manage(
       "This action is not supported for this published copy.",
       400,
     );
-  const project = await findProjectRecord(projectId);
+  const project = await projects.findRecord(projectId);
   const connection = project?.connections.find(
     (c) => c.provider === row.platform && c.accountId === row.accountId,
   );
-  if (!connection || !isConnected(connection))
+  if (!connection || !projects.isConnected(connection))
     throw new UserFacingError(
       "Reconnect the original publishing account before managing this copy.",
       409,

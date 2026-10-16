@@ -3,7 +3,7 @@ import { logger } from "../src/lib/logger";
 import { loadEnvConfig } from "@next/env";
 import { setTimeout as delay } from "node:timers/promises";
 import { closeDb } from "../src/db";
-import { recoverPublishingJobs } from "../src/domain/publishing/system";
+import { publishingSystemService } from "../src/domain/publishing";
 import { recoverAccountMediaCleanup } from "../src/lib/account-deletion";
 import { queueDriver } from "../src/lib/queue";
 loadEnvConfig(process.cwd());
@@ -25,9 +25,11 @@ async function main() {
   });
   try {
     while (running) {
-      await recoverPublishingJobs().catch((error) =>
-        logger.error("publishing.worker.recovery.failure", { error }),
-      );
+      await publishingSystemService
+        .recoverJobs()
+        .catch((error) =>
+          logger.error("publishing.worker.recovery.failure", { error }),
+        );
       await recoverAccountMediaCleanup().catch((error) =>
         logger.error("account.media_cleanup.recovery.failed", { error }),
       );

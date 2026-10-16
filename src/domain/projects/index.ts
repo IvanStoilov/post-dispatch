@@ -1,10 +1,6 @@
 import "server-only";
 
-// Public API of the projects module: user use cases that take an Actor and
-// return DTOs. Workers and other modules use ./system instead.
-export {
-  createProject,
-  disconnectChannel,
-  listProjects,
-  updateProject,
-} from "./service";
+// Public API of the projects module. projectsSystemService skips user
+// authorization: only workers and other domain modules may use it.
+export { projectsService, projectsSystemService } from "./service";
+export type { ConnectorValues, ProjectRecord } from "./types";

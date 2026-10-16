@@ -163,28 +163,22 @@ export async function insertPublication(
 }
 
 export function listPublications(projectId: string, postId?: string) {
-  return getDb()
-    .select()
-    .from(postPublications)
-    .where(
-      and(
-        eq(postPublications.projectId, projectId),
-        postId ? eq(postPublications.postId, postId) : undefined,
-      ),
-    )
-    .orderBy(desc(postPublications.publishedAt));
+  return getDb().query.postPublications.findMany({
+    where: and(
+      eq(postPublications.projectId, projectId),
+      postId ? eq(postPublications.postId, postId) : undefined,
+    ),
+    orderBy: desc(postPublications.publishedAt),
+  });
 }
 
 export async function findPublication(projectId: string, id: string) {
-  const [row] = await getDb()
-    .select()
-    .from(postPublications)
-    .where(
-      and(
-        eq(postPublications.id, id),
-        eq(postPublications.projectId, projectId),
-      ),
-    );
+  const row = await getDb().query.postPublications.findFirst({
+    where: and(
+      eq(postPublications.id, id),
+      eq(postPublications.projectId, projectId),
+    ),
+  });
   return row;
 }
 

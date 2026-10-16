@@ -10,29 +10,76 @@ import { MediaPending, type PublishState } from "@/lib/connectors/types";
 import { loggedOperation, logger, redact, withLogContext } from "@/lib/logger";
 import { createQueue, queueDriver } from "@/lib/queue";
 import { getAssetUrl } from "@/lib/storage";
-import {
-  lockPostById,
-  markOrphanedPublishing,
-  setPublishingState,
-} from "../posts/system";
-import { findProjectRecord, isConnected } from "../projects/system";
+import { postsSystemService as posts } from "../posts";
+import { projectsSystemService as projects } from "../projects";
 import * as repository from "./repository";
-import {
-  isActive,
-  later,
-  leaseSeconds,
-  maxJobAgeMs,
-  maxMediaPolls,
-  maxPreparationAttempts,
-  publishedCopy,
-  retryDelaySeconds,
-  rollup,
-} from "./rules";
+import { activeStatuses } from "./repository";
 import type { PublishJobPatch } from "./types";
 
 // Durable publishing: one job per post and network, delivered through the
 // queue, claimed with a lease, checkpointed before anything irreversible,
-// and reconciled when a submission's outcome is unknown.
+// and reconciled when a submission's outcome is unknown. Internal to the
+// module: service.ts exposes the worker entry points.
+
+const leaseSeconds = 600;
+const maxPreparationAttempts = 5;
+const maxJobAgeMs = 24 * 3600000;
+const maxMediaPolls = 120;
+// Exponential backoff for preparation failures, capped at 15 minutes.
+const retryDelaySeconds = (attempts: number) =>
+  Math.min(900, 30 * 2 ** attempts);
+const later = (seconds: number) => new Date(Date.now() + seconds * 1000);
+const isActive = (status: string) =>
+  activeStatuses.includes(status as (typeof activeStatuses)[number]);
+
+// The post's state once one of its jobs finished: still publishing while
+// any job is active, published when all succeeded, otherwise needs review.
+function rollup(jobs: PublishJob[]) {
+  const results = Object.fromEntries(
+    jobs
+      .filter((j) => j.status === "published" && j.remoteId)
+      .map((j) => [j.platform, j.remoteId]),
+  );
+  const pending = jobs.some((j) => isActive(j.status));
+  const successful = jobs.every((j) => j.status === "published");
+  const errors = jobs
+    .filter((j) => j.error && ["failed", "needs_review"].includes(j.status))
+    .map((j) => `${j.platform}: ${j.error}`);
+  return {
+    results,
+    status: pending
+      ? ("publishing" as const)
+      : successful
+        ? ("published" as const)
+        : ("needs_review" as const),
+    error: errors.join(" ") || null,
+  };
+}
+
+// What went live, for the published copy's record.
+function publishedCopy(job: PublishJob, remoteId: string) {
+  const assets = job.snapshot.assets;
+  return {
+    projectId: job.projectId,
+    postId: job.postId,
+    platform: job.platform,
+    accountId: job.accountId,
+    remotePostId: remoteId,
+    caption: job.snapshot.post.caption,
+    mediaKind: assets.some((a) => a.kind === "VIDEO")
+      ? "VIDEO"
+      : assets.length > 1
+        ? "CAROUSEL"
+        : assets.length || job.snapshot.externalUrl
+          ? "IMAGE"
+          : "TEXT",
+    publishedAt: new Date(),
+    permalink:
+      job.platform === "linkedin"
+        ? `https://www.linkedin.com/feed/update/${encodeURIComponent(remoteId)}/`
+        : null,
+  };
+}
 
 const now = () => new Date();
 const messageSchema = z.object({ jobId: z.uuid() }).strict();
@@ -70,7 +117,7 @@ async function finishJob(
   remoteId?: string,
 ) {
   await getDb().transaction(async (tx) => {
-    await lockPostById(tx, job.postId);
+    await posts.lockPostById(tx, job.postId);
     const updated = await repository.finishLeased(tx, job.id, token, {
       status,
       error: error || null,
@@ -81,7 +128,7 @@ async function finishJob(
     if (!updated.length) throw new Error("Publishing job lease was lost");
     if (status === "published" && remoteId)
       await repository.insertPublication(tx, publishedCopy(job, remoteId));
-    await setPublishingState(
+    await posts.setPublishingState(
       tx,
       job.postId,
       rollup(await repository.jobsForPost(tx, job.postId)),
@@ -102,7 +149,7 @@ async function finishJob(
 }
 
 async function connectionFor(job: PublishJob) {
-  const project = await findProjectRecord(job.projectId);
+  const project = await projects.findRecord(job.projectId);
   if (!project) throw new Error("Project not found");
   return project.connections.find(
     (c) => c.provider === job.platform && c.accountId === job.accountId,
@@ -161,7 +208,7 @@ export async function processPublishingJob(jobId: string) {
           let secrets: string[] = [];
           try {
             const connection = await connectionFor(job);
-            if (!connection || !isConnected(connection)) {
+            if (!connection || !projects.isConnected(connection)) {
               await finishJob(
                 job,
                 token,
@@ -354,7 +401,7 @@ export async function recoverPublishingJobs(limit = 20, projectId?: string) {
     { projectId },
     async () => {
       // Older synchronous publishing can have been interrupted before jobs existed.
-      await markOrphanedPublishing(projectId);
+      await posts.markOrphanedPublishing(projectId);
       // Jobs persist beyond queue message TTL. Recovery is independent of browser
       // polling and can be called repeatedly or concurrently.
       const jobs = await repository.dueJobIds(limit, {

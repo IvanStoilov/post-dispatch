@@ -1,5 +1,5 @@
 import { z } from "zod";
-import * as publishing from "@/domain/publishing/system";
+import { publishingSystemService as publishing } from "@/domain/publishing";
 
 // Deprecated adapter: keeps the old signatures for code not yet migrated to
 // src/domain/publishing. New code imports the domain module directly.
@@ -11,7 +11,7 @@ export const toPublication = publishing.toPublicationDto;
 export async function listPublications(projectId: string, postId?: string) {
   z.uuid().parse(projectId);
   if (postId) z.uuid().parse(postId);
-  return publishing.listProjectPublications(projectId, postId);
+  return publishing.listForProject(projectId, postId);
 }
 
 export async function managePublication(
@@ -21,7 +21,7 @@ export async function managePublication(
   caption?: string,
 ) {
   z.uuid().parse(id);
-  return publishing.manageProjectPublication(
+  return publishing.manageForProject(
     projectId,
     id,
     action,

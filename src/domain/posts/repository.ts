@@ -112,7 +112,11 @@ export async function lockInProject(tx: Tx, projectId: string, id: string) {
 
 type DraftValues = Pick<PostRow, "title" | "caption" | "platforms" | "source">;
 
-export async function insert(tx: Tx, projectId: string, values: DraftValues) {
+export async function createPost(
+  tx: Tx,
+  projectId: string,
+  values: DraftValues,
+) {
   const [post] = await tx
     .insert(posts)
     .values({ ...values, projectId, imageUrl: "" })
@@ -139,7 +143,7 @@ export async function lockById(tx: Tx, id: string) {
 }
 
 // Publishing state (status, results, error) is written by the publishing
-// module through system.ts; content stays with the posts use cases.
+// module through postsSystemService; content stays with the posts use cases.
 export async function setPublishingState(
   tx: Tx,
   id: string,
@@ -195,12 +199,15 @@ export async function writeAssets(
         : eq(postAssets.postId, postId),
     );
   const retained = new Set(existing.map((asset) => asset.id));
+
   for (const [position, asset] of assets.entries()) {
-    if (retained.has(asset.id))
+    if (retained.has(asset.id)) {
       await tx
         .update(postAssets)
         .set({ position })
         .where(and(eq(postAssets.postId, postId), eq(postAssets.id, asset.id)));
-    else await tx.insert(postAssets).values({ ...asset, postId, position });
+    } else {
+      await tx.insert(postAssets).values({ ...asset, postId, position });
+    }
   }
 }

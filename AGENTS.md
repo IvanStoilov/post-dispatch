@@ -23,19 +23,21 @@ Code is layered. Imports only point down this list:
 
 Each module (reference: `src/domain/projects`) has:
 
-- `index.ts`: the public API: user use cases from `service.ts`. Signature: `(actor: Actor, input: <SharedInputType>) => Promise<<Dto> | void>`. Input is already validated by the transport; do not re-parse it.
-- `service.ts`: use cases. Enforce access by scoping queries to `actor.userId` (for example `repository.lockOwned`), never with a separate check-then-act. Throw `UserFacingError` (`src/domain/shared/errors.ts`) for failures users should see.
-- `system.ts`: operations for workers and other domain modules. They take IDs the caller already authorized and may return internal records. Never import it from routers or UI.
+- `service.ts`: all business logic. It ends with two exported objects:
+  - `<module>Service` (`projectsService`): user use cases. Signature: `(actor: Actor, input: <SharedInputType>) => Promise<<Dto> | void>`. Input is already validated by the transport; do not re-parse it. Enforce access by scoping queries to `actor.userId` (for example `repository.lockOwned` inside the transaction that writes), never with a separate check-then-act.
+  - `<module>SystemService` (`projectsSystemService`): operations for workers and other domain modules. They skip user authorization: they take IDs the caller already authorized and may return internal records.
+
+  When a user use case and a system operation need the same write, implement it once as a private function that takes an `authorize(tx)` step, run first inside the transaction: the user use case passes one that locks the actor's resource, the system operation a no-op (see `src/domain/posts/service.ts`). Throw `UserFacingError` (`src/domain/shared/errors.ts`) for failures users should see. Large modules may keep private helpers in other files (`publishing/jobs.ts`), exposed only through the two objects.
+- `index.ts`: re-exports the two objects and any types other modules need. Nothing else.
 - `repository.ts`: every Drizzle query, as plain functions named after what they do (`findOwned`, `lockOwned`, `upsertConnector`). Accept an optional `tx`/`Executor` so services control transactions. No generic CRUD layers.
-- `rules.ts`: business logic shared by `service.ts` and `system.ts`. When both need the same write, implement it once here and take an `authorize(tx)` step that runs first inside the transaction: user use cases pass one that locks the actor's resource, system callers pass a no-op (see `src/domain/posts/rules.ts`).
 - `mappers.ts`: internal record → DTO.
-- `types.ts`: internal types. Records can hold secrets (tokens) and must never be returned from `index.ts`.
-- Larger modules may split internals into more files named after what they hold (`src/domain/publishing/jobs.ts` for the worker, `publications.ts` for managing published copies). They stay internal: other code still goes through `index.ts` or `system.ts`.
+- `types.ts`: internal types. Records can hold secrets (tokens) and must never be returned from `<module>Service`.
 
 Rules:
 
 - DTOs and inputs are zod schemas in `src/shared/schemas`; types are inferred (`z.output<typeof schema>`). DTOs are JSON-shaped (ISO date strings) and never contain secrets. Contracts use them for `.input()` and `.output()`.
 - Start every `src/domain` file (except pure type files) with `import "server-only"`. Next.js then fails the build if domain code reaches a client bundle. Plain Node needs `--import ./scripts/server-only-hook.mjs`, already part of the `tsx` scripts in `package.json`.
-- Modules import each other only through `index.ts` or `system.ts`, never internal files.
-- Workers authorize at enqueue time (the user's use case creates the job) and run `system.ts` operations by job or resource ID. Record who requested work on the job row when attribution matters. Writes to another module's tables go through that module's `system.ts` (publishing sets a post's publishing state with `setPublishingState` from `src/domain/posts/system.ts`).
+- Everything outside a module imports it through `index.ts` (`@/domain/<module>`, or `../<module>` inside `src/domain`), never its internal files. `src/domain/shared` is the exception.
+- Routers, pages and components (`src/server`, `src/app`, `src/components`) must not import `*SystemService`; ESLint enforces both rules (`eslint.config.mjs`). Only queue and cron routes (`src/app/api/queues`, `src/app/api/cron`), scripts and other domain modules may use system services.
+- Workers authorize at enqueue time (the user's use case creates the job) and run system service operations by job or resource ID. Record who requested work on the job row when attribution matters. Writes to another module's tables go through that module's system service (publishing sets a post's publishing state with `postsSystemService.setPublishingState`).
 - `src/lib/*.ts` is legacy. When migrating a module, keep a thin adapter there (see `src/lib/projects.ts`) until its last caller has moved, then delete it.

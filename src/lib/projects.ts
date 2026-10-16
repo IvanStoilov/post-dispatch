@@ -1,8 +1,10 @@
 import { z } from "zod";
-import * as projects from "@/domain/projects";
+import {
+  projectsService as projects,
+  projectsSystemService as system,
+  type ConnectorValues,
+} from "@/domain/projects";
 import { UserFacingError } from "@/domain/shared/errors";
-import * as system from "@/domain/projects/system";
-import type { ConnectorValues } from "@/domain/projects/system";
 import { projectFields } from "@/shared/schemas/project";
 import type { Platform } from "./types";
 
@@ -11,7 +13,7 @@ import type { Platform } from "./types";
 // each function when its last caller has migrated.
 
 export const projectSchema = projectFields;
-export type { ProjectRecord as ConnectedProject } from "@/domain/projects/system";
+export type { ProjectRecord as ConnectedProject } from "@/domain/projects";
 export const isConnected = system.isConnected;
 
 async function found<T>(record: Promise<T | undefined>) {
@@ -21,35 +23,39 @@ async function found<T>(record: Promise<T | undefined>) {
 }
 
 export async function getProject(id: string) {
-  return found(system.findProjectRecord(z.uuid().parse(id)));
+  return found(system.findRecord(z.uuid().parse(id)));
 }
 
 export async function getOwnedProject(userId: string, id: string) {
-  return found(system.findOwnedProjectRecord(userId, z.uuid().parse(id)));
+  return found(system.findOwnedRecord(userId, z.uuid().parse(id)));
 }
 
-export function listProjects(userId: string) {
-  return projects.listProjects({ userId });
+export async function listProjects(userId: string) {
+  return projects.list({ userId });
 }
 
 export async function createProject(userId: string, input: unknown) {
   const values = projectFields.parse(input);
-  const created = await projects.createProject({ userId }, values);
-  const project = await projects.updateProject(
+  const created = await projects.create({ userId }, values);
+  const project = await projects.update(
     { userId },
     { ...values, id: created.id },
   );
   return { project };
 }
 
-export function updateProject(userId: string, id: string, input: unknown) {
-  return projects.updateProject(
+export async function updateProject(
+  userId: string,
+  id: string,
+  input: unknown,
+) {
+  return projects.update(
     { userId },
     { ...projectFields.parse(input), id: z.uuid().parse(id) },
   );
 }
 
-export function saveConnector(
+export async function saveConnector(
   userId: string,
   projectId: string,
   values: ConnectorValues,
@@ -57,7 +63,7 @@ export function saveConnector(
   return system.saveConnector(userId, projectId, values);
 }
 
-export function disconnectConnector(
+export async function disconnectConnector(
   userId: string,
   projectId: string,
   provider: Platform,

@@ -7,4 +7,5 @@ export {
   editableAssetSchema,
   type AssetInput,
 } from "../shared/schemas/asset";
-export { validateAssetKinds } from "../domain/posts/system";
+import { postsSystemService } from "@/domain/posts";
+export const validateAssetKinds = postsSystemService.validateAssetKinds;
