@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
 import { users, oauthResources } from "../src/db/schema";
 import { rotateAccountToken } from "../src/lib/mcp-account";
-import { handleAccountMcp } from "../src/lib/mcp";
+import { handleMcpRequest } from "../src/server/mcp";
 import { protectedResourceMetadata } from "../src/lib/oauth";
 import { accountResource } from "../src/lib/oauth-provider";
 loadEnvConfig(process.cwd());
@@ -56,7 +56,7 @@ test(
         "offline_access",
       ]);
       const { mcpToken: token } = await rotateAccountToken(userId);
-      const response = await handleAccountMcp(
+      const response = await handleMcpRequest(
         new Request(process.env.APP_URL + "/api/mcp", {
           method: "POST",
           headers: {

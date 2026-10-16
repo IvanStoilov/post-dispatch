@@ -3,7 +3,6 @@ import { createHash, randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { accountMcpTokens } from "../db/schema";
-import { listProjects, getOwnedProject } from "./projects";
 export async function accountTokenConfigured(userId: string) {
   return loggedOperation(
     "lib.mcp-account.accountTokenConfigured",
@@ -46,22 +45,4 @@ export async function verifyAccountToken(authorization: string | null) {
       .where(eq(accountMcpTokens.tokenHash, tokenHash));
     return row?.userId || null;
   });
-}
-// Resolve on every call: never remember a previous project's selection.
-export async function resolveMcpProject(userId: string, projectId?: string) {
-  return loggedOperation(
-    "lib.mcp-account.resolveMcpProject",
-    { userId, projectId },
-    async () => {
-      if (projectId) return getOwnedProject(userId, projectId);
-      const projects = await listProjects(userId);
-      if (!projects.length)
-        throw new Error("No projects found. Create a project in Ramblo first.");
-      if (projects.length !== 1)
-        throw new Error(
-          "projectId is required when your account has multiple projects. Call list_projects and pass the intended project's ID.",
-        );
-      return getOwnedProject(userId, projects[0].id);
-    },
-  );
 }

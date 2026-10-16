@@ -18,6 +18,7 @@ import type {
   PostAssetRef,
   PostDto,
   PostRef,
+  SubmitDraftInput,
   UpdatePostInput,
 } from "@/shared/schemas/post";
 import { projectsSystemService } from "../projects";
@@ -308,6 +309,27 @@ async function create(
   );
 }
 
+// For assistants: the draft waits for the user's review, who adds any
+// missing Instagram media before publishing.
+async function submitDraft(
+  actor: Actor,
+  { projectId, ...draft }: SubmitDraftInput,
+): Promise<PostDto> {
+  return loggedOperation(
+    "domain.posts.submitDraft",
+    { ...actor, projectId },
+    async () => {
+      await assertOwned(actor, projectId);
+      return toPostDto(
+        await createDraft(projectId, draft, {
+          authorize: lockProject(actor, projectId),
+          allowMissingMedia: true,
+        }),
+      );
+    },
+  );
+}
+
 async function update(
   actor: Actor,
   { projectId, id, ...draft }: UpdatePostInput,
@@ -425,6 +447,7 @@ async function deleteInProjects(tx: Tx, projectIds: string[]) {
 export const postsService = {
   list,
   create,
+  submitDraft,
   update,
   delete: remove,
   mediaUrl,

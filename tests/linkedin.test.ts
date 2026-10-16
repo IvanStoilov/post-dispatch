@@ -26,7 +26,7 @@ import {
   linkedinUploadUrl,
   linkedinAccounts,
 } from "../src/lib/connectors/linkedin";
-import { mcpDraftSchema, filesDraftSchema } from "../src/lib/mcp-images";
+import { mcpDraftSchema, filesDraftSchema } from "../src/server/mcp/schemas";
 import { createPost, deletePost } from "../src/lib/store";
 import { publishPost } from "./helpers/direct-publish";
 import type { Post } from "../src/lib/types";

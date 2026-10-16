@@ -17,7 +17,7 @@ import {
 } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
 import { listProjects, createProject } from "../src/lib/projects";
-import { handleAccountMcp } from "../src/lib/mcp";
+import { handleMcpRequest } from "../src/server/mcp";
 import {
   protectedResourceMetadata,
   oauthConsentContext,
@@ -67,7 +67,7 @@ async function mcp(
   name = "get_project",
   args = {},
 ) {
-  const r = await handleAccountMcp(
+  const r = await handleMcpRequest(
     new Request(accountResource(), {
       method: "POST",
       headers: {
@@ -146,7 +146,7 @@ test(
           assert.equal(d.issuer, origin + "/api/auth");
           assert.deepEqual(d.code_challenge_methods_supported, ["S256"]);
           assert.ok(d.registration_endpoint);
-          const challenge = await handleAccountMcp(req("/api/mcp", "POST", {}));
+          const challenge = await handleMcpRequest(req("/api/mcp", "POST", {}));
           assert.equal(challenge.status, 401);
           assert.match(
             challenge.headers.get("WWW-Authenticate")!,

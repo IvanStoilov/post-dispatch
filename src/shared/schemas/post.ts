@@ -37,6 +37,14 @@ export const createPostInput = draftFields
   });
 export type CreatePostInput = z.output<typeof createPostInput>;
 
+// A draft an assistant files for the user's review. Instagram media may be
+// missing: the reviewer adds it before publishing.
+export const submitDraftInput = draftFields.extend({
+  projectId,
+  source: draftFields.shape.source.unwrap().default("AI assistant"),
+});
+export type SubmitDraftInput = z.output<typeof submitDraftInput>;
+
 export const updatePostInput = draftFields.extend({ projectId, id: postId });
 export type UpdatePostInput = z.output<typeof updatePostInput>;
 

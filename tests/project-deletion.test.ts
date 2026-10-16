@@ -24,11 +24,8 @@ import { getAuth } from "../src/lib/auth";
 import { appOrigin } from "../src/lib/origins";
 import { createProject } from "../src/lib/projects";
 import { createPost } from "../src/lib/store";
-import {
-  rotateAccountToken,
-  verifyAccountToken,
-  resolveMcpProject,
-} from "../src/lib/mcp-account";
+import { rotateAccountToken, verifyAccountToken } from "../src/lib/mcp-account";
+import { resolveProject } from "../src/server/mcp/context";
 import {
   startConnection,
   pendingConnectionBelongsTo,
@@ -322,9 +319,9 @@ test(
             await verifyAccountToken(`Bearer ${token.mcpToken}`),
             a.id,
           );
-          assert.equal((await resolveMcpProject(a.id)).id, keep.id);
+          assert.equal((await resolveProject({ userId: a.id })).id, keep.id);
           await assert.rejects(
-            resolveMcpProject(a.id, a.project.id),
+            resolveProject({ userId: a.id }, a.project.id),
             /Project not found/,
           );
           await processPublishingJob(job.id); // stale queue callbacks cannot resurrect deleted work
@@ -373,7 +370,10 @@ test(
             )?.user.id,
             a.id,
           );
-          await assert.rejects(resolveMcpProject(a.id), /No projects found/);
+          await assert.rejects(
+            resolveProject({ userId: a.id }),
+            /No projects found/,
+          );
         },
       );
     } finally {

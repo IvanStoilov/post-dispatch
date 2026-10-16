@@ -29,12 +29,12 @@ import { uploadsService } from "../src/domain/uploads";
 import { uploadFileFields } from "../src/shared/schemas/upload";
 import { client, rejectsWith } from "./helpers/orpc";
 import { removeImage, readImage, isMp4 } from "../src/lib/storage";
-import { mcpDraftSchema, filesDraftSchema } from "../src/lib/mcp-images";
+import { mcpDraftSchema, filesDraftSchema } from "../src/server/mcp/schemas";
 import { validateAssetKinds } from "../src/lib/asset-inputs";
 import { serveRemoteFiles } from "./helpers/remote-files";
 import { storageRequest } from "./helpers/storage";
 import { rotateAccountToken } from "../src/lib/mcp-account";
-import { handleAccountMcp } from "../src/lib/mcp";
+import { handleMcpRequest } from "../src/server/mcp";
 import { publishPost } from "./helpers/direct-publish";
 import { GET as previewAsset } from "../src/app/api/posts/[id]/assets/[assetId]/route";
 loadEnvConfig(process.cwd());
@@ -186,7 +186,7 @@ test(
     }
     const bearer = await rotateAccountToken(userId);
     async function mcp(name: string, args: unknown) {
-      const response = await handleAccountMcp(
+      const response = await handleMcpRequest(
         new Request(origin + "/api/mcp", {
           method: "POST",
           headers: {
@@ -526,7 +526,7 @@ test(
       await t.test(
         "ChatGPT file arrays import multiple images or one video privately",
         async () => {
-          const tools = await handleAccountMcp(
+          const tools = await handleMcpRequest(
             new Request(origin + "/api/mcp", {
               method: "POST",
               headers: {

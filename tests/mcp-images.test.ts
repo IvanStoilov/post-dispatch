@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mcpDraftSchema, filesDraftSchema } from "../src/lib/mcp-images";
+import { mcpDraftSchema, filesDraftSchema } from "../src/server/mcp/schemas";
 const draft = { title: "Test", caption: "Test", platforms: ["instagram"] };
 const url = "https://example.com/image.png";
 const uploadId = "00000000-0000-4000-8000-000000000001";

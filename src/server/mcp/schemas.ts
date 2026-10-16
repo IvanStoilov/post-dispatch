@@ -1,6 +1,20 @@
-import { platforms } from "./types";
 import { z } from "zod";
-import { assetInputSchema, openaiFileSchema } from "./asset-inputs";
+import { platforms } from "@/shared/platforms";
+import { assetInputSchema, openaiFileSchema } from "@/shared/schemas/asset";
+
+// Tool input schemas. The MCP SDK validates arguments against them and
+// advertises them as JSON Schema, so they avoid transforms; tools normalize
+// with the shared input schemas before calling the domain.
+
+export const projectFields = {
+  projectId: z
+    .uuid()
+    .optional()
+    .describe(
+      "Destination project ID. Optional only when this account has exactly one project; otherwise required. Discover IDs with list_projects.",
+    ),
+};
+
 const draftFields = {
   title: z.string().trim().min(1).max(120),
   caption: z.string().trim().min(1).max(2200),

@@ -14,7 +14,7 @@ import { getAuth } from "../src/lib/auth";
 import { POST as rotateToken } from "../src/app/api/mcp-settings/token/route";
 import { GET as connections } from "../src/app/api/connections/route";
 import { rotateAccountToken } from "../src/lib/mcp-account";
-import { handleAccountMcp } from "../src/lib/mcp";
+import { handleMcpRequest } from "../src/server/mcp";
 import { serveRemoteFiles } from "./helpers/remote-files";
 import { storageRequest } from "./helpers/storage";
 import { client, rejectsWith } from "./helpers/orpc";
@@ -197,7 +197,7 @@ test(
               },
             }),
           });
-          const response = await handleAccountMcp(req);
+          const response = await handleMcpRequest(req);
           assert.equal(response.status, 200);
           const data = await response.json();
           assert.equal(JSON.parse(data.result.content[0].text).id, extra.id);
@@ -217,7 +217,7 @@ test(
             .jpeg()
             .toBuffer();
           async function mcpImage(args: Record<string, unknown>) {
-            const r = await handleAccountMcp(
+            const r = await handleMcpRequest(
               new Request(origin + "/api/mcp", {
                 method: "POST",
                 headers: {
@@ -249,7 +249,7 @@ test(
             );
             return JSON.parse(data.result.content[0].text);
           }
-          const toolResponse = await handleAccountMcp(
+          const toolResponse = await handleMcpRequest(
             new Request(origin + "/api/mcp", {
               method: "POST",
               headers: {
@@ -402,7 +402,7 @@ test(
           });
           assert.match(openapi.imageUrl, /^\/api\/posts\//);
           assert.ok(!JSON.stringify(openapi).includes("file_test"));
-          const fileResponse = await handleAccountMcp(
+          const fileResponse = await handleMcpRequest(
             new Request(origin + "/api/mcp", {
               method: "POST",
               headers: {

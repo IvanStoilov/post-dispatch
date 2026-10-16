@@ -8,7 +8,7 @@ import { getDb, closeDb } from "../src/db";
 import { users, projects, posts, uploadTokens } from "../src/db/schema";
 import { createProject } from "../src/lib/projects";
 import { rotateAccountToken, verifyAccountToken } from "../src/lib/mcp-account";
-import { handleAccountMcp } from "../src/lib/mcp";
+import { handleMcpRequest } from "../src/server/mcp";
 import { accountResource } from "../src/lib/oauth-provider";
 import { POST as rotateRoute } from "../src/app/api/mcp-settings/token/route";
 loadEnvConfig(process.cwd());
@@ -26,7 +26,7 @@ test(
       name: string,
       args: Record<string, unknown> = {},
     ) {
-      const response = await handleAccountMcp(
+      const response = await handleMcpRequest(
         new Request(accountResource(), {
           method: "POST",
           headers: {
