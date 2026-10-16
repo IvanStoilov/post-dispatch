@@ -15,7 +15,10 @@ const handler = new OpenAPIHandler(router, {
     // Expected errors (validation, sign-in) reach the client as defined
     // ORPCErrors; anything else is logged here and sent as a generic 500.
     onError((error) => {
-      if (!(error instanceof ORPCError) || error.status >= 500)
+      if (
+        !(error instanceof ORPCError) ||
+        (!error.defined && error.status >= 500)
+      )
         logger.error("rpc.procedure.failed", { error });
     }),
   ],

@@ -1,7 +1,7 @@
 import { config } from "../../../../lib/config";
 import { loggedRequest } from "@/lib/logger";
 import { internalRequestAuthorized } from "@/lib/internal-auth";
-import { recoverPublishingJobs } from "@/lib/publish-jobs";
+import { recoverPublishingJobs } from "@/domain/publishing/system";
 import { recoverAccountMediaCleanup } from "@/lib/account-deletion";
 export const runtime = "nodejs";
 export const maxDuration = 300;

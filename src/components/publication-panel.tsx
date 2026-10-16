@@ -1,5 +1,6 @@
 "use client";
 import { toast } from "./ui/sonner";
+import { api, userMessage } from "@/lib/api-client";
 import { useState } from "react";
 import type { Publication } from "@/lib/types";
 import { channelLabels } from "@/lib/connectors/catalog";
@@ -47,16 +48,9 @@ export function PublicationPanel({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(
-        `/api/publications?projectId=${projectId}${postId ? `&postId=${postId}` : ""}`,
-        { cache: "no-store" },
-      );
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Could not load published copies.");
-      setItems(data);
+      setItems(await api.publications.list({ projectId, postId }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load copies.");
+      setError(userMessage(e, "Could not load published copies."));
     } finally {
       setBusy(false);
     }
@@ -68,21 +62,13 @@ export function PublicationPanel({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(
-        `/api/publications/${publication.id}?projectId=${projectId}`,
-        {
-          method,
-          ...(method === "PATCH"
-            ? {
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ caption }),
-              }
-            : {}),
-        },
-      );
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Could not complete the request.");
+      const ref = { projectId, id: publication.id };
+      const data =
+        method === "PATCH"
+          ? await api.publications.edit({ ...ref, caption })
+          : method === "DELETE"
+            ? await api.publications.delete(ref)
+            : await api.publications.refresh(ref);
       setItems((old) => old.map((p) => (p.id === data.id ? data : p)));
       setEditing(null);
       setDeleting(null);
@@ -94,7 +80,7 @@ export function PublicationPanel({
             : "Stats refreshed.",
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Network request failed.");
+      setError(userMessage(e, "Could not complete the request."));
     } finally {
       setBusy(false);
     }

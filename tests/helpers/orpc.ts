@@ -32,7 +32,8 @@ export function client(cookie = ""): Api {
       headers: { origin, cookie },
       fetch: (request) => {
         sent.push(`${request.method} ${new URL(request.url).pathname}`);
-        const method = request.method as "GET" | "POST" | "PUT" | "DELETE";
+        const method = request.method as
+          "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
         return route[method](request);
       },
     }),

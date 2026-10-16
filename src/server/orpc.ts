@@ -12,6 +12,7 @@ const codes = {
   404: "NOT_FOUND",
   409: "CONFLICT",
   429: "TOO_MANY_REQUESTS",
+  502: "BAD_GATEWAY",
 } as const satisfies Record<UserFacingStatus, string>;
 
 // Procedures implement the shared contract (src/contract), which fixes

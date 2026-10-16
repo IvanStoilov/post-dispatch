@@ -129,6 +129,51 @@ export async function updateDraft(tx: Tx, id: string, values: DraftValues) {
   return post;
 }
 
+export async function lockById(tx: Tx, id: string) {
+  const [post] = await tx
+    .select()
+    .from(posts)
+    .where(eq(posts.id, id))
+    .for("update");
+  return post as PostRow | undefined;
+}
+
+// Publishing state (status, results, error) is written by the publishing
+// module through system.ts; content stays with the posts use cases.
+export async function setPublishingState(
+  tx: Tx,
+  id: string,
+  values: Partial<Pick<PostRow, "status" | "error" | "results">>,
+) {
+  const [post] = await tx
+    .update(posts)
+    .set({ ...values, updatedAt: sql`now()` })
+    .where(eq(posts.id, id))
+    .returning();
+  return post;
+}
+
+// Posts left publishing by the old synchronous flow, from before publish
+// jobs existed, need a person to check the networks.
+export async function markOrphanedPublishing(projectId?: string) {
+  await getDb()
+    .update(posts)
+    .set({
+      status: "needs_review",
+      error:
+        "An older publishing request was interrupted. Check the selected accounts before resubmitting.",
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        projectId ? eq(posts.projectId, projectId) : undefined,
+        eq(posts.status, "publishing"),
+        sql`${posts.updatedAt} < now() - interval '10 minutes'`,
+        sql`NOT EXISTS (SELECT 1 FROM publish_jobs WHERE publish_jobs.post_id = ${posts.id})`,
+      ),
+    );
+}
+
 export async function remove(tx: Tx, id: string) {
   await tx.delete(posts).where(eq(posts.id, id));
 }

@@ -3,7 +3,7 @@ import { logger } from "../src/lib/logger";
 import { loadEnvConfig } from "@next/env";
 import { setTimeout as delay } from "node:timers/promises";
 import { closeDb } from "../src/db";
-import { recoverPublishingJobs } from "../src/lib/publish-jobs";
+import { recoverPublishingJobs } from "../src/domain/publishing/system";
 import { recoverAccountMediaCleanup } from "../src/lib/account-deletion";
 import { queueDriver } from "../src/lib/queue";
 loadEnvConfig(process.cwd());

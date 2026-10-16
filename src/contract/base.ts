@@ -10,5 +10,6 @@ export const errorMap = {
   NOT_FOUND: { status: 404 },
   CONFLICT: { status: 409 },
   TOO_MANY_REQUESTS: { status: 429 },
+  BAD_GATEWAY: { status: 502 },
 };
 export const base = oc.errors(errorMap);

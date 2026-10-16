@@ -238,14 +238,14 @@ export default function PostsWorkspace({
           : "Publishing…",
         { id: `post-operation-${projectId}` },
       );
-      await request(`/api/posts/${p.id}/publish`, "POST");
+      await api.publishing.publish({ projectId, id: p.id });
       setConfirm(null);
       toast.success(
         "Publishing queued. You can close this page; progress will update automatically.",
         { id: `post-operation-${projectId}` },
       );
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Publishing failed";
+      const message = userMessage(e, "Publishing failed");
       setPublishError(message);
       toast.error(message, { id: `post-operation-${projectId}` });
     } finally {
@@ -256,12 +256,12 @@ export default function PostsWorkspace({
   async function retryPublication(id: string) {
     setBusy(true);
     try {
-      await request(`/api/posts/${id}/retry`, "POST");
+      await api.publishing.retry({ projectId, id });
       toast.success(
         "Retry queued for failed channels. Completed channels will be skipped.",
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Retry failed");
+      toast.error(userMessage(error, "Retry failed"));
     } finally {
       await refresh();
       setBusy(false);

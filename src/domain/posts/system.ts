@@ -14,6 +14,14 @@ export { validateAssetKinds } from "./rules";
 export { hydrate as hydratePosts } from "./repository";
 export type { PostRecord } from "./types";
 
+// Publishing state, written by the publishing module.
+export {
+  lockById as lockPostById,
+  lockInProject as lockPost,
+  markOrphanedPublishing,
+  setPublishingState,
+} from "./repository";
+
 type Draft = Omit<DraftFields, "assets"> & { assets?: AssetInput[] };
 const preauthorized: Authorize = async () => {};
 

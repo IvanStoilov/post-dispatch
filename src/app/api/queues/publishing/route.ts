@@ -1,5 +1,5 @@
 import { loggedRequest } from "@/lib/logger";
-import { publishingQueue } from "@/lib/publish-jobs";
+import { publishingQueue } from "@/domain/publishing/system";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 const callback = publishingQueue.handleCallback();

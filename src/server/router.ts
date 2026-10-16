@@ -1,11 +1,14 @@
 import { pub } from "./orpc";
 import { postsRouter } from "./routers/posts";
 import { projectsRouter } from "./routers/projects";
+import { publicationsRouter, publishingRouter } from "./routers/publishing";
 
 // Served as REST at /api/v1. router() checks every procedure against the
 // contract, so a missing or mismatched implementation is a type error.
 export const router = pub.router({
   projects: projectsRouter,
   posts: postsRouter,
+  publishing: publishingRouter,
+  publications: publicationsRouter,
 });
 export type Router = typeof router;
