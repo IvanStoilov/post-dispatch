@@ -17,23 +17,19 @@ import {
 } from "../src/db/schema";
 import { uploadsService } from "../src/domain/uploads";
 import { POST as uploadRoute } from "../src/app/api/mcp/uploads/route";
-import {
-  createPost as insertPost,
-  listPosts,
-  editPost,
-  deletePost,
-  claimPost,
-  getPostImage,
-  storedAssets,
-} from "../src/lib/store";
+import { claimPost, publishPost } from "./helpers/direct-publish";
+import type { Platform } from "../src/lib/types";
+import type { AssetInput } from "../src/shared/schemas/asset";
 import {
   createProject,
-  updateProject,
-  getProject,
-  listProjects,
-} from "../src/lib/projects";
-import { publishPost } from "./helpers/direct-publish";
-import type { Platform } from "../src/lib/types";
+  projectRecord,
+  createPost as insertPost,
+  editPost,
+  postRecord,
+  listPosts,
+  deletePost,
+} from "./helpers/fixtures";
+import { projectsService } from "../src/domain/projects";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -51,23 +47,23 @@ async function createPost(input: unknown) {
   return p;
 }
 const realFetch = globalThis.fetch;
+let jpegBase64 = "";
 const draft: {
   title: string;
   caption: string;
   platforms: Platform[];
-  imageFile: { dataBase64: string };
+  assets?: AssetInput[];
 } = {
   title: "Test post",
   caption: "Test caption",
   platforms: ["facebook", "instagram"],
-  imageFile: { dataBase64: "" },
 };
 test(
   "Postgres storage and publishing",
   { skip: !process.env.DATABASE_URL },
   async (t) => {
     try {
-      draft.imageFile.dataBase64 = (
+      jpegBase64 = (
         await sharp({
           create: {
             width: 320,
@@ -79,6 +75,7 @@ test(
           .jpeg()
           .toBuffer()
       ).toString("base64");
+      draft.assets = [{ type: "INLINE_BASE64", dataBase64: jpegBase64 }];
       await getDb()
         .insert(users)
         .values({
@@ -87,10 +84,10 @@ test(
           email: `${userId}@example.test`,
         });
       const first = await createProject(userId, { name: source });
-      projectId = first.project.id;
+      projectId = first.id;
       createdProjectIds.push(projectId);
       const second = await createProject(userId, { name: source + " B" });
-      createdProjectIds.push(second.project.id);
+      createdProjectIds.push(second.id);
       await t.test(
         "project credentials and tokens stay private and isolated",
         async () => {
@@ -118,17 +115,15 @@ test(
           );
           const p = await createPost({ ...draft, platforms: ["facebook"] });
           assert.ok(
-            !(await listPosts(second.project.id)).some(
-              (row) => row.id === p.id,
-            ),
+            !(await listPosts(second.id)).some((row) => row.id === p.id),
           );
-          await assert.rejects(() => editPost(second.project.id, p.id, draft));
-          await assert.rejects(() => deletePost(second.project.id, p.id));
+          await assert.rejects(() => editPost(second.id, p.id, draft));
+          await assert.rejects(() => deletePost(second.id, p.id));
           await assert.rejects(
-            () => publishPost(second.project.id, p.id),
+            () => publishPost(second.id, p.id),
             /Post not found/,
           );
-          const safe = (await listProjects(userId)).find(
+          const safe = (await projectsService.list({ userId })).find(
             (row) => row.id === projectId,
           )!;
           assert.ok(!("facebookPageToken" in safe));
@@ -140,7 +135,7 @@ test(
         "validates, saves, edits, and reloads posts from a new pool",
         async () => {
           await assert.rejects(
-            () => createPost({ ...draft, imageFile: undefined, imageUrl: "" }),
+            () => createPost({ ...draft, assets: undefined }),
             /Instagram requires/,
           );
           const p = await createPost({ ...draft, platforms: ["facebook"] });
@@ -208,7 +203,7 @@ test(
         // Assistants POST the bytes to uploadUrl, as in the token's example.
         const upload = async (
           authorization: string,
-          body = draft.imageFile.dataBase64,
+          body = jpegBase64,
           url = uploadUrl,
         ) => {
           const response = await uploadRoute(
@@ -229,11 +224,7 @@ test(
         );
         await assert.rejects(
           () =>
-            upload(
-              token,
-              undefined,
-              uploadUrl.replace(projectId, second.project.id),
-            ),
+            upload(token, undefined, uploadUrl.replace(projectId, second.id)),
           /401 Upload token is invalid, expired, or used up/,
         );
         await assert.rejects(
@@ -249,11 +240,12 @@ test(
         assert.notEqual(uploads[0].imageUploadId, uploads[1].imageUploadId);
         const fromUpload = {
           ...draft,
-          imageFile: undefined,
-          imageUploadId: uploads[0].imageUploadId,
+          assets: [
+            { type: "UPLOAD_ID" as const, uploadId: uploads[0].imageUploadId },
+          ],
         };
         await assert.rejects(
-          () => insertPost(second.project.id, { ...fromUpload, source }),
+          () => insertPost(second.id, { ...fromUpload, source }),
           /not found/,
         );
         const p = await createPost(fromUpload);
@@ -261,7 +253,7 @@ test(
         await assert.rejects(() => createPost(fromUpload), /already used/);
         await createPost({
           ...fromUpload,
-          imageUploadId: uploads[1].imageUploadId,
+          assets: [{ type: "UPLOAD_ID", uploadId: uploads[1].imageUploadId }],
         });
       });
       await t.test(
@@ -269,8 +261,8 @@ test(
         async () => {
           const p = await insertPost(
             projectId,
-            { ...draft, imageFile: undefined, source },
-            { allowMissingImage: true },
+            { ...draft, assets: undefined, source },
+            { allowMissingMedia: true },
           );
           createdIds.push(p.id);
           assert.equal(p.imageUrl, "");
@@ -292,16 +284,21 @@ test(
         );
         assert.ok(inserted.every((p) => persisted.has(p.id)));
       });
-      await updateProject(userId, projectId, {
-        name: source,
-        facebookPageId: "page",
-        facebookPageToken: "fake-token",
-        instagramAccountId: "instagram",
-        instagramAccessToken: "fake-token",
-      });
-      await updateProject(userId, projectId, { name: source });
+      await projectsService.update(
+        { userId },
+        {
+          id: projectId,
+          name: source,
+          facebookPageId: "page",
+          facebookPageToken: "fake-token",
+          instagramAccountId: "instagram",
+          instagramAccessToken: "fake-token",
+        },
+      );
+      // Omitted credentials keep their saved values.
+      await projectsService.update({ userId }, { id: projectId, name: source });
       assert.equal(
-        (await getProject(projectId)).facebookPageToken,
+        (await projectRecord(projectId)).facebookPageToken,
         "fake-token",
       );
       const calls: { url: string; body: Record<string, string> }[] = [];
@@ -422,9 +419,8 @@ test(
             .select()
             .from(posts)
             .where(inArray(posts.id, createdIds)))
-            for (const asset of storedAssets(
-              await getPostImage(row.projectId, row.id),
-            ))
+            for (const asset of (await postRecord(row.projectId, row.id))
+              .assets)
               await removeImage(asset);
           await getDb().delete(posts).where(inArray(posts.id, createdIds));
         }

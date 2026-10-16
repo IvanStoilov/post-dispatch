@@ -1,4 +1,4 @@
-import { requireProject } from "@/lib/workspace";
+import { requireProject } from "@/app/workspace";
 import ConnectionsPage from "@/app/connections-workspace";
 export default async function Page({
   params,

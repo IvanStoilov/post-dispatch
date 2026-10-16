@@ -349,7 +349,7 @@ export async function processPublishingJob(jobId: string) {
 
 // Reserving dispatch in the DB closes the commit/enqueue gap. If sending fails
 // or this process dies, recovery re-enqueues the row after its dispatch lease.
-export async function dispatchPublishingJob(jobId: string) {
+async function dispatchPublishingJob(jobId: string) {
   return loggedOperation(
     "domain.publishing.dispatchJob",
     { jobId },

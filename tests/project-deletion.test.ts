@@ -22,13 +22,12 @@ import {
 } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
 import { appOrigin } from "../src/lib/origins";
-import { createProject } from "../src/lib/projects";
-import { createPost } from "../src/lib/store";
 import { assistantsService } from "../src/domain/assistants";
 import { resolveProject } from "../src/server/mcp/context";
 import { startConnection } from "../src/server/connections";
-import { processPublishingJob } from "../src/lib/publish-jobs";
 import { client, rejectsWith } from "./helpers/orpc";
+import { createProject, createPost } from "./helpers/fixtures";
+import { publishingSystemService } from "../src/domain/publishing";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -103,8 +102,7 @@ test(
     try {
       const a = await fixture(),
         b = await fixture();
-      const keep = (await createProject(a.id, { name: "Keep this project" }))
-        .project;
+      const keep = await createProject(a.id, { name: "Keep this project" });
       projectIds.push(keep.id);
       const token = await assistantsService.rotateToken({ userId: a.id });
       // Cross-site requests are refused by the proxy for every API route
@@ -323,7 +321,7 @@ test(
             resolveProject({ userId: a.id }, a.project.id),
             /Project not found/,
           );
-          await processPublishingJob(job.id); // stale queue callbacks cannot resurrect deleted work
+          await publishingSystemService.processJob(job.id); // stale queue callbacks cannot resurrect deleted work
           for (const key of [
             "image.jpg",
             "unused.jpg",

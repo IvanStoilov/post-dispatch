@@ -15,7 +15,6 @@ import {
   oauthAccessTokens,
 } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
-import { listProjects, createProject } from "../src/lib/projects";
 import { handleMcpRequest } from "../src/server/mcp";
 import {
   protectedResourceMetadata,
@@ -25,6 +24,8 @@ import { client } from "./helpers/orpc";
 import { accountResource } from "../src/lib/oauth-provider";
 import { POST as consentRoute } from "../src/app/api/oauth/consent/route";
 import { GET as serverMetadata } from "../src/app/.well-known/oauth-authorization-server/api/auth/route";
+import { createProject } from "./helpers/fixtures";
+import { projectsService } from "../src/domain/projects";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -124,8 +125,8 @@ test(
         b = await signup();
       await createProject(a.user.id, { name: "OAuth primary" });
       await createProject(b.user.id, { name: "OAuth other" });
-      const project = (await listProjects(a.user.id))[0];
-      const other = (await listProjects(b.user.id))[0];
+      const project = (await projectsService.list({ userId: a.user.id }))[0];
+      const other = (await projectsService.list({ userId: b.user.id }))[0];
       const secondProject = await createProject(a.user.id, {
         name: "OAuth bearer test",
       });
@@ -275,13 +276,10 @@ test(
           const future = await createProject(a.user.id, {
             name: "Future OAuth project",
           });
-          const futureAccess = await mcp(
-            future.project.id,
-            issued.access_token,
-          );
+          const futureAccess = await mcp(future.id, issued.access_token);
           assert.equal(
             JSON.parse(futureAccess.data.result.content[0].text).id,
-            future.project.id,
+            future.id,
           );
           const foreign = await mcp(other.id, issued.access_token);
           assert.equal(foreign.data.result.isError, true);
@@ -289,17 +287,13 @@ test(
             foreign.data.result.content[0].text,
             /Project not found/,
           );
-          const second = await mcp(
-            secondProject.project.id,
-            issued.access_token,
-          );
+          const second = await mcp(secondProject.id, issued.access_token);
           assert.equal(
             JSON.parse(second.data.result.content[0].text).id,
-            secondProject.project.id,
+            secondProject.id,
           );
           assert.equal(
-            (await mcp(secondProject.project.id, bearer.mcpToken)).response
-              .status,
+            (await mcp(secondProject.id, bearer.mcpToken)).response.status,
             200,
           );
           assert.equal(
@@ -423,8 +417,7 @@ test(
             400,
           );
           assert.equal(
-            (await mcp(secondProject.project.id, bearer.mcpToken)).response
-              .status,
+            (await mcp(secondProject.id, bearer.mcpToken)).response.status,
             200,
           );
         },

@@ -2,7 +2,6 @@ import { acceptedSignup } from "./helpers/terms";
 import sharp from "sharp";
 import { GET as previewImage } from "../src/app/api/posts/[id]/image/route";
 import { removeImage, getAssetUrl } from "../src/lib/storage";
-import { getPostImage, storedAssets } from "../src/lib/store";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -16,6 +15,7 @@ import { handleMcpRequest } from "../src/server/mcp";
 import { serveRemoteFiles } from "./helpers/remote-files";
 import { storageRequest } from "./helpers/storage";
 import { client, rejectsWith } from "./helpers/orpc";
+import { postRecord } from "./helpers/fixtures";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -334,7 +334,7 @@ test(
             ).status,
             404,
           );
-          const row = await getPostImage(extra.id, post.id);
+          const row = await postRecord(extra.id, post.id);
           assert.ok(row.imageKey && row.imageBucket);
           const signed = await getAssetUrl({
             storageProvider: row.storageProvider!,
@@ -364,7 +364,7 @@ test(
             assets: [{ type: "EXTERNAL_URL", url: external }],
           });
           assert.notEqual(
-            (await getPostImage(extra.id, imported.id)).imageKey,
+            (await postRecord(extra.id, imported.id)).imageKey,
             row.imageKey,
           );
           assert.equal(
@@ -440,7 +440,7 @@ test(
             platforms: ["instagram"],
           });
           assert.equal(
-            (await getPostImage(extra.id, post.id)).imageKey,
+            (await postRecord(extra.id, post.id)).imageKey,
             row.imageKey,
           );
           await client(a.cookie).posts.delete({
@@ -514,9 +514,8 @@ test(
                   owned.map((p) => p.id),
                 ),
               ))
-              for (const asset of storedAssets(
-                await getPostImage(row.projectId, row.id),
-              ))
+              for (const asset of (await postRecord(row.projectId, row.id))
+                .assets)
                 await removeImage(asset);
           }
           if (owned.length)

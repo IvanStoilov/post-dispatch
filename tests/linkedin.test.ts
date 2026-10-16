@@ -8,14 +8,6 @@ import { getDb, closeDb } from "../src/db";
 import { projects, users, verifications } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
 import {
-  createProject,
-  getProject,
-  listProjects,
-  saveConnector,
-  disconnectConnector,
-  isConnected,
-} from "../src/lib/projects";
-import {
   callbackConnection,
   listAccounts,
   selectAccount,
@@ -27,9 +19,15 @@ import {
   linkedinAccounts,
 } from "../src/lib/connectors/linkedin";
 import { mcpDraftSchema, filesDraftSchema } from "../src/server/mcp/schemas";
-import { createPost, deletePost } from "../src/lib/store";
 import { publishPost } from "./helpers/direct-publish";
 import type { Post } from "../src/lib/types";
+import {
+  createProject,
+  projectRecord,
+  createPost,
+  deletePost,
+} from "./helpers/fixtures";
+import { projectsService, projectsSystemService } from "../src/domain/projects";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -165,18 +163,18 @@ test(
         });
       const first = await createProject(userId, { name: "LinkedIn test" });
       const second = await createProject(otherId, { name: "Other project" });
-      projectIds.push(first.project.id, second.project.id);
+      projectIds.push(first.id, second.id);
       await assert.rejects(() =>
         startConnection(
           request("/api/connectors/linkedin/start", sessionCookie, {
-            projectId: second.project.id,
+            projectId: second.id,
           }),
           "linkedin",
         ),
       );
       const begin = await startConnection(
         request("/api/connectors/linkedin/start", sessionCookie, {
-          projectId: first.project.id,
+          projectId: first.id,
         }),
         "linkedin",
       );
@@ -256,7 +254,7 @@ test(
       assert.ok(
         callback.headers
           .get("location")
-          ?.endsWith(`/projects/${first.project.id}/connections/linkedin`),
+          ?.endsWith(`/projects/${first.id}/connections/linkedin`),
       );
       await assert.rejects(
         () => callbackConnection(request(callbackPath, flowCookie), "linkedin"),
@@ -298,32 +296,32 @@ test(
           ),
         /expired/,
       );
-      let project = await getProject(first.project.id);
+      let project = await projectRecord(first.id);
       const connection = project.connections.find(
         (c) => c.provider === "linkedin",
       )!;
-      assert.ok(isConnected(connection));
+      assert.ok(projectsSystemService.isConnected(connection));
       assert.equal(connection.accountId, "urn:li:organization:123");
       assert.ok(
-        !JSON.stringify(await listProjects(userId)).includes(
+        !JSON.stringify(await projectsService.list({ userId })).includes(
           "private-linkedin-token",
         ),
       );
       await assert.rejects(() =>
-        disconnectConnector(otherId, first.project.id, "linkedin"),
+        projectsService.disconnectChannel(
+          { userId: otherId },
+          { id: first.id, provider: "linkedin" },
+        ),
       );
-      const draft = await createPost(first.project.id, {
+      const draft = await createPost(first.id, {
         title: "LinkedIn draft",
         caption: "Hello LinkedIn",
         platforms: ["linkedin"],
       });
       postId = draft.id;
-      await publishPost(first.project.id, draft.id);
+      await publishPost(first.id, draft.id);
       assert.equal(posts, 1);
-      await assert.rejects(
-        () => publishPost(first.project.id, draft.id),
-        /already/,
-      );
+      await assert.rejects(() => publishPost(first.id, draft.id), /already/);
       const post: Post = { ...draft, caption: "Personal profile test" };
       await publishLinkedIn({
         connection: { ...connection, accountId: "urn:li:person:member123" },
@@ -333,16 +331,19 @@ test(
         signal: AbortSignal.timeout(10000),
       });
       assert.equal(posts, 2);
-      await saveConnector(userId, first.project.id, {
+      await projectsSystemService.saveConnector(userId, first.id, {
         provider: "linkedin",
         accountId: connection.accountId,
         accessToken: "expired",
         expiresAt: new Date(Date.now() - 1000),
       });
-      project = await getProject(first.project.id);
-      assert.ok(!isConnected(project.connections[0]));
-      await disconnectConnector(userId, first.project.id, "linkedin");
-      assert.equal((await getProject(first.project.id)).connections.length, 0);
+      project = await projectRecord(first.id);
+      assert.ok(!projectsSystemService.isConnected(project.connections[0]));
+      await projectsService.disconnectChannel(
+        { userId },
+        { id: first.id, provider: "linkedin" },
+      );
+      assert.equal((await projectRecord(first.id)).connections.length, 0);
     } finally {
       globalThis.fetch = original;
       for (const k of envKeys) {

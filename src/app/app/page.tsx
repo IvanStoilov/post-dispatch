@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { appPageUrl } from "@/lib/origins";
 import { projectPath } from "@/lib/route-paths";
 import { cookies } from "next/headers";
-import { workspaceSession } from "@/lib/workspace";
+import { workspaceSession } from "@/app/workspace";
 import { projectsService } from "@/domain/projects";
 import { ProjectEntry } from "@/components/project-entry";
 export default async function Home() {

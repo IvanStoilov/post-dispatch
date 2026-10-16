@@ -1,5 +1,5 @@
 import { SiteShell } from "@/components/public/site-shell";
-import { getSession } from "@/lib/workspace";
+import { getSession } from "@/app/workspace";
 
 export default async function PublicLayout({
   children,

@@ -1,8 +1,8 @@
 import { headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { z } from "zod";
-import { getAuth } from "./auth";
-import { appPageUrl } from "./origins";
+import { getAuth } from "@/lib/auth";
+import { appPageUrl } from "@/lib/origins";
 import { projectsService } from "@/domain/projects";
 import { UserFacingError } from "@/domain/shared/errors";
 

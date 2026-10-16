@@ -13,14 +13,7 @@ import {
   postPublications,
   projectConnectors,
 } from "../src/db/schema";
-import { createProject } from "../src/lib/projects";
-import { createPost, deletePost, getPostImage } from "../src/lib/store";
-import {
-  enqueuePublication,
-  processPublishingJob,
-} from "../src/lib/publish-jobs";
 import { connectors } from "../src/lib/connectors/registry";
-import { listPublications, managePublication } from "../src/lib/publications";
 import {
   publicationCapabilities,
   safePublicationLink,
@@ -32,6 +25,17 @@ import {
 } from "../src/lib/connectors/publication-adapters";
 import { publishMeta } from "../src/lib/connectors/meta";
 import { client, rejectsWith } from "./helpers/orpc";
+import {
+  createProject,
+  createPost,
+  postRecord,
+  deletePost,
+  ownerOf,
+} from "./helpers/fixtures";
+import {
+  publishingService,
+  publishingSystemService,
+} from "../src/domain/publishing";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -60,7 +64,7 @@ test(
           email: `${userId}@example.test`,
         });
       projectId = (await createProject(userId, { name: "Publication test" }))
-        .project.id;
+        .id;
       await getDb()
         .insert(projectConnectors)
         .values([
@@ -84,20 +88,35 @@ test(
       });
       connectors.facebook.publish = async () => "fb-remote-id";
       connectors.linkedin.publish = async () => "urn:li:share:1234";
-      const queued = await enqueuePublication(projectId, post.id, userId);
-      for (const id of queued.jobIds) await processPublishingJob(id);
-      let copies = await listPublications(projectId, post.id);
+      const queued = await publishingSystemService.enqueue(
+        { userId },
+        { projectId, id: post.id },
+      );
+      for (const id of queued.jobIds)
+        await publishingSystemService.processJob(id);
+      let copies = await publishingService.listPublications(
+        await ownerOf(projectId),
+        { projectId: projectId, postId: post.id },
+      );
       assert.equal(copies.length, 2);
       assert.equal(
         copies.find((p) => p.platform === "facebook")?.accountId,
         "original-page",
       );
       assert.equal(
-        (await getPostImage(projectId, post.id)).publications?.length,
+        (await postRecord(projectId, post.id)).publications?.length,
         2,
       );
-      for (const id of queued.jobIds) await processPublishingJob(id);
-      assert.equal((await listPublications(projectId)).length, 2);
+      for (const id of queued.jobIds)
+        await publishingSystemService.processJob(id);
+      assert.equal(
+        (
+          await publishingService.listPublications(await ownerOf(projectId), {
+            projectId: projectId,
+          })
+        ).length,
+        2,
+      );
       const publication = copies.find((p) => p.platform === "facebook")!;
       let deletes = 0;
       connectors.facebook.publications = {
@@ -109,7 +128,10 @@ test(
         },
       };
       await assert.rejects(
-        managePublication(randomUUID(), publication.id, "delete"),
+        publishingService.deletePublication(await ownerOf(randomUUID()), {
+          projectId: randomUUID(),
+          id: publication.id,
+        }),
         /not found/,
       );
       assert.equal(deletes, 0);
@@ -123,7 +145,10 @@ test(
           ),
         );
       await assert.rejects(
-        managePublication(projectId, publication.id, "delete"),
+        publishingService.deletePublication(await ownerOf(projectId), {
+          projectId: projectId,
+          id: publication.id,
+        }),
         /original publishing account/,
       );
       assert.equal(deletes, 0);
@@ -136,13 +161,20 @@ test(
             eq(projectConnectors.provider, "facebook"),
           ),
         );
-      await managePublication(projectId, publication.id, "edit", "Edited copy");
+      await publishingService.editPublication(await ownerOf(projectId), {
+        projectId: projectId,
+        id: publication.id,
+        caption: "Edited copy",
+      });
       assert.equal(
-        (await getPostImage(projectId, post.id)).caption,
+        (await postRecord(projectId, post.id)).caption,
         "Approved caption",
       );
       await deletePost(projectId, post.id);
-      copies = await listPublications(projectId);
+      copies = await publishingService.listPublications(
+        await ownerOf(projectId),
+        { projectId: projectId },
+      );
       assert.equal(copies.length, 2);
       assert.ok(copies.every((p) => p.postId === null));
       assert.equal(
@@ -153,23 +185,37 @@ test(
         throw new Error("Network timeout");
       };
       await assert.rejects(
-        managePublication(projectId, publication.id, "delete"),
+        publishingService.deletePublication(await ownerOf(projectId), {
+          projectId: projectId,
+          id: publication.id,
+        }),
       );
       assert.equal(
-        (await listPublications(projectId)).find((p) => p.id === publication.id)
-          ?.status,
+        (
+          await publishingService.listPublications(await ownerOf(projectId), {
+            projectId: projectId,
+          })
+        ).find((p) => p.id === publication.id)?.status,
         "published",
       );
       connectors.facebook.publications.delete = async () => {
         deletes++;
       };
-      await managePublication(projectId, publication.id, "delete");
-      await managePublication(projectId, publication.id, "delete");
+      await publishingService.deletePublication(await ownerOf(projectId), {
+        projectId: projectId,
+        id: publication.id,
+      });
+      await publishingService.deletePublication(await ownerOf(projectId), {
+        projectId: projectId,
+        id: publication.id,
+      });
       assert.equal(deletes, 1);
       assert.equal(
-        (await listPublications(projectId)).find(
-          (p) => p.platform === "linkedin",
-        )?.status,
+        (
+          await publishingService.listPublications(await ownerOf(projectId), {
+            projectId: projectId,
+          })
+        ).find((p) => p.platform === "linkedin")?.status,
         "published",
       );
       const legacy = await createPost(projectId, {
@@ -221,15 +267,24 @@ test(
         );
       await getDb().execute(sql.raw(backfill));
       await getDb().execute(sql.raw(backfill));
-      const knownCopies = await listPublications(projectId, known.id);
+      const knownCopies = await publishingService.listPublications(
+        await ownerOf(projectId),
+        { projectId: projectId, postId: known.id },
+      );
       assert.equal(knownCopies.length, 1);
       assert.equal(knownCopies[0].accountId, "historical-page");
       assert.equal(knownCopies[0].caption, "Originally approved");
-      const legacyCopies = await listPublications(projectId, legacy.id);
+      const legacyCopies = await publishingService.listPublications(
+        await ownerOf(projectId),
+        { projectId: projectId, postId: legacy.id },
+      );
       assert.equal(legacyCopies.length, 1);
       assert.equal(legacyCopies[0].accountId, null);
       await assert.rejects(
-        managePublication(projectId, legacyCopies[0].id, "delete"),
+        publishingService.deletePublication(await ownerOf(projectId), {
+          projectId: projectId,
+          id: legacyCopies[0].id,
+        }),
         /not supported/,
       );
       await rejectsWith(

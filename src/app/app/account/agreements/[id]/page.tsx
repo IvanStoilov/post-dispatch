@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { workspaceSession } from "@/lib/workspace";
+import { workspaceSession } from "@/app/workspace";
 import { termsService } from "@/domain/terms";
 import { UserFacingError } from "@/domain/shared/errors";
 import { TermsDocument } from "@/components/terms-document";

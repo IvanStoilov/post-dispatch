@@ -16,27 +16,26 @@ import {
   directUploads,
 } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
-import { createProject, updateProject } from "../src/lib/projects";
-import {
-  createPost,
-  editPost,
-  deletePost,
-  getPostImage,
-  storedAssets,
-  listPosts,
-} from "../src/lib/store";
 import { uploadsService } from "../src/domain/uploads";
 import { uploadFileFields } from "../src/shared/schemas/upload";
 import { client, rejectsWith } from "./helpers/orpc";
 import { removeImage, readImage, isMp4 } from "../src/lib/storage";
 import { mcpDraftSchema, filesDraftSchema } from "../src/server/mcp/schemas";
-import { validateAssetKinds } from "../src/lib/asset-inputs";
 import { serveRemoteFiles } from "./helpers/remote-files";
 import { storageRequest } from "./helpers/storage";
 import { assistantsService } from "../src/domain/assistants";
 import { handleMcpRequest } from "../src/server/mcp";
 import { publishPost } from "./helpers/direct-publish";
 import { GET as previewAsset } from "../src/app/api/posts/[id]/assets/[assetId]/route";
+import {
+  createProject,
+  createPost,
+  editPost,
+  postRecord,
+  listPosts,
+  deletePost,
+} from "./helpers/fixtures";
+import { projectsService } from "../src/domain/projects";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -90,10 +89,6 @@ test("asset schemas support ordered sources and enforce media limits", async () 
       ],
     }).success,
   );
-  assert.throws(
-    () => validateAssetKinds([{ kind: "IMAGE" }, { kind: "VIDEO" }]),
-    /single video/,
-  );
   assert.equal(
     uploadFileFields.safeParse({ mimeType: "video/mp4", fileSize: 100000001 })
       .success,
@@ -146,7 +141,7 @@ test(
       .join("; ");
     const first = await createProject(userId, { name: "Media test" });
     const second = await createProject(userId, { name: "Isolation test" });
-    const projectId = first.project.id;
+    const projectId = first.id;
     async function insert(input: unknown) {
       const post = await createPost(projectId, input);
       ids.push(post.id);
@@ -184,7 +179,7 @@ test(
         body: body ? JSON.stringify(body) : undefined,
       });
     }
-    const bearer = await assistantsService.rotateToken({ userId: userId });
+    const bearer = await assistantsService.rotateToken({ userId });
     async function mcp(name: string, args: unknown) {
       const response = await handleMcpRequest(
         new Request(origin + "/api/mcp", {
@@ -245,7 +240,7 @@ test(
               (
                 await previewAsset(
                   api(
-                    `/api/posts/${album.id}/assets/${asset.id}?projectId=${second.project.id}`,
+                    `/api/posts/${album.id}/assets/${asset.id}?projectId=${second.id}`,
                   ),
                   ctx,
                 )
@@ -312,9 +307,7 @@ test(
       await t.test(
         "editor reorders, removes, and appends assets without losing originals",
         async () => {
-          const original = storedAssets(
-            await getPostImage(projectId, album.id),
-          );
+          const original = (await postRecord(projectId, album.id)).assets;
           const originalRows = await getDb()
             .select()
             .from(postAssets)
@@ -343,9 +336,9 @@ test(
               asset.createdAt,
             );
           await assert.rejects(() => readImage(original[1]));
-          const before = storedAssets(await getPostImage(projectId, album.id));
+          const before = (await postRecord(projectId, album.id)).assets;
           await assert.rejects(() =>
-            editPost(second.project.id, album.id, {
+            editPost(second.id, album.id, {
               ...draft,
               assets: [{ type: "EXISTING", assetId: before[0].id }],
             }),
@@ -362,7 +355,7 @@ test(
             /only once/,
           );
           assert.deepEqual(
-            storedAssets(await getPostImage(projectId, album.id)),
+            (await postRecord(projectId, album.id)).assets,
             before,
           );
         },
@@ -400,7 +393,7 @@ test(
           await assert.rejects(
             () =>
               uploadsService.completeWithToken({
-                projectId: second.project.id,
+                projectId: second.id,
                 uploadId: start.uploadId,
                 completionToken: start.completionToken,
               }),
@@ -409,7 +402,7 @@ test(
           await assert.rejects(
             () =>
               uploadsService.completeWithToken({
-                projectId: projectId,
+                projectId,
                 uploadId: start.uploadId,
                 completionToken: "wrong",
               }),
@@ -423,7 +416,7 @@ test(
           await assert.rejects(
             () =>
               uploadsService.completeWithToken({
-                projectId: projectId,
+                projectId,
                 uploadId: start.uploadId,
                 completionToken: start.completionToken,
               }),
@@ -431,7 +424,7 @@ test(
           );
           await assert.rejects(
             () =>
-              createPost(second.project.id, {
+              createPost(second.id, {
                 ...draft,
                 assets: [{ type: "UPLOAD_ID", uploadId: ready.assetUploadId }],
               }),
@@ -474,9 +467,7 @@ test(
             ).status,
             404,
           );
-          const [asset] = storedAssets(
-            await getPostImage(projectId, videoPost.id),
-          );
+          const [asset] = (await postRecord(projectId, videoPost.id)).assets;
           assert.ok(Buffer.from(await readImage(asset)).equals(video));
           const pending = await uploadsService.start(
             { userId },
@@ -494,7 +485,7 @@ test(
           await assert.rejects(
             () =>
               uploadsService.completeWithToken({
-                projectId: projectId,
+                projectId,
                 uploadId: pending.uploadId,
                 completionToken: pending.completionToken,
               }),
@@ -551,9 +542,7 @@ test(
             definition.inputSchema.properties.assets.items.required.sort(),
             ["download_url", "file_id"],
           );
-          const original = storedAssets(
-            await getPostImage(projectId, album.id),
-          );
+          const original = (await postRecord(projectId, album.id)).assets;
           // ChatGPT hands over public download URLs; serve the stored bytes
           // from a fake public host so the real downloader runs.
           const remote = serveRemoteFiles();
@@ -574,9 +563,7 @@ test(
           });
           ids.push(imported.id);
           assert.equal(imported.assets.length, 2);
-          const clip = storedAssets(
-            await getPostImage(projectId, videoPost.id),
-          )[0];
+          const clip = (await postRecord(projectId, videoPost.id)).assets[0];
           const videoImport = await mcp("create_draft_from_files", {
             ...draft,
             assets: [
@@ -596,20 +583,25 @@ test(
           assert.equal(videoImport.assets[0].kind, "VIDEO");
           assert.ok(!JSON.stringify(videoImport).includes("file_video"));
           assert.notEqual(
-            storedAssets(await getPostImage(projectId, videoImport.id))[0]
-              .imageKey,
+            (await postRecord(projectId, videoImport.id)).assets[0].imageKey,
             clip.imageKey,
           );
         },
       );
-      await updateProject(userId, projectId, {
-        name: "Media test",
-        facebookPageId: "fake-page",
-        facebookPageToken: "fake-token",
-        instagramAccountId: "fake-ig",
-        instagramAccessToken: "fake-token",
-        instagramApiHost: "graph.instagram.com",
-      });
+      await projectsService.update(
+        { userId },
+        {
+          ...{
+            name: "Media test",
+            facebookPageId: "fake-page",
+            facebookPageToken: "fake-token",
+            instagramAccountId: "fake-ig",
+            instagramAccessToken: "fake-token",
+            instagramApiHost: "graph.instagram.com",
+          },
+          id: projectId,
+        },
+      );
       const calls: {
         url: string;
         method: string;
@@ -704,7 +696,7 @@ test(
           });
           const ready = await uploadsService.complete(
             { userId },
-            { projectId: projectId, uploadId: start.uploadId },
+            { projectId, uploadId: start.uploadId },
           );
           const rejected = await insert({
             ...draft,
@@ -730,7 +722,7 @@ test(
         },
       );
       await t.test("deletion removes every private object", async () => {
-        const media = storedAssets(await getPostImage(projectId, album.id));
+        const media = (await postRecord(projectId, album.id)).assets;
         await deletePost(projectId, album.id);
         assert.equal(
           (
@@ -754,9 +746,7 @@ test(
         .select()
         .from(posts)
         .where(inArray(posts.projectId, projectIds)))
-        for (const asset of storedAssets(
-          await getPostImage(row.projectId, row.id),
-        ))
+        for (const asset of (await postRecord(row.projectId, row.id)).assets)
           await removeImage(asset);
       for (const row of await getDb()
         .select()

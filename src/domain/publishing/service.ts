@@ -21,13 +21,11 @@ import type { Actor } from "../shared/actor";
 import type { Tx } from "../shared/db";
 import { UserFacingError } from "../shared/errors";
 import {
-  dispatchPublishingJob,
   processPublishingJob,
   publishingQueue,
   recoverPublishingJobs,
   scheduleDispatch,
 } from "./jobs";
-import { toPublicationDto } from "./mappers";
 import { listForProject, manage } from "./publications";
 import * as repository from "./repository";
 
@@ -120,15 +118,16 @@ async function enqueue(
   });
 }
 
-// Requeues a post's failed networks. Uncertain submissions need a person
-// to check the account first, so they are never retried automatically.
-async function retryFailed(
-  projectId: string,
-  postId: string,
-  authorize: (tx: Tx) => Promise<void>,
+// Requeues a post's failed networks for the user. Uncertain submissions
+// need a person to check the account first, so they are never retried
+// automatically. Callers dispatch the returned jobs.
+async function requeueFailed(
+  actor: Actor,
+  { projectId, id: postId }: { projectId: string; id: string },
 ) {
   return getDb().transaction(async (tx) => {
-    await authorize(tx);
+    if (!(await projects.lockOwned(tx, actor.userId, projectId)))
+      throw new UserFacingError("Project not found", 404);
     const post = await posts.lockPost(tx, projectId, postId);
     if (!post || post.status !== "needs_review")
       throw new UserFacingError("No failed publication to retry", 409);
@@ -176,10 +175,7 @@ async function retry(
     "domain.publishing.retry",
     { ...actor, projectId, postId: id },
     async () => {
-      const jobIds = await retryFailed(projectId, id, async (tx) => {
-        if (!(await projects.lockOwned(tx, actor.userId, projectId)))
-          throw projectNotFound();
-      });
+      const jobIds = await requeueFailed(actor, { projectId, id });
       await scheduleDispatch(jobIds);
     },
   );
@@ -217,25 +213,7 @@ async function deletePublication(
   return manage(projectId, id, { type: "delete" });
 }
 
-// System operations, for callers that already authorized the project
-// (legacy routes and tests, until they migrate).
-
-function retryFailedForProject(projectId: string, postId: string) {
-  return retryFailed(projectId, postId, async () => {});
-}
-
-function manageForProject(
-  projectId: string,
-  id: string,
-  action: "refresh" | "edit" | "delete",
-  caption?: string,
-) {
-  return manage(
-    projectId,
-    id,
-    action === "edit" ? { type: "edit", caption: caption! } : { type: action },
-  );
-}
+// System operations.
 
 // Deletes the projects' jobs in the caller's transaction (project and
 // account deletion). Refuses while a network may be receiving a post:
@@ -272,18 +250,14 @@ export const publishingService = {
 };
 
 // For workers (queue consumer, recovery cron, local worker) and other
-// domain modules only: these skip user authorization. Lint forbids them in
-// routers and UI.
+// domain modules only. Lint forbids them in routers and UI.
 export const publishingSystemService = {
   queue: publishingQueue,
   processJob: processPublishingJob,
-  dispatchJob: dispatchPublishingJob,
   recoverJobs: recoverPublishingJobs,
-  // Queues the post without dispatching; the caller dispatches the jobs.
+  // publish and retry without delivering the jobs, authorized for the user
+  // like them. Delivery is left to the worker, or to tests driving it.
   enqueue,
-  retryFailed: retryFailedForProject,
-  listForProject,
-  manageForProject,
+  requeueFailed,
   deleteJobsInProjects,
-  toPublicationDto,
 };

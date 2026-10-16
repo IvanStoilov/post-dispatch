@@ -11,13 +11,8 @@ import {
 } from "../src/lib/credential-encryption";
 import { getDb, closeDb } from "../src/db";
 import { users, projects } from "../src/db/schema";
-import {
-  createProject,
-  getProject,
-  updateProject,
-  saveConnector,
-  listProjects,
-} from "../src/lib/projects";
+import { createProject, projectRecord } from "./helpers/fixtures";
+import { projectsService, projectsSystemService } from "../src/domain/projects";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -124,12 +119,12 @@ test(
           name: "Credential test",
           email: `${userId}@example.test`,
         });
-      const { project } = await createProject(userId, {
+      const project = await createProject(userId, {
         name: "Credential encryption test",
         facebookPageId: "page",
         facebookPageToken: "private-facebook",
       });
-      await saveConnector(userId, project.id, {
+      await projectsSystemService.saveConnector(userId, project.id, {
         provider: "linkedin",
         accountId: "urn:li:person:test",
         accessToken: "private-linkedin",
@@ -145,42 +140,54 @@ test(
         if (row.refresh_token)
           assert.ok(row.refresh_token.startsWith(CREDENTIAL_PREFIX));
       }
-      const hydrated = await getProject(project.id);
+      const hydrated = await projectRecord(project.id);
       assert.equal(hydrated.facebookPageToken, "private-facebook");
       assert.equal(
         hydrated.connections.find((c) => c.provider === "linkedin")
           ?.refreshToken,
         "private-refresh",
       );
-      await updateProject(userId, project.id, {
-        name: "Updated",
-        facebookPageId: "page-updated",
-      });
+      await projectsService.update(
+        { userId },
+        {
+          ...{
+            name: "Updated",
+            facebookPageId: "page-updated",
+          },
+          id: project.id,
+        },
+      );
       assert.equal(
-        (await getProject(project.id)).facebookPageToken,
+        (await projectRecord(project.id)).facebookPageToken,
         "private-facebook",
       );
-      await updateProject(userId, project.id, {
-        name: "Updated",
-        facebookPageToken: "replacement",
-      });
+      await projectsService.update(
+        { userId },
+        {
+          ...{
+            name: "Updated",
+            facebookPageToken: "replacement",
+          },
+          id: project.id,
+        },
+      );
       assert.equal(
-        (await getProject(project.id)).facebookPageToken,
+        (await projectRecord(project.id)).facebookPageToken,
         "replacement",
       );
-      await saveConnector(userId, project.id, {
+      await projectsSystemService.saveConnector(userId, project.id, {
         provider: "linkedin",
         accountId: "urn:li:person:test",
         accessToken: "new-linkedin",
         refreshToken: null,
       });
       assert.equal(
-        (await getProject(project.id)).connections.find(
+        (await projectRecord(project.id)).connections.find(
           (c) => c.provider === "linkedin",
         )?.refreshToken,
         null,
       );
-      const publicData = JSON.stringify(await listProjects(userId));
+      const publicData = JSON.stringify(await projectsService.list({ userId }));
       assert.ok(!/private|replacement|new-linkedin|pdcred:/.test(publicData));
       await assert.rejects(
         pool.query(

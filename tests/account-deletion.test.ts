@@ -22,10 +22,10 @@ import {
 } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
 import { appOrigin } from "../src/lib/origins";
-import { createPost } from "../src/lib/store";
 import { recoverMediaCleanup } from "../src/lib/media-cleanup";
 import { breakStorage, isStored, storeFile } from "./helpers/storage";
 import { DELETE } from "../src/app/api/account/route";
+import { createPost } from "./helpers/fixtures";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;

@@ -1,26 +1,90 @@
-// Connector integration test helper. Application publishing uses publish-jobs.
-import {
-  claimPost,
-  saveDelivery,
-  finishPublication,
-  getPostImage,
-  storedAssets,
-} from "../../src/lib/store";
-import { getProject, isConnected } from "../../src/lib/projects";
-import { getAssetUrl } from "../../src/lib/storage";
-import { withLogContext } from "../../src/lib/logger";
+// Connector integration test helper: publishes a post synchronously, one
+// network after another, so tests can drive connector adapters directly.
+// The application publishes through jobs (src/domain/publishing).
+import { and, eq, sql } from "drizzle-orm";
+import { getDb } from "../../src/db";
+import { posts } from "../../src/db/schema";
+import { postsSystemService } from "../../src/domain/posts";
+import { projectsSystemService } from "../../src/domain/projects";
 import { connectors } from "../../src/lib/connectors/registry";
+import { withLogContext } from "../../src/lib/logger";
+import { getAssetUrl } from "../../src/lib/storage";
+import type { Platform } from "../../src/lib/types";
+import { postRecord, projectRecord } from "./fixtures";
+
+// Moves a draft to publishing if every network is connected.
+export async function claimPost(
+  projectId: string,
+  id: string,
+  connected: Partial<Record<Platform, boolean>>,
+) {
+  return getDb().transaction(async (tx) => {
+    const [post] = await tx
+      .select()
+      .from(posts)
+      .where(and(eq(posts.projectId, projectId), eq(posts.id, id)))
+      .for("update");
+    if (!post) throw new Error("Post not found");
+    if (post.status !== "draft")
+      throw new Error(
+        "This post has already been submitted. Check its publishing status.",
+      );
+    for (const platform of post.platforms)
+      if (!connected[platform])
+        throw new Error(`Connect ${platform} before publishing`);
+    const [media] = await postsSystemService.hydrate([post], tx);
+    if (
+      post.platforms.includes("instagram") &&
+      !media.assets.length &&
+      !post.imageUrl.startsWith("https://")
+    )
+      throw new Error("Add an image or video before publishing to Instagram");
+    const [claimed] = await tx
+      .update(posts)
+      .set({ status: "publishing", error: null, updatedAt: sql`now()` })
+      .where(eq(posts.id, id))
+      .returning();
+    return postsSystemService.toPostDto({ ...media, ...claimed });
+  });
+}
+
+async function saveDelivery(id: string, platform: Platform, remoteId: string) {
+  await getDb()
+    .update(posts)
+    .set({
+      results: sql`${posts.results} || ${JSON.stringify({ [platform]: remoteId })}::jsonb`,
+      updatedAt: sql`now()`,
+    })
+    .where(and(eq(posts.id, id), eq(posts.status, "publishing")));
+}
+
+async function finish(
+  projectId: string,
+  id: string,
+  status: "published" | "needs_review",
+  error?: string,
+) {
+  await getDb()
+    .update(posts)
+    .set({ status, error: error ?? null, updatedAt: sql`now()` })
+    .where(and(eq(posts.id, id), eq(posts.status, "publishing")));
+  return postsSystemService.toPostDto(await postRecord(projectId, id));
+}
+
 export async function publishPost(projectId: string, id: string) {
   return withLogContext({ projectId, postId: id }, async () => {
-    const project = await getProject(projectId);
+    const project = await projectRecord(projectId);
     const connected = Object.fromEntries(
-      project.connections.map((c) => [c.provider, isConnected(c)]),
+      project.connections.map((c) => [
+        c.provider,
+        projectsSystemService.isConnected(c),
+      ]),
     );
     const post = await claimPost(projectId, id, connected);
     const signal = AbortSignal.timeout(240000);
     try {
-      const media = await getPostImage(projectId, id);
-      const assets = storedAssets(media);
+      const media = await postRecord(projectId, id);
+      const assets = media.assets;
       const urls: string[] = [];
       for (const asset of assets) urls.push(await getAssetUrl(asset));
       if (!urls.length && media.imageUrl) urls.push(media.imageUrl);
@@ -50,9 +114,10 @@ export async function publishPost(projectId: string, id: string) {
         });
         await saveDelivery(id, target, remoteId);
       }
-      return finishPublication(id, "published");
+      return finish(projectId, id, "published");
     } catch (error) {
-      await finishPublication(
+      await finish(
+        projectId,
         id,
         "needs_review",
         `Publishing stopped. Check the selected networks before resubmitting to avoid duplicates. ${error instanceof Error ? error.message : "Unknown error"}`,

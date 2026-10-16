@@ -1,4 +1,4 @@
-import { workspaceSession } from "@/lib/workspace";
+import { workspaceSession } from "@/app/workspace";
 import { UserAccount } from "@/components/user-account";
 import { termsService } from "@/domain/terms";
 export default async function AccountPage() {

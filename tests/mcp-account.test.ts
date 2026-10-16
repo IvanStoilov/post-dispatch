@@ -6,11 +6,11 @@ import { loadEnvConfig } from "@next/env";
 import { eq, inArray } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
 import { users, projects, posts, uploadTokens } from "../src/db/schema";
-import { createProject } from "../src/lib/projects";
 import { assistantsService } from "../src/domain/assistants";
 import { handleMcpRequest } from "../src/server/mcp";
 import { accountResource } from "../src/lib/oauth-provider";
 import { client, rejectsWith } from "./helpers/orpc";
+import { createProject } from "./helpers/fixtures";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -74,10 +74,9 @@ test(
           );
         },
       );
-      const first = (await createProject(owner, { name: "Brand A" })).project;
+      const first = await createProject(owner, { name: "Brand A" });
       ids.push(first.id);
-      const foreign = (await createProject(other, { name: "Foreign brand" }))
-        .project;
+      const foreign = await createProject(other, { name: "Foreign brand" });
       ids.push(foreign.id);
       const draft = {
         title: "Account draft",
@@ -96,7 +95,7 @@ test(
           assert.ok(upload.value.uploadUrl.includes(`projectId=${first.id}`));
         },
       );
-      const second = (await createProject(owner, { name: "Brand B" })).project;
+      const second = await createProject(owner, { name: "Brand B" });
       ids.push(second.id);
       const tools: Record<string, Record<string, unknown>> = {
         get_project: {},

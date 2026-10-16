@@ -9,7 +9,7 @@ import {
   storeImage,
   uploadImage,
 } from "../src/lib/storage";
-import { draftSchema } from "../src/lib/store";
+import { createPostInput } from "../src/shared/schemas/post";
 test("URL import rejects private, loopback, link-local, mapped and special-use addresses", async () => {
   for (const ip of [
     "127.0.0.1",
@@ -36,7 +36,7 @@ test("URL import rejects private, loopback, link-local, mapped and special-use a
   ])
     await assert.rejects(() => downloadImage(url));
 });
-test("malformed image data and ambiguous inputs are rejected before storing", async () => {
+test("malformed image data is rejected before storing", async () => {
   await assert.rejects(
     () => uploadImage("unused", { imageFile: { dataBase64: "not base64!" } }),
     /base64/,
@@ -50,47 +50,23 @@ test("malformed image data and ambiguous inputs are rejected before storing", as
       }),
     /valid JPEG/,
   );
-  assert.throws(
-    () =>
-      draftSchema.parse({
-        title: "Test",
-        caption: "Test",
-        platforms: ["facebook"],
-        imageUrl: "https://example.com/a.jpg",
-        imageFile: { dataBase64: "YQ==" },
-      }),
-    /only one/,
-  );
-  assert.throws(
-    () =>
-      draftSchema.parse({
-        title: "Test",
-        caption: "Test",
-        platforms: ["facebook"],
-        imageUrl: "https://example.com/a.jpg",
-        imageUploadId: "00000000-0000-4000-8000-000000000001",
-      }),
-    /only one/,
-  );
 });
 test("MCP image inputs: uploads satisfy Instagram, inline base64 stays small", () => {
+  const draft = {
+    projectId: "00000000-0000-4000-8000-000000000002",
+    title: "Test",
+    caption: "Test",
+    platforms: ["instagram"],
+  };
   assert.doesNotThrow(() =>
-    draftSchema.parse({
-      title: "Test",
-      caption: "Test",
-      platforms: ["instagram"],
-      imageUploadId: "00000000-0000-4000-8000-000000000001",
+    createPostInput.parse({
+      ...draft,
+      assets: [
+        { type: "UPLOAD_ID", uploadId: "00000000-0000-4000-8000-000000000001" },
+      ],
     }),
   );
-  assert.throws(
-    () =>
-      draftSchema.parse({
-        title: "Test",
-        caption: "Test",
-        platforms: ["instagram"],
-      }),
-    /Instagram requires/,
-  );
+  assert.throws(() => createPostInput.parse(draft), /Instagram requires/);
   const small = Buffer.alloc(MAX_INLINE_IMAGE_BYTES).toString("base64");
   const large = Buffer.alloc(MAX_INLINE_IMAGE_BYTES + 3).toString("base64");
   assert.ok(inlineImageFileSchema.safeParse({ dataBase64: small }).success);

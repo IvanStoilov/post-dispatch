@@ -10,7 +10,6 @@ import { eq } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
 import { users, verifications, projects } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
-import { createProject, getProject } from "../src/lib/projects";
 import {
   callbackConnection,
   connectionError,
@@ -19,6 +18,7 @@ import {
   startConnection,
 } from "../src/server/connections";
 import { logger } from "../src/lib/logger";
+import { createProject, projectRecord } from "./helpers/fixtures";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -116,7 +116,7 @@ test(
       async function begin(provider: "facebook" | "instagram") {
         const response = await startConnection(
           req(`/api/meta/${provider}/start`, a.cookie, {
-            projectId: first.project.id,
+            projectId: first.id,
           }),
           provider,
         );
@@ -207,7 +207,7 @@ test(
           await assert.rejects(
             startConnection(
               req("/api/meta/facebook/start", "", {
-                projectId: first.project.id,
+                projectId: first.id,
               }),
               "facebook",
             ),
@@ -216,7 +216,7 @@ test(
           await assert.rejects(
             startConnection(
               req("/api/meta/facebook/start", a.cookie, {
-                projectId: second.project.id,
+                projectId: second.id,
               }),
               "facebook",
             ),
@@ -227,7 +227,7 @@ test(
               req(
                 "/api/meta/facebook/start",
                 a.cookie,
-                { projectId: first.project.id },
+                { projectId: first.id },
                 "https://evil.example",
               ),
               "facebook",
@@ -264,7 +264,7 @@ test(
           assert.equal(response.status, 303);
           assert.equal(
             new URL(response.headers.get("Location")!).pathname,
-            appPagePath(`/projects/${first.project.id}/connections/facebook`),
+            appPagePath(`/projects/${first.id}/connections/facebook`),
           );
           await assert.rejects(
             callbackConnection(req(callback, flow.cookie), "facebook"),
@@ -306,7 +306,7 @@ test(
             "facebook",
           );
           assert.ok(!(await result.text()).includes("page-secret"));
-          const project = await getProject(first.project.id);
+          const project = await projectRecord(first.id);
           assert.equal(project.facebookPageId, "page-two");
           assert.equal(
             project.connections.find((c) => c.provider === "facebook")
@@ -314,10 +314,7 @@ test(
             "Second Page",
           );
           assert.equal(project.facebookPageToken, "page-secret-two");
-          assert.equal(
-            (await getProject(second.project.id)).facebookPageId,
-            "",
-          );
+          assert.equal((await projectRecord(second.id)).facebookPageId, "");
           await assert.rejects(
             selectAccount(
               req("/api/meta/facebook/pages", selectionCookies, {
@@ -343,7 +340,7 @@ test(
             "instagram",
           );
           assert.equal(response.status, 303);
-          const project = await getProject(first.project.id);
+          const project = await projectRecord(first.id);
           assert.equal(project.instagramAccountId, "instagram-user");
           assert.equal(project.instagramAccessToken, "ig-long-secret");
           assert.equal(project.instagramApiHost, "graph.instagram.com");
@@ -403,7 +400,7 @@ test(
             /connect to Meta/,
           );
           assert.equal(
-            (await getProject(first.project.id)).instagramAccessToken,
+            (await projectRecord(first.id)).instagramAccessToken,
             "ig-long-secret",
           );
           assert.ok(
@@ -436,7 +433,7 @@ test(
             /publishing permissions/,
           );
           assert.equal(
-            (await getProject(first.project.id)).instagramAccessToken,
+            (await projectRecord(first.id)).instagramAccessToken,
             "ig-long-secret",
           );
         },

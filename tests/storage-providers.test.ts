@@ -29,9 +29,7 @@ import {
   directUploads,
   accountMediaCleanup,
 } from "../src/db/schema";
-import { createProject } from "../src/lib/projects";
 import { uploadsService } from "../src/domain/uploads";
-import { createPost, deletePost } from "../src/lib/store";
 import { projectsService } from "../src/domain/projects";
 import { recoverMediaCleanup } from "../src/lib/media-cleanup";
 import { PUT as uploadLocal } from "../src/app/api/mcp/uploads/local/route";
@@ -39,6 +37,7 @@ import {
   GET as readLocal,
   HEAD as headLocal,
 } from "../src/app/api/mcp/media/local/route";
+import { createProject, createPost, deletePost } from "./helpers/fixtures";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -222,8 +221,7 @@ test(
           name: "Local storage test",
           email: `local-${userId}@example.test`,
         });
-      const project = (await createProject(userId, { name: "Local media" }))
-        .project;
+      const project = await createProject(userId, { name: "Local media" });
       ids.push(project.id);
       const image = await sharp({
         create: { width: 3, height: 2, channels: 3, background: "#ffc531" },

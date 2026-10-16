@@ -30,15 +30,11 @@ import { toPostDto } from "./mappers";
 import * as repository from "./repository";
 import type { PostRecord } from "./types";
 
-// All business logic for posts. User use cases take an Actor; posts belong
-// to projects, so access means owning the project. System operations take a
-// project the caller already authorized. Both are exported as objects at
-// the bottom.
+// All business logic for posts. Posts belong to projects, so access means
+// owning the project: checked before slow media work, and again under a lock
+// in the transaction that writes. System operations serve publishing and
+// project deletion. Both services are exported as objects at the bottom.
 
-// Shared writes take an `authorize` step that runs first in every write
-// transaction: user use cases lock the actor's project there, pre-authorized
-// callers pass a no-op.
-type Authorize = (tx: Tx) => Promise<void>;
 type Draft = Omit<DraftFields, "assets"> & { assets?: AssetInput[] };
 
 const invalid = (message: string) => new UserFacingError(message, 400);
@@ -57,6 +53,17 @@ async function withMediaErrors<T>(action: () => Promise<T>) {
     if (error instanceof MediaInputError) throw invalid(error.message);
     throw error;
   }
+}
+
+const projectNotFound = () => new UserFacingError("Project not found", 404);
+async function assertOwned(actor: Actor, projectId: string) {
+  if (!(await projectsSystemService.isOwned(actor.userId, projectId)))
+    throw projectNotFound();
+}
+// Holds the actor's project for the rest of the write transaction.
+async function lockProject(tx: Tx, actor: Actor, projectId: string) {
+  if (!(await projectsSystemService.lockOwned(tx, actor.userId, projectId)))
+    throw projectNotFound();
 }
 
 function validateAssetKinds(assets: { kind: "IMAGE" | "VIDEO" }[]) {
@@ -156,9 +163,10 @@ async function resolveAssets(
 // allowMissingMedia lets assistants file Instagram drafts whose media the
 // reviewer adds later; publishing still requires it.
 async function createDraft(
+  actor: Actor,
   projectId: string,
   draft: Draft,
-  options: { authorize: Authorize; allowMissingMedia?: boolean },
+  options: { allowMissingMedia?: boolean } = {},
 ): Promise<PostRecord> {
   if (draft.assets?.some((asset) => asset.type === "EXISTING"))
     throw invalid("New posts cannot reference existing assets");
@@ -172,7 +180,7 @@ async function createDraft(
     const prepared = await prepareAssets(projectId, draft.assets);
     try {
       return await getDb().transaction(async (tx) => {
-        await options.authorize(tx);
+        await lockProject(tx, actor, projectId);
         const assets = await resolveAssets(tx, projectId, prepared.inputs);
         const row = await repository.createPost(
           tx,
@@ -197,10 +205,10 @@ const notEditable = (exists: boolean) =>
 
 // Omitted assets keep the current media; an empty list removes it.
 async function editDraft(
+  actor: Actor,
   projectId: string,
   id: string,
   draft: Draft,
-  options: { authorize: Authorize },
 ): Promise<PostRecord> {
   return withMediaErrors(async () => {
     const existing = await repository.findInProject(projectId, id);
@@ -210,7 +218,7 @@ async function editDraft(
     let updated: PostRecord;
     try {
       updated = await getDb().transaction(async (tx) => {
-        await options.authorize(tx);
+        await lockProject(tx, actor, projectId);
         const current = await repository.lockInProject(tx, projectId, id);
         if (!current || current.status !== "draft")
           throw notEditable(!!current);
@@ -240,13 +248,9 @@ async function editDraft(
 
 // Deletes the Ramblo post and its stored media; posts already on a network
 // stay there. Not while publishing is in progress.
-async function deleteDraft(
-  projectId: string,
-  id: string,
-  options: { authorize: Authorize },
-) {
+async function deleteDraft(actor: Actor, projectId: string, id: string) {
   const media = await getDb().transaction(async (tx) => {
-    await options.authorize(tx);
+    await lockProject(tx, actor, projectId);
     const row = await repository.lockInProject(tx, projectId, id);
     if (!row || row.status === "publishing")
       throw new UserFacingError(
@@ -260,21 +264,7 @@ async function deleteDraft(
   await cleanupAssets(media);
 }
 
-// User use cases. Posts belong to projects, so access means owning the
-// project: checked before slow media work, and again under a lock in the
-// transaction that writes.
-
-const projectNotFound = () => new UserFacingError("Project not found", 404);
-async function assertOwned(actor: Actor, projectId: string) {
-  if (!(await projectsSystemService.isOwned(actor.userId, projectId)))
-    throw projectNotFound();
-}
-const lockProject =
-  (actor: Actor, projectId: string): Authorize =>
-  async (tx) => {
-    if (!(await projectsSystemService.lockOwned(tx, actor.userId, projectId)))
-      throw projectNotFound();
-  };
+// User use cases.
 
 async function list(
   actor: Actor,
@@ -300,11 +290,7 @@ async function create(
     { ...actor, projectId },
     async () => {
       await assertOwned(actor, projectId);
-      return toPostDto(
-        await createDraft(projectId, draft, {
-          authorize: lockProject(actor, projectId),
-        }),
-      );
+      return toPostDto(await createDraft(actor, projectId, draft));
     },
   );
 }
@@ -321,8 +307,7 @@ async function submitDraft(
     async () => {
       await assertOwned(actor, projectId);
       return toPostDto(
-        await createDraft(projectId, draft, {
-          authorize: lockProject(actor, projectId),
+        await createDraft(actor, projectId, draft, {
           allowMissingMedia: true,
         }),
       );
@@ -339,11 +324,7 @@ async function update(
     { ...actor, projectId, postId: id },
     async () => {
       await assertOwned(actor, projectId);
-      return toPostDto(
-        await editDraft(projectId, id, draft, {
-          authorize: lockProject(actor, projectId),
-        }),
-      );
+      return toPostDto(await editDraft(actor, projectId, id, draft));
     },
   );
 }
@@ -352,8 +333,7 @@ async function remove(actor: Actor, { projectId, id }: PostRef): Promise<void> {
   return loggedOperation(
     "domain.posts.delete",
     { ...actor, projectId, postId: id },
-    () =>
-      deleteDraft(projectId, id, { authorize: lockProject(actor, projectId) }),
+    () => deleteDraft(actor, projectId, id),
   );
 }
 
@@ -396,38 +376,7 @@ async function previewImage(actor: Actor, ref: PostRef) {
   return Buffer.from(bytes);
 }
 
-// System operations, for a project the caller already authorized
-// (publishing jobs, MCP tools and legacy routes until they migrate).
-
-const preauthorized: Authorize = async () => {};
-
-async function listForProject(projectId: string) {
-  const rows = await repository.listByProject(projectId);
-  return (await repository.hydrate(rows)).map(toPostDto);
-}
-
-async function createForProject(
-  projectId: string,
-  draft: Draft,
-  options: { allowMissingMedia?: boolean } = {},
-) {
-  return toPostDto(
-    await createDraft(projectId, draft, {
-      ...options,
-      authorize: preauthorized,
-    }),
-  );
-}
-
-async function editForProject(projectId: string, id: string, draft: Draft) {
-  return toPostDto(
-    await editDraft(projectId, id, draft, { authorize: preauthorized }),
-  );
-}
-
-function deleteForProject(projectId: string, id: string) {
-  return deleteDraft(projectId, id, { authorize: preauthorized });
-}
+// System operations.
 
 // The post with its stored media locations, for the media download routes.
 async function findRecord(projectId: string, id: string) {
@@ -457,15 +406,10 @@ export const postsService = {
 // For workers and other domain modules only: these skip user
 // authorization. Lint forbids them in routers and UI.
 export const postsSystemService = {
-  listForProject,
-  createForProject,
-  editForProject,
-  deleteForProject,
   findRecord,
   deleteInProjects,
   hydrate: repository.hydrate,
   toPostDto,
-  validateAssetKinds,
   // Publishing state (status, results, error), written by publishing.
   lockPost: repository.lockInProject,
   lockPostById: repository.lockById,
