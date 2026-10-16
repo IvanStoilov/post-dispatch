@@ -23,6 +23,9 @@ import {
 } from "@/components/ui/input-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "@/components/ui/sonner";
+import { ORPCError } from "@orpc/client";
+import { api, userMessage } from "@/lib/api-client";
+import type { AssetInput } from "@/shared/schemas/asset";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import {
@@ -89,15 +92,16 @@ export default function PostsWorkspace({
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
     try {
-      const p = await fetch(`/api/posts?projectId=${projectId}`, {
-        cache: "no-store",
-      });
-      if (p.status === 401) {
-        router.replace(appPath("/signin"));
-        return;
+      let data: Post[];
+      try {
+        data = await api.posts.list({ projectId });
+      } catch (error) {
+        if (error instanceof ORPCError && error.status === 401) {
+          router.replace(appPath("/signin"));
+          return;
+        }
+        throw new Error("Could not load project workspace");
       }
-      if (!p.ok) throw new Error("Could not load project workspace");
-      const data: Post[] = await p.json();
       if (sequence !== requestSequence.current) return;
       setPosts(data);
       setCounts({
@@ -140,7 +144,7 @@ export default function PostsWorkspace({
     e.preventDefault();
     setBusy(true);
     try {
-      const assets: Record<string, unknown>[] = [];
+      const assets: AssetInput[] = [];
       const urls = form.imageUrl.split(/\s+/).filter(Boolean);
       if (mediaItems.length + urls.length > 10)
         throw new Error("Choose up to 10 images or one video");
@@ -192,27 +196,32 @@ export default function PostsWorkspace({
         );
       }
       for (const url of urls) assets.push({ type: "EXTERNAL_URL", url });
-      await request(
-        editing === "new" ? "/api/posts" : `/api/posts/${editing}`,
-        editing === "new" ? "POST" : "PATCH",
-        {
-          title: form.title,
-          caption: form.caption,
-          platforms: form.platforms,
-          source: form.source,
-          assets,
-        },
-      );
+      const draft = {
+        projectId,
+        title: form.title,
+        caption: form.caption,
+        platforms: form.platforms,
+        source: form.source,
+        assets,
+      };
+      if (editing === "new") await api.posts.create(draft);
+      else await api.posts.update({ ...draft, id: editing! });
       setEditing(null);
       toast.success("Draft saved. Ready when you are.", {
         id: `post-operation-${projectId}`,
       });
       await refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Save failed", {
-        id: `post-operation-${projectId}`,
-      });
-      setNotice(e instanceof Error ? e.message : "Save failed");
+      // API errors show only their user-facing message; upload steps throw
+      // plain Errors with messages written for this screen.
+      const message =
+        e instanceof ORPCError
+          ? userMessage(e, "Save failed")
+          : e instanceof Error
+            ? e.message
+            : "Save failed";
+      toast.error(message, { id: `post-operation-${projectId}` });
+      setNotice(message);
     } finally {
       setBusy(false);
     }
@@ -261,13 +270,13 @@ export default function PostsWorkspace({
   async function remove(id: string) {
     setBusy(true);
     try {
-      await request(`/api/posts/${id}`, "DELETE");
+      await api.posts.delete({ projectId, id });
       setEditing(null);
       setDeleteConfirm(null);
       await refresh();
       toast.success("Post deleted.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
+      toast.error(userMessage(e, "Delete failed"));
     } finally {
       setBusy(false);
     }

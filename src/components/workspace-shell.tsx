@@ -9,6 +9,7 @@ import {
 import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAppPath } from "./app-navigation";
+import { api } from "@/lib/api-client";
 import { projectPath, type ProjectSection } from "@/lib/route-paths";
 import { authClient } from "@/lib/auth-client";
 import type { Project } from "@/lib/types";
@@ -140,22 +141,14 @@ export function WorkspaceShell({
     localStorage.setItem("ramblo-project", project.id);
     document.cookie = `ramblo-project=${project.id}; Path=/; Max-Age=31536000; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
     const controller = new AbortController();
-    void fetch(`/api/posts?projectId=${project.id}`, {
-      signal: controller.signal,
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        if (!response.ok) return;
-        const posts = await response.json();
+    void api.posts
+      .list({ projectId: project.id }, { signal: controller.signal })
+      .then((posts) =>
         setCounts({
-          drafts: posts.filter(
-            (p: { status: string }) => p.status !== "published",
-          ).length,
-          published: posts.filter(
-            (p: { status: string }) => p.status === "published",
-          ).length,
-        });
-      })
+          drafts: posts.filter((p) => p.status !== "published").length,
+          published: posts.filter((p) => p.status === "published").length,
+        }),
+      )
       .catch(() => {});
     return () => controller.abort();
   }, [project, setCounts]);

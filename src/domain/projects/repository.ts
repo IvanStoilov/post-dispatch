@@ -73,6 +73,18 @@ export async function findOwned(
   return project ? withConnections(project, db) : undefined;
 }
 
+export async function isOwned(
+  userId: string,
+  id: string,
+  db: Executor = getDb(),
+) {
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, id), eq(projects.userId, userId)));
+  return !!project;
+}
+
 // Locks the user's project row for the rest of the transaction; undefined
 // when it doesn't exist or belongs to someone else.
 export async function lockOwned(tx: Tx, userId: string, id: string) {

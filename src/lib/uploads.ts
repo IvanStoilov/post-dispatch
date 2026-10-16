@@ -12,6 +12,7 @@ import {
   MAX_IMAGE_BYTES,
   removeImage,
   storeAsset,
+  MediaInputError,
 } from "./storage";
 import { readBody } from "./request-body";
 
@@ -242,7 +243,9 @@ export async function claimImageUpload(
         )
         .returning();
       if (!upload)
-        throw new Error("Image upload not found, expired, or already used");
+        throw new MediaInputError(
+          "Image upload not found, expired, or already used",
+        );
       return {
         id: upload.id,
         kind: upload.kind,

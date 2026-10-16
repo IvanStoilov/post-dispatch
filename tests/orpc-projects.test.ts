@@ -2,54 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { loadEnvConfig } from "@next/env";
-import { eq, inArray } from "drizzle-orm";
-import { createORPCClient, ORPCError } from "@orpc/client";
-import type { ContractRouterClient } from "@orpc/contract";
-import type { JsonifiedClient } from "@orpc/openapi-client";
-import { OpenAPILink } from "@orpc/openapi-client/fetch";
-import * as route from "../src/app/api/v1/[[...rest]]/route";
-import { contract } from "../src/contract";
+import { eq } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
-import { projects, users } from "../src/db/schema";
-import { getAuth } from "../src/lib/auth";
-import { acceptedSignup } from "./helpers/terms";
+import { projects } from "../src/db/schema";
+import { client, rejectsWith, sent, testUsers } from "./helpers/orpc";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
-const origin = process.env.APP_URL || "http://localhost:8200";
-
-// The same typed REST client the frontend uses, with requests handed
-// straight to the route handler instead of the network. Each request is
-// recorded as "METHOD /path" so tests can check the REST routes.
-const sent: string[] = [];
-function client(
-  cookie = "",
-): JsonifiedClient<ContractRouterClient<typeof contract>> {
-  return createORPCClient(
-    new OpenAPILink(contract, {
-      url: `${origin}/api/v1`,
-      headers: { origin, cookie },
-      fetch: (request) => {
-        sent.push(`${request.method} ${new URL(request.url).pathname}`);
-        const method = request.method as "GET" | "POST" | "PUT" | "DELETE";
-        return route[method](request);
-      },
-    }),
-  );
-}
-// Expected failures must arrive as defined errors: typed on the client and
-// safe to show (see base in src/server/orpc.ts).
-async function rejectsWith(promise: Promise<unknown>, code: string) {
-  let caught: unknown;
-  await assert.rejects(promise, (error) => {
-    caught = error;
-    assert.ok(error instanceof ORPCError, String(error));
-    assert.equal(error.code, code);
-    assert.equal(error.defined, true, `${code} should be a defined error`);
-    return true;
-  });
-  return caught as ORPCError<string, unknown>;
-}
 
 // Better Auth opens the database on startup, so even this check needs one.
 test(
@@ -65,41 +24,10 @@ test(
   "projects procedures list and create for the signed-in user",
   { skip: !process.env.DATABASE_URL },
   async (t) => {
-    const createdUsers: string[] = [];
-    const password = "Test-only-password-" + randomUUID();
-    const auth = (path: string, body: unknown) =>
-      getAuth().handler(
-        new Request(origin + path, {
-          method: "POST",
-          headers: { origin, "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }),
-      );
-    const signedIn = async () => {
-      const email = randomUUID() + "@example.test";
-      const signup = await auth(
-        "/api/auth/sign-up/email",
-        acceptedSignup({ name: "oRPC test", email, password }),
-      );
-      const { user } = await signup.json();
-      createdUsers.push(user.id);
-      await getDb()
-        .update(users)
-        .set({ emailVerified: true })
-        .where(eq(users.id, user.id));
-      const signin = await auth("/api/auth/sign-in/email", {
-        email,
-        password,
-      });
-      const cookie = signin.headers
-        .getSetCookie()
-        .map((v) => v.split(";")[0])
-        .join("; ");
-      return client(cookie);
-    };
+    const users = testUsers();
     try {
-      const a = await signedIn(),
-        b = await signedIn();
+      const a = await users.signedIn(),
+        b = await users.signedIn();
       let projectId = "";
       await t.test("create returns the typed project", async () => {
         const project = await a.projects.create({ name: "  oRPC brand  " });
@@ -222,12 +150,7 @@ test(
       });
     } finally {
       try {
-        if (createdUsers.length) {
-          await getDb()
-            .delete(projects)
-            .where(inArray(projects.userId, createdUsers));
-          await getDb().delete(users).where(inArray(users.id, createdUsers));
-        }
+        await users.cleanup();
       } finally {
         await closeDb();
       }

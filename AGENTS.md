@@ -27,7 +27,7 @@ Each module (reference: `src/domain/projects`) has:
 - `service.ts`: use cases. Enforce access by scoping queries to `actor.userId` (for example `repository.lockOwned`), never with a separate check-then-act. Throw `UserFacingError` (`src/domain/shared/errors.ts`) for failures users should see.
 - `system.ts`: operations for workers and other domain modules. They take IDs the caller already authorized and may return internal records. Never import it from routers or UI.
 - `repository.ts`: every Drizzle query, as plain functions named after what they do (`findOwned`, `lockOwned`, `upsertConnector`). Accept an optional `tx`/`Executor` so services control transactions. No generic CRUD layers.
-- `rules.ts`: business logic shared by `service.ts` and `system.ts`.
+- `rules.ts`: business logic shared by `service.ts` and `system.ts`. When both need the same write, implement it once here and take an `authorize(tx)` step that runs first inside the transaction: user use cases pass one that locks the actor's resource, system callers pass a no-op (see `src/domain/posts/rules.ts`).
 - `mappers.ts`: internal record → DTO.
 - `types.ts`: internal types. Records can hold secrets (tokens) and must never be returned from `index.ts`.
 

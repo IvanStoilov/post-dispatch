@@ -1,11 +1,16 @@
 import { onError, ORPCError } from "@orpc/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
+import { BodyLimitPlugin } from "@orpc/server/fetch";
 import { loggedRequest, logger } from "@/lib/logger";
 import { router } from "@/server/router";
 export const runtime = "nodejs";
+// Creating a post can download media from URLs, which can take minutes.
+export const maxDuration = 300;
 
 // REST routes from src/contract (e.g. PUT /api/v1/projects/{id}).
 const handler = new OpenAPIHandler(router, {
+  // Drafts can carry small inline images; matches the legacy routes.
+  plugins: [new BodyLimitPlugin({ maxBodySize: 12 * 1024 * 1024 })],
   interceptors: [
     // Expected errors (validation, sign-in) reach the client as defined
     // ORPCErrors; anything else is logged here and sent as a generic 500.

@@ -1,30 +1,19 @@
-import { loggedOperation, logger } from "./logger";
-import { platforms } from "./types";
-import { and, asc, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
-import {
-  posts,
-  postAssets,
-  publishJobs,
-  postPublications,
-  type PostRow,
-} from "../db/schema";
-import type { Platform, Post, StoredAsset } from "./types";
-import {
-  imageFileSchema,
-  uploadImage,
-  removeImage,
-  storeAsset,
-  downloadAsset,
-} from "./storage";
-import {
-  editableAssetSchema,
-  validateAssetKinds,
-  type AssetInput,
-} from "./asset-inputs";
-import { randomUUID } from "node:crypto";
-import { claimImageUpload } from "./uploads";
+import { posts } from "../db/schema";
+import * as postsSystem from "@/domain/posts/system";
+import type { PostRecord } from "@/domain/posts/system";
+import { imageFileSchema } from "@/shared/media";
+import { editableAssetSchema, type AssetInput } from "@/shared/schemas/asset";
+import { loggedOperation } from "./logger";
+import { platforms, type Platform, type Post, type StoredAsset } from "./types";
+
+// Deprecated adapter: keeps the old signatures (projectId already
+// authorized by the caller, legacy image fields) for code not yet migrated
+// to src/domain/posts. New code imports the domain module directly. Remove
+// each function when its last caller has migrated.
+
 const draftFields = z
   .object({
     assets: z.array(editableAssetSchema).max(10).optional(),
@@ -74,390 +63,85 @@ export const draftSchema = draftFields.refine(
     path: ["imageUrl"],
   },
 );
+type LegacyDraft = z.infer<typeof draftFields>;
 
-type MediaPost = PostRow & {
-  assets: StoredAsset[];
-  imageKey: string | null;
-  imageBucket: string | null;
-  storageProvider: StoredAsset["storageProvider"] | null;
-  deliveries?: Post["deliveries"];
-  publications?: Post["publications"];
-};
+// The legacy single-image fields are one-asset shorthands.
+function legacyAssets(draft: LegacyDraft): AssetInput[] | undefined {
+  if (draft.assets !== undefined) return draft.assets;
+  if (draft.imageUrl)
+    return [{ type: "EXTERNAL_URL", url: draft.imageUrl, kind: "IMAGE" }];
+  if (draft.imageFile)
+    return [{ type: "INLINE_BASE64", ...draft.imageFile, kind: "IMAGE" }];
+  if (draft.imageUploadId)
+    return [{ type: "UPLOAD_ID", uploadId: draft.imageUploadId }];
+  return undefined;
+}
+const draftFor = (draft: LegacyDraft, assets: AssetInput[] | undefined) => ({
+  title: draft.title,
+  caption: draft.caption,
+  platforms: draft.platforms,
+  source: draft.source,
+  assets,
+});
+const validId = (id: string) => z.uuid().parse(id);
+
 export function storedAssets(row: { assets: StoredAsset[] }): StoredAsset[] {
   return row.assets;
 }
-export async function hydrate(
-  rows: PostRow[],
-  db: ReturnType<typeof getDb> | Tx = getDb(),
-): Promise<MediaPost[]> {
-  return loggedOperation("lib.store.hydrate", {}, async () => {
-    if (!rows.length) return [];
-    const media = await db
-      .select()
-      .from(postAssets)
-      .where(
-        inArray(
-          postAssets.postId,
-          rows.map((row) => row.id),
-        ),
-      )
-      .orderBy(asc(postAssets.position));
-    const deliveries = await db
-      .select({
-        postId: publishJobs.postId,
-        platform: publishJobs.platform,
-        status: publishJobs.status,
-        error: publishJobs.error,
-      })
-      .from(publishJobs)
-      .where(
-        inArray(
-          publishJobs.postId,
-          rows.map((row) => row.id),
-        ),
-      );
-    const publications = await db
-      .select()
-      .from(postPublications)
-      .where(
-        inArray(
-          postPublications.postId,
-          rows.map((row) => row.id),
-        ),
-      );
-    const grouped = new Map<string, StoredAsset[]>();
-    for (const asset of media) {
-      const items = grouped.get(asset.postId) || [];
-      items.push({
-        id: asset.id,
-        kind: asset.kind,
-        imageKey: asset.imageKey,
-        imageBucket: asset.imageBucket,
-        storageProvider: asset.storageProvider,
-        mimeType: asset.mimeType,
-      });
-      grouped.set(asset.postId, items);
-    }
-    return rows.map((row) => {
-      const assets = grouped.get(row.id) || [];
-      const first = assets[0]?.kind === "IMAGE" ? assets[0] : undefined;
-      return {
-        ...row,
-        publications: publications
-          .filter((p) => p.postId === row.id)
-          .map((p) => ({
-            ...p,
-            publishedAt: p.publishedAt.toISOString(),
-            refreshedAt: p.refreshedAt?.toISOString() ?? null,
-          })),
-        deliveries: deliveries
-          .filter((j) => j.postId === row.id)
-          .map(({ postId, ...safe }) => {
-            void postId;
-            return safe;
-          }),
-        assets,
-        imageKey: first?.imageKey ?? null,
-        imageBucket: first?.imageBucket ?? null,
-        storageProvider: first?.storageProvider ?? null,
-      };
-    });
-  });
+export const hydrate = postsSystem.hydratePosts;
+export const toPost = postsSystem.toPostDto;
+
+export function listPosts(projectId: string): Promise<Post[]> {
+  return postsSystem.listProjectPosts(validId(projectId));
 }
-export function toPost(row: MediaPost): Post {
-  const {
-    imageKey,
-    imageBucket,
-    storageProvider,
-    assets: rawAssets,
-    ...safe
-  } = row;
-  void storageProvider;
-  void imageKey;
-  void imageBucket;
-  void rawAssets;
-  const assets = storedAssets(row).map((asset) => ({
-    id: asset.id,
-    kind: asset.kind,
-    mimeType: asset.mimeType,
-    url: `/api/posts/${row.id}/assets/${asset.id}?projectId=${row.projectId}&v=${encodeURIComponent(row.updatedAt)}`,
-  }));
-  return {
-    ...safe,
-    assets,
-    imageUrl:
-      assets[0]?.kind === "IMAGE"
-        ? `/api/posts/${row.id}/image?projectId=${row.projectId}&v=${encodeURIComponent(row.updatedAt)}`
-        : row.imageUrl,
-    createdAt: new Date(row.createdAt).toISOString(),
-    error: row.error ?? undefined,
-  };
-}
-async function cleanupAssets(assets: StoredAsset[]) {
-  for (const asset of assets)
-    await removeImage(asset).catch((error) =>
-      logger.warn("storage.cleanup.failure", {
-        reason: "Could not clean up unused post media",
-        error,
-      }),
-    );
-}
-type ParsedDraft = z.infer<typeof draftFields>;
-async function prepareAssets(projectId: string, data: ParsedDraft) {
-  const deadline = Date.now() + 240000;
-  const created: StoredAsset[] = [];
-  const inputs: (AssetInput | StoredAsset)[] = [];
-  try {
-    if (data.assets !== undefined) {
-      for (const input of data.assets) {
-        let asset: StoredAsset | undefined;
-        if (input.type === "EXTERNAL_URL" || input.type === "OPENAPI_FILE")
-          asset = await downloadAsset(
-            projectId,
-            input.type === "EXTERNAL_URL" ? input.url : input.download_url,
-            input.kind,
-            Math.min(
-              deadline,
-              Date.now() + (input.kind === "IMAGE" ? 20000 : 120000),
-            ),
-          );
-        if (input.type === "INLINE_BASE64") {
-          if (
-            !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
-              input.dataBase64,
-            )
-          )
-            throw new Error("Invalid base64 image data");
-          asset = await storeAsset(
-            projectId,
-            Buffer.from(input.dataBase64, "base64"),
-            "IMAGE",
-          );
-        }
-        if (asset) {
-          created.push(asset);
-          inputs.push(asset);
-        } else inputs.push(input);
-      }
-    } else if (data.imageUrl || data.imageFile) {
-      const asset: StoredAsset = {
-        id: randomUUID(),
-        kind: "IMAGE",
-        mimeType: "image/jpeg",
-        ...(await uploadImage(projectId, data)),
-      };
-      created.push(asset);
-      inputs.push(asset);
-    } else if (data.imageUploadId)
-      inputs.push({ type: "UPLOAD_ID", uploadId: data.imageUploadId });
-    return { created, inputs };
-  } catch (error) {
-    await cleanupAssets(created);
-    throw error;
-  }
-}
-type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
-async function resolveAssets(
-  tx: Tx,
-  projectId: string,
-  inputs: (AssetInput | StoredAsset)[],
-  existing: StoredAsset[] = [],
-) {
-  const result: StoredAsset[] = [];
-  for (const input of inputs) {
-    if (!("type" in input)) result.push(input);
-    else if (input.type === "UPLOAD_ID") {
-      const asset = await claimImageUpload(tx, projectId, input.uploadId);
-      if (input.kind && asset.kind !== input.kind)
-        throw new Error("Uploaded asset has a different media type");
-      result.push(asset);
-    } else if (input.type === "EXISTING") {
-      const asset = existing.find((asset) => asset.id === input.assetId);
-      if (!asset)
-        throw new Error("Existing asset does not belong to this draft");
-      result.push(asset);
-    } else throw new Error("Asset was not prepared");
-  }
-  if (new Set(result.map((asset) => asset.id)).size !== result.length)
-    throw new Error("Each asset may appear only once in a post");
-  validateAssetKinds(result);
-  return result;
-}
-async function writeAssets(
-  tx: Tx,
-  postId: string,
-  assets: StoredAsset[],
-  existing: StoredAsset[] = [],
-) {
-  const ids = assets.map((asset) => asset.id);
-  await tx
-    .delete(postAssets)
-    .where(
-      ids.length
-        ? and(eq(postAssets.postId, postId), notInArray(postAssets.id, ids))
-        : eq(postAssets.postId, postId),
-    );
-  const retained = new Set(existing.map((asset) => asset.id));
-  for (const [position, asset] of assets.entries()) {
-    if (retained.has(asset.id))
-      await tx
-        .update(postAssets)
-        .set({ position })
-        .where(and(eq(postAssets.postId, postId), eq(postAssets.id, asset.id)));
-    else await tx.insert(postAssets).values({ ...asset, postId, position });
-  }
-}
-function validId(id: string) {
-  return z.uuid().parse(id);
-}
-export async function listPosts(projectId: string): Promise<Post[]> {
-  return loggedOperation("lib.store.listPosts", { projectId }, async () => {
-    const rows = await getDb()
-      .select()
-      .from(posts)
-      .where(eq(posts.projectId, validId(projectId)))
-      .orderBy(desc(posts.createdAt), desc(posts.id));
-    return (await hydrate(rows)).map(toPost);
-  });
-}
-// allowMissingImage lets assistants file Instagram drafts whose image the
-// reviewer adds in the dashboard; publishing still requires one.
+
 export async function createPost(
   projectId: string,
   input: unknown,
   { allowMissingImage = false } = {},
 ): Promise<Post> {
-  return loggedOperation("lib.store.createPost", { projectId }, async () => {
-    validId(projectId);
-    const parsed = (allowMissingImage ? draftFields : draftSchema).parse(input);
-    if (parsed.keepImage)
-      throw new Error("A new draft cannot keep an existing image");
-    if (parsed.assets?.some((asset) => asset.type === "EXISTING"))
-      throw new Error("New posts cannot reference existing assets");
-    const prepared = await prepareAssets(projectId, parsed);
-    try {
-      const post = await getDb().transaction(async (tx) => {
-        const assets = await resolveAssets(tx, projectId, prepared.inputs);
-        const [row] = await tx
-          .insert(posts)
-          .values({
-            title: parsed.title,
-            caption: parsed.caption,
-            platforms: parsed.platforms,
-            source: parsed.source,
-            projectId,
-            imageUrl: "",
-          })
-          .returning();
-        await writeAssets(tx, row.id, assets);
-        return (await hydrate([row], tx))[0];
-      });
-      return toPost(post);
-    } catch (error) {
-      await cleanupAssets(prepared.created);
-      throw error;
-    }
-  });
+  validId(projectId);
+  const parsed = (allowMissingImage ? draftFields : draftSchema).parse(input);
+  if (parsed.keepImage)
+    throw new Error("A new draft cannot keep an existing image");
+  return postsSystem.createProjectPost(
+    projectId,
+    draftFor(parsed, legacyAssets(parsed)),
+    { allowMissingMedia: allowMissingImage },
+  );
 }
+
 export async function editPost(
   projectId: string,
   id: string,
   input: unknown,
 ): Promise<Post> {
-  return loggedOperation("lib.store.editPost", { projectId }, async () => {
-    validId(id);
-    validId(projectId);
-    const parsed = draftSchema.parse(input);
-    const [existing] = await getDb()
-      .select()
-      .from(posts)
-      .where(
-        and(
-          eq(posts.projectId, projectId),
-          eq(posts.id, id),
-          eq(posts.status, "draft"),
-        ),
-      );
-    if (!existing) throw new Error("Draft not found or no longer editable");
-    const prepared = await prepareAssets(projectId, parsed);
-    let previous: StoredAsset[] = [];
-    let updated: MediaPost;
-    try {
-      updated = await getDb().transaction(async (tx) => {
-        const [current] = await tx
-          .select()
-          .from(posts)
-          .where(and(eq(posts.projectId, projectId), eq(posts.id, id)))
-          .for("update");
-        if (!current || current.status !== "draft")
-          throw new Error("Draft not found or no longer editable");
-        previous = storedAssets((await hydrate([current], tx))[0]);
-        const assets =
-          parsed.assets === undefined &&
-          !prepared.inputs.length &&
-          parsed.keepImage
-            ? previous
-            : await resolveAssets(tx, projectId, prepared.inputs, previous);
-        if (parsed.platforms.includes("instagram") && !assets.length)
-          throw new Error("Instagram requires an image or video");
-        const [row] = await tx
-          .update(posts)
-          .set({
-            title: parsed.title,
-            caption: parsed.caption,
-            platforms: parsed.platforms,
-            source: parsed.source,
-            imageUrl: "",
-            updatedAt: sql`now()`,
-          })
-          .where(eq(posts.id, id))
-          .returning();
-        await writeAssets(tx, row.id, assets, previous);
-        return (await hydrate([row], tx))[0];
-      });
-    } catch (error) {
-      await cleanupAssets(prepared.created);
-      throw error;
-    }
-    await cleanupAssets(
-      previous.filter(
-        (asset) => !updated.assets.some((keep) => keep.id === asset.id),
-      ),
-    );
-    return toPost(updated);
-  });
+  validId(id);
+  validId(projectId);
+  const parsed = draftSchema.parse(input);
+  // No media in the request: keepImage keeps it, otherwise it is removed.
+  const assets = legacyAssets(parsed) ?? (parsed.keepImage ? undefined : []);
+  return postsSystem.editProjectPost(projectId, id, draftFor(parsed, assets));
 }
+
 export async function deletePost(projectId: string, id: string) {
-  return loggedOperation("lib.store.deletePost", { projectId }, async () => {
-    validId(id);
-    validId(projectId);
-    const media = await getDb().transaction(async (tx) => {
-      const [row] = await tx
-        .select()
-        .from(posts)
-        .where(and(eq(posts.projectId, projectId), eq(posts.id, id)))
-        .for("update");
-      if (!row || row.status === "publishing")
-        throw new Error("Post not found or currently publishing");
-      const [post] = await hydrate([row], tx);
-      await tx.delete(posts).where(eq(posts.id, id));
-      return post.assets;
-    });
-    await cleanupAssets(media);
-  });
+  return postsSystem.deleteProjectPost(validId(projectId), validId(id));
 }
-export async function getPostImage(projectId: string, id: string) {
-  return loggedOperation("lib.store.getPostImage", { projectId }, async () => {
-    const [post] = await getDb()
-      .select()
-      .from(posts)
-      .where(
-        and(eq(posts.projectId, validId(projectId)), eq(posts.id, validId(id))),
-      );
-    if (!post) throw new Error("Post not found");
-    return (await hydrate([post]))[0];
-  });
+
+export async function getPostImage(
+  projectId: string,
+  id: string,
+): Promise<PostRecord> {
+  const post = await postsSystem.findPostRecord(
+    validId(projectId),
+    validId(id),
+  );
+  if (!post) throw new Error("Post not found");
+  return post;
 }
+
+// Publishing state; moves to the publishing module when it migrates.
+
 export async function claimPost(
   projectId: string,
   id: string,

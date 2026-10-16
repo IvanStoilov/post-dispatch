@@ -1,6 +1,7 @@
 import "server-only";
 import { getDb } from "@/db";
 import { loggedOperation } from "@/lib/logger";
+import type { Tx } from "../shared/db";
 import { UserFacingError } from "../shared/errors";
 import * as repository from "./repository";
 import type { ConnectorValues } from "./types";
@@ -18,6 +19,15 @@ export function findProjectRecord(projectId: string) {
 
 export function findOwnedProjectRecord(userId: string, projectId: string) {
   return repository.findOwned(userId, projectId);
+}
+
+// Ownership checks for other modules. Prefer lockOwnedProject inside the
+// transaction that writes, so access and the change are atomic.
+export function isOwnedProject(userId: string, projectId: string) {
+  return repository.isOwned(userId, projectId);
+}
+export function lockOwnedProject(tx: Tx, userId: string, projectId: string) {
+  return repository.lockOwned(tx, userId, projectId);
 }
 
 // Stores the connection a connect flow obtained for the user's project.

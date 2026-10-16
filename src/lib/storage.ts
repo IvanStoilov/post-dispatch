@@ -8,33 +8,33 @@ import ipaddr from "ipaddr.js";
 import sharp from "sharp";
 import { z } from "zod";
 import type { StoredAsset, AssetKind } from "./types";
-export const MAX_VIDEO_BYTES = 100_000_000;
+export {
+  MAX_VIDEO_BYTES,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_LABEL,
+  IMAGE_TOO_LARGE,
+  imageFileSchema,
+  MAX_INLINE_IMAGE_BYTES,
+  inlineImageFileSchema,
+} from "../shared/media";
+import {
+  MAX_VIDEO_BYTES,
+  MAX_IMAGE_BYTES,
+  IMAGE_TOO_LARGE,
+  imageFileSchema,
+} from "../shared/media";
 
-// Vercel rejects function request bodies over 4.5 MB before our code runs.
-export const MAX_IMAGE_BYTES = 4_500_000;
-export const MAX_IMAGE_LABEL = "4.5 MB";
-export const IMAGE_TOO_LARGE = `Images must be ${MAX_IMAGE_LABEL} or smaller. Resize to at most 2048 px on the long edge (images are stored at up to 1440×1800) and try again.`;
-export const imageFileSchema = z.object({
-  dataBase64: z
-    .string()
-    .min(1)
-    .max(Math.ceil(MAX_IMAGE_BYTES / 3) * 4),
-  filename: z.string().max(255).optional(),
-  mimeType: z.string().max(100).optional(),
-});
-// Inline base64 makes the model emit every byte as output tokens, so MCP only
-// accepts it for small images; larger ones go through create_upload_token.
-export const MAX_INLINE_IMAGE_BYTES = 256 * 1024;
-export const inlineImageFileSchema = imageFileSchema.extend({
-  dataBase64: z
-    .string()
-    .min(1)
-    .max(Math.ceil(MAX_INLINE_IMAGE_BYTES / 3) * 4),
-});
+// Bad media from a client (unreachable URL, wrong type, too large). Its
+// message is safe to show; the domain turns it into a user-facing error.
+// Other errors from storage are internal.
+export class MediaInputError extends Error {}
+
 export function assertPublicAddress(address: string) {
   const parsed = ipaddr.process(address);
   if (parsed.range() !== "unicast")
-    throw new Error("Image URLs must resolve to a public internet address");
+    throw new MediaInputError(
+      "Image URLs must resolve to a public internet address",
+    );
 }
 export async function downloadImage(
   value: string,
@@ -50,13 +50,14 @@ export async function downloadImage(
       url.password ||
       (url.port && url.port !== "443")
     )
-      throw new Error("Use a public HTTPS image URL on port 443");
+      throw new MediaInputError("Use a public HTTPS image URL on port 443");
     const hostname = url.hostname.replace(/^\[|\]$/g, "");
     const addresses = await lookup(hostname, { all: true });
-    if (!addresses.length) throw new Error("Image host could not be resolved");
+    if (!addresses.length)
+      throw new MediaInputError("Image host could not be resolved");
     addresses.forEach((a) => assertPublicAddress(a.address));
     const remaining = deadline - Date.now();
-    if (remaining <= 0) throw new Error("Image download timed out");
+    if (remaining <= 0) throw new MediaInputError("Image download timed out");
     return new Promise((resolve, reject) => {
       const chosen = addresses[0];
       const req = request(
@@ -77,7 +78,7 @@ export async function downloadImage(
           if ([301, 302, 303, 307, 308].includes(status)) {
             response.destroy();
             if (redirects >= 3 || !response.headers.location)
-              return reject(new Error("Too many image redirects"));
+              return reject(new MediaInputError("Too many image redirects"));
             try {
               downloadImage(
                 new URL(response.headers.location, url).href,
@@ -92,13 +93,15 @@ export async function downloadImage(
           }
           if (status !== 200) {
             response.destroy();
-            reject(new Error(`Image download failed (HTTP ${status})`));
+            reject(
+              new MediaInputError(`Image download failed (HTTP ${status})`),
+            );
             return;
           }
           if (Number(response.headers["content-length"] || 0) > maxBytes) {
             response.destroy();
             reject(
-              new Error(
+              new MediaInputError(
                 maxBytes === MAX_IMAGE_BYTES
                   ? IMAGE_TOO_LARGE
                   : "Video must be 100 MB or smaller",
@@ -112,7 +115,7 @@ export async function downloadImage(
             length += chunk.length;
             if (length > maxBytes) {
               response.destroy(
-                new Error(
+                new MediaInputError(
                   maxBytes === MAX_IMAGE_BYTES
                     ? IMAGE_TOO_LARGE
                     : "Video must be 100 MB or smaller",
@@ -144,7 +147,7 @@ export async function uploadImage(
           value,
         )
       )
-        throw new Error(
+        throw new MediaInputError(
           "imageFile.dataBase64 must contain valid base64 file bytes",
         );
       bytes = Buffer.from(value, "base64");
@@ -158,8 +161,9 @@ export async function storeImage(
   provider?: StorageLocation["storageProvider"],
 ) {
   return loggedOperation("lib.storage.storeImage", { projectId }, async () => {
-    if (!bytes.length) throw new Error("The image is empty");
-    if (bytes.length > MAX_IMAGE_BYTES) throw new Error(IMAGE_TOO_LARGE);
+    if (!bytes.length) throw new MediaInputError("The image is empty");
+    if (bytes.length > MAX_IMAGE_BYTES)
+      throw new MediaInputError(IMAGE_TOO_LARGE);
     let jpeg: Buffer;
     try {
       const image = sharp(bytes, {
@@ -185,7 +189,7 @@ export async function storeImage(
         .toBuffer();
       if (jpeg.length > MAX_IMAGE_BYTES) throw new Error("Image too large");
     } catch {
-      throw new Error(
+      throw new MediaInputError(
         "Upload a valid JPEG, PNG, or WebP image (maximum 20 megapixels)",
       );
     }
@@ -280,7 +284,9 @@ export async function storeAsset(
   return loggedOperation("lib.storage.storeAsset", { projectId }, async () => {
     const kind = isMp4(bytes) ? "VIDEO" : "IMAGE";
     if (expectedKind && expectedKind !== kind)
-      throw new Error(`Expected a valid ${expectedKind.toLowerCase()} file`);
+      throw new MediaInputError(
+        `Expected a valid ${expectedKind.toLowerCase()} file`,
+      );
     const id = randomUUID();
     if (kind === "IMAGE")
       return {
@@ -290,7 +296,7 @@ export async function storeAsset(
         ...(await storeImage(projectId, bytes, provider)),
       };
     if (bytes.length > MAX_VIDEO_BYTES)
-      throw new Error("Video must be 100 MB or smaller");
+      throw new MediaInputError("Video must be 100 MB or smaller");
     const imageKey = `${projectId}/${id}.mp4`;
     const location = { ...(await newStorageLocation(provider)), imageKey };
     await storageProvider(location.storageProvider).write(
@@ -328,12 +334,14 @@ export async function readStagedUpload(
   asset: StorageLocation & { fileSize: number },
 ) {
   if (asset.fileSize > MAX_VIDEO_BYTES)
-    throw new Error("Uploaded file exceeds its size limit");
+    throw new MediaInputError("Uploaded file exceeds its size limit");
   const bytes = await storageProvider(asset.storageProvider).read(
     { bucket: asset.imageBucket, key: asset.imageKey },
     asset.fileSize,
   );
   if (bytes.length !== asset.fileSize)
-    throw new Error("Uploaded file size does not match the upload request");
+    throw new MediaInputError(
+      "Uploaded file size does not match the upload request",
+    );
   return bytes;
 }
