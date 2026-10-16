@@ -30,9 +30,11 @@ import {
   completeDirectUpload,
   directUploadSchema,
 } from "../src/lib/direct-uploads";
-import { removeImage, readImage, isMp4, getAssetUrl } from "../src/lib/storage";
+import { removeImage, readImage, isMp4 } from "../src/lib/storage";
 import { mcpDraftSchema, filesDraftSchema } from "../src/lib/mcp-images";
 import { validateAssetKinds } from "../src/lib/asset-inputs";
+import { serveRemoteFiles } from "./helpers/remote-files";
+import { storageRequest } from "./helpers/storage";
 import { rotateAccountToken } from "../src/lib/mcp-account";
 import { handleAccountMcp } from "../src/lib/mcp";
 import { publishPost } from "./helpers/direct-publish";
@@ -42,7 +44,6 @@ import {
   PATCH as finalizeUpload,
 } from "../src/app/api/assets/uploads/route";
 loadEnvConfig(process.cwd());
-process.env.STORAGE_PROVIDER = "s3";
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 const origin = process.env.APP_URL || "http://localhost:8200";
@@ -243,7 +244,7 @@ test(
               "private, no-store",
             );
             assert.equal(
-              (await realFetch(preview.headers.get("Location")!)).status,
+              (await storageRequest(preview.headers.get("Location")!)).status,
               200,
             );
             assert.equal(
@@ -392,23 +393,15 @@ test(
             mimeType: "video/mp4",
             fileSize: video.length,
           });
-          const preflight = await realFetch(start.uploadUrl, {
-            method: "OPTIONS",
-            headers: {
-              Origin: origin,
-              "Access-Control-Request-Method": "PUT",
-              "Access-Control-Request-Headers": "content-type",
-            },
-          });
-          assert.equal(preflight.status, 200);
-          assert.ok(
-            [origin, "*"].includes(
-              preflight.headers.get("Access-Control-Allow-Origin") || "",
-            ),
+          // Local uploads go to the app's own origin, so browsers need no
+          // CORS preflight (S3 bucket CORS is covered by storage:cors).
+          assert.match(
+            start.uploadUrl,
+            /\/api\/mcp\/uploads\/local\?uploadId=/,
           );
           assert.ok(
             (
-              await realFetch(start.uploadUrl, {
+              await storageRequest(start.uploadUrl, {
                 method: "PUT",
                 headers: start.headers,
                 body: video,
@@ -475,15 +468,17 @@ test(
               }),
             /already used/,
           );
-          // A still-valid PUT URL can only change its abandoned staging key.
-          assert.ok(
+          // A completed upload's URL is closed: re-sending can't change the
+          // finalized asset.
+          assert.equal(
             (
-              await realFetch(start.uploadUrl, {
+              await storageRequest(start.uploadUrl, {
                 method: "PUT",
                 headers: start.headers,
                 body: Buffer.alloc(video.length),
               })
-            ).ok,
+            ).status,
+            404,
           );
           const [asset] = storedAssets(
             await getPostImage(projectId, videoPost.id),
@@ -495,7 +490,7 @@ test(
           });
           assert.ok(
             (
-              await realFetch(pending.uploadUrl, {
+              await storageRequest(pending.uploadUrl, {
                 method: "PUT",
                 headers: pending.headers,
                 body: Buffer.alloc(video.length),
@@ -511,7 +506,7 @@ test(
               ),
             /valid video/,
           );
-          // Browser route can finalize an image without exposing the S3 secret.
+          // Browser route can finalize an image without exposing storage secrets.
           const response = await prepareUpload(
             api(
               `/api/assets/uploads?projectId=${projectId}`,
@@ -523,7 +518,7 @@ test(
           const imageStart = await response.json();
           assert.ok(
             (
-              await realFetch(imageStart.uploadUrl, {
+              await storageRequest(imageStart.uploadUrl, {
                 method: "PUT",
                 headers: imageStart.headers,
                 body: jpeg,
@@ -571,10 +566,18 @@ test(
           const original = storedAssets(
             await getPostImage(projectId, album.id),
           );
+          // ChatGPT hands over public download URLs; serve the stored bytes
+          // from a fake public host so the real downloader runs.
+          const remote = serveRemoteFiles();
+          t.after(() => remote.restore());
           const files = [];
           for (const [index, asset] of original.slice(0, 2).entries())
             files.push({
-              download_url: await getAssetUrl(asset),
+              download_url: remote.add(
+                `/image-${index}.jpg`,
+                await readImage(asset),
+                "image/jpeg",
+              ),
               file_id: `file_image_${index}`,
             });
           const imported = await mcp("create_draft_from_files", {
@@ -590,7 +593,11 @@ test(
             ...draft,
             assets: [
               {
-                download_url: await getAssetUrl(clip),
+                download_url: remote.add(
+                  "/flower.mp4",
+                  await readImage(clip),
+                  "video/mp4",
+                ),
                 file_id: "file_video",
                 mime_type: "video/mp4",
                 file_name: "flower.mp4",
@@ -680,7 +687,10 @@ test(
             "published",
           );
           assert.match(calls[0].url, /graph-video.facebook.com.*\/videos$/);
-          assert.match(calls[0].body.file_url, /X-Amz-Signature=/);
+          assert.match(
+            calls[0].body.file_url,
+            /\/api\/mcp\/media\/local\?bucket=/,
+          );
           assert.equal(calls[1].body.media_type, "REELS");
           assert.equal(calls[1].body.video_url, calls[0].body.file_url);
           assert.equal(calls[2].method, "GET");
@@ -699,7 +709,7 @@ test(
             mimeType: "video/mp4",
             fileSize: video.length,
           });
-          await realFetch(start.uploadUrl, {
+          await storageRequest(start.uploadUrl, {
             method: "PUT",
             headers: start.headers,
             body: video,

@@ -34,7 +34,6 @@ import {
 import { publishPost } from "./helpers/direct-publish";
 import type { Platform } from "../src/lib/types";
 loadEnvConfig(process.cwd());
-process.env.STORAGE_PROVIDER = "s3";
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 const createdIds: string[] = [];
@@ -310,7 +309,10 @@ test(
             instagram: "id-3",
           });
           assert.equal(calls[0].body.caption, "Test caption");
-          assert.match(calls[1].body.image_url, /X-Amz-Signature=/);
+          assert.match(
+            calls[1].body.image_url,
+            /\/api\/mcp\/media\/local\?bucket=/,
+          );
           assert.equal(calls[0].body.url, calls[1].body.image_url);
           assert.equal(calls[2].body.creation_id, "id-2");
           await assert.rejects(

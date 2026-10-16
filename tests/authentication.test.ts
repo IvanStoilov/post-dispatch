@@ -29,8 +29,9 @@ import { POST as publishPost } from "../src/app/api/posts/[id]/publish/route";
 import { GET as connections } from "../src/app/api/connections/route";
 import { rotateAccountToken } from "../src/lib/mcp-account";
 import { handleAccountMcp } from "../src/lib/mcp";
+import { serveRemoteFiles } from "./helpers/remote-files";
+import { storageRequest } from "./helpers/storage";
 loadEnvConfig(process.cwd());
-process.env.STORAGE_PROVIDER = "s3";
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 const createdUsers: string[] = [];
@@ -460,15 +461,27 @@ test(
             imageKey: row.imageKey!,
             imageBucket: row.imageBucket!,
           });
-          assert.equal((await fetch(signed)).status, 200);
+          const stored = await storageRequest(signed);
+          assert.equal(stored.status, 200);
+          // Stored media is only served by its exact object reference.
           const unsigned = new URL(signed);
           unsigned.search = "";
-          assert.ok(
-            [401, 403].includes((await fetch(unsigned)).status),
-            "Bucket must remain private",
+          assert.equal(
+            (await storageRequest(unsigned.href)).status,
+            404,
+            "Stored media must not be served without its reference",
+          );
+          // Assistants import from public URLs; serve the stored bytes from
+          // a fake public host so the real downloader runs.
+          const remote = serveRemoteFiles();
+          t.after(() => remote.restore());
+          const external = remote.add(
+            "/stored.jpg",
+            Buffer.from(await stored.arrayBuffer()),
+            "image/jpeg",
           );
           const imported = await mcpImage({
-            assets: [{ type: "EXTERNAL_URL", url: signed }],
+            assets: [{ type: "EXTERNAL_URL", url: external }],
           });
           assert.notEqual(
             (await getPostImage(extra.project.id, imported.id)).imageKey,
@@ -486,7 +499,7 @@ test(
             assets: [
               {
                 type: "OPENAPI_FILE",
-                download_url: signed,
+                download_url: external,
                 file_id: "file_test",
                 mime_type: "image/jpeg",
                 file_name: "test.jpg",
@@ -516,7 +529,7 @@ test(
                     platforms: ["instagram"],
                     assets: [
                       {
-                        download_url: signed,
+                        download_url: external,
                         file_id: "file_host",
                         mime_type: "image/jpeg",
                         file_name: "host.jpg",
@@ -570,7 +583,7 @@ test(
             ).status,
             200,
           );
-          assert.equal((await fetch(signed)).status, 404);
+          assert.equal((await storageRequest(signed)).status, 404);
         },
       );
       await t.test(

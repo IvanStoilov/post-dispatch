@@ -1,5 +1,5 @@
 import { acceptedSignup } from "./helpers/terms";
-import test, { mock } from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { loadEnvConfig } from "@next/env";
@@ -27,15 +27,9 @@ import {
   recoverAccountMediaCleanup,
   limitDeletionAttempts,
 } from "../src/lib/account-deletion";
-import {
-  S3Client,
-  ListObjectsV2Command,
-  DeleteObjectsCommand,
-  ListBucketsCommand,
-} from "@aws-sdk/client-s3";
+import { breakStorage, isStored, storeFile } from "./helpers/storage";
 import { DELETE } from "../src/app/api/account/route";
 loadEnvConfig(process.cwd());
-process.env.STORAGE_PROVIDER = "s3";
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 
@@ -48,16 +42,8 @@ test(
       created: string[] = [],
       projectIds: string[] = [];
     process.env.MAIL_PROVIDER = "console";
-    process.env.AWS_S3_BUCKET = "account-deletion-test";
-    const storageResponse = async (command: unknown) => {
-      if (command instanceof ListObjectsV2Command)
-        return { Contents: [], IsTruncated: false };
-      if (command instanceof DeleteObjectsCommand) return {};
-      if (command instanceof ListBucketsCommand)
-        return { Buckets: [{ Name: "account-deletion-test" }] };
-      throw new Error("Unexpected storage request");
-    };
-    const purge = mock.method(S3Client.prototype, "send", storageResponse);
+    // The local provider's bucket, so rows and new uploads share one location.
+    const bucket = "media";
     const cookie = (r: Response) =>
       r.headers
         .getSetCookie()
@@ -169,9 +155,19 @@ test(
         platforms: ["facebook"],
       });
       const object = {
+        storageProvider: "local" as const,
         imageKey: `${a.projectId}/test.jpg`,
-        imageBucket: "account-deletion-test",
+        imageBucket: bucket,
       };
+      // Real files behind the rows, plus one no row references: the prefix
+      // sweep must remove it too.
+      for (const key of [
+        "test.jpg",
+        "unclaimed.jpg",
+        "pending/upload",
+        "stray.jpg",
+      ])
+        storeFile(bucket, `${a.projectId}/${key}`);
       await db.insert(postAssets).values({
         id: randomUUID(),
         postId: post.id,
@@ -333,13 +329,16 @@ test(
             .where(eq(accountMediaCleanup.prefix, `${a.projectId}/`));
           assert.equal(targets.length, 1);
           assert.equal(targets[0].objectKeys.length, 0); // initial purge succeeded
-          assert.ok(
-            purge.mock.calls.some(
-              (c) =>
-                c.arguments[0] instanceof ListObjectsV2Command &&
-                c.arguments[0].input.Prefix === `${a.projectId}/`,
-            ),
-          );
+          for (const key of [
+            "test.jpg",
+            "unclaimed.jpg",
+            "pending/upload",
+            "stray.jpg",
+          ])
+            assert.ok(
+              !isStored(bucket, `${a.projectId}/${key}`),
+              `${key} should be purged with the account`,
+            );
         },
       );
       await t.test(
@@ -349,9 +348,7 @@ test(
             .update(accountMediaCleanup)
             .set({ nextAttemptAt: new Date(0), finalSweepAfter: new Date(0) })
             .where(eq(accountMediaCleanup.prefix, `${a.projectId}/`));
-          purge.mock.mockImplementation(async () => {
-            throw new Error("Simulated storage outage");
-          });
+          const restoreStorage = breakStorage();
           await recoverAccountMediaCleanup();
           assert.equal(
             (
@@ -362,7 +359,7 @@ test(
             ).length,
             1,
           );
-          purge.mock.mockImplementation(storageResponse);
+          restoreStorage();
           await db
             .update(accountMediaCleanup)
             .set({ nextAttemptAt: new Date(0) })
@@ -391,7 +388,6 @@ test(
         },
       );
     } finally {
-      purge.mock.restore();
       if (projectIds.length) {
         await db.delete(accountMediaCleanup).where(
           inArray(

@@ -1,15 +1,10 @@
 import { acceptedSignup } from "./helpers/terms";
-import test, { mock } from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { loadEnvConfig } from "@next/env";
 import { eq, inArray } from "drizzle-orm";
-import {
-  S3Client,
-  ListObjectsV2Command,
-  DeleteObjectsCommand,
-  ListBucketsCommand,
-} from "@aws-sdk/client-s3";
+import { isStored, storeFile } from "./helpers/storage";
 import { getDb, closeDb } from "../src/db";
 import {
   users,
@@ -41,7 +36,6 @@ import {
 import { processPublishingJob } from "../src/lib/publish-jobs";
 import { DELETE } from "../src/app/api/projects/[id]/route";
 loadEnvConfig(process.cwd());
-process.env.STORAGE_PROVIDER = "s3";
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 
@@ -56,22 +50,11 @@ test(
       verificationIds: string[] = [];
     Object.assign(process.env, {
       MAIL_PROVIDER: "console",
-      AWS_S3_BUCKET: "project-deletion-test",
       FACEBOOK_APP_ID: "123456",
       FACEBOOK_APP_SECRET: "test-secret",
     });
-    const storage = mock.method(
-      S3Client.prototype,
-      "send",
-      async (command: unknown) => {
-        if (command instanceof ListObjectsV2Command)
-          return { Contents: [], IsTruncated: false };
-        if (command instanceof DeleteObjectsCommand) return {};
-        if (command instanceof ListBucketsCommand)
-          return { Buckets: [{ Name: "project-deletion-test" }] };
-        throw new Error("Unexpected storage call");
-      },
-    );
+    // The local provider's bucket, so rows and new uploads share one location.
+    const bucket = "media";
     const cookie = (r: Response) =>
       r.headers
         .getSetCookie()
@@ -179,18 +162,21 @@ test(
         position: 0,
         kind: "IMAGE",
         mimeType: "image/jpeg",
-        imageBucket: "project-deletion-test",
+        storageProvider: "local",
+        imageBucket: bucket,
         imageKey: `${a.project.id}/image.jpg`,
       });
       await db.insert(imageUploads).values({
         projectId: a.project.id,
-        imageBucket: "project-deletion-test",
+        storageProvider: "local",
+        imageBucket: bucket,
         imageKey: `${a.project.id}/unused.jpg`,
         expiresAt: new Date(Date.now() + 3600000).toISOString(),
       });
       await db.insert(directUploads).values({
         projectId: a.project.id,
-        imageBucket: "project-deletion-test",
+        storageProvider: "local",
+        imageBucket: bucket,
         imageKey: `${a.project.id}/pending/file`,
         mimeType: "image/jpeg",
         fileSize: 100,
@@ -203,6 +189,16 @@ test(
         uploadsRemaining: 1,
         expiresAt: new Date(Date.now() + 3600000).toISOString(),
       });
+      // Real files behind the media rows, plus one no row references: the
+      // prefix sweep must remove it too. The kept project's file must stay.
+      for (const key of [
+        "image.jpg",
+        "unused.jpg",
+        "pending/file",
+        "stray.jpg",
+      ])
+        storeFile(bucket, `${a.project.id}/${key}`);
+      storeFile(bucket, `${keep.id}/kept.jpg`);
       await db.insert(projectConnectors).values({
         projectId: a.project.id,
         provider: "facebook",
@@ -346,12 +342,19 @@ test(
             /Project not found/,
           );
           await processPublishingJob(job.id); // stale queue callbacks cannot resurrect deleted work
+          for (const key of [
+            "image.jpg",
+            "unused.jpg",
+            "pending/file",
+            "stray.jpg",
+          ])
+            assert.ok(
+              !isStored(bucket, `${a.project.id}/${key}`),
+              `${key} should be purged with the project`,
+            );
           assert.ok(
-            storage.mock.calls.some(
-              (c) =>
-                c.arguments[0] instanceof ListObjectsV2Command &&
-                c.arguments[0].input.Prefix === `${a.project.id}/`,
-            ),
+            isStored(bucket, `${keep.id}/kept.jpg`),
+            "other projects keep their media",
           );
           assert.equal(
             (
@@ -394,7 +397,6 @@ test(
         },
       );
     } finally {
-      storage.mock.restore();
       if (projectIds.length) {
         await db.delete(accountMediaCleanup).where(
           inArray(

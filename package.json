@@ -11,7 +11,7 @@
     "lint": "eslint",
     "env:check": "tsx --import ./scripts/server-only-hook.mjs scripts/check-config.ts",
     "format": "prettier --write src README.md",
-    "test": "tsx --import ./scripts/server-only-hook.mjs --test tests/*.test.ts",
+    "test": "tsx --import ./scripts/server-only-hook.mjs --import ./tests/setup.mjs --test tests/*.test.ts",
     "publications:backfill": "tsx --import ./scripts/server-only-hook.mjs scripts/backfill-publications.ts",
     "jobs:work": "tsx --import ./scripts/server-only-hook.mjs scripts/publishing-worker.ts",
     "credentials:encrypt": "tsx --import ./scripts/server-only-hook.mjs scripts/encrypt-credentials.ts",
