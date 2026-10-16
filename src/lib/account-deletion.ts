@@ -1,23 +1,16 @@
-import { after } from "next/server";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb } from "../db";
-import {
-  users,
-  projects,
-  verifications,
-  accountMediaCleanup,
-} from "../db/schema";
-import { purgeProjectMedia } from "./storage";
+import { users, verifications } from "../db/schema";
+import { projectsSystemService } from "@/domain/projects";
+import { UserFacingError as AccountDeletionError } from "@/domain/shared/errors";
 import { newStorageLocation } from "./storage/index";
-import { pendingConnectionBelongsTo } from "./connector-connect";
+import { pendingConnectionBelongsTo } from "./pending-connections";
 import { loggedOperation, logger } from "./logger";
 
-import {
-  deleteProjectData,
-  DataDeletionError as AccountDeletionError,
-} from "./project-deletion";
-export { DataDeletionError as AccountDeletionError } from "./project-deletion";
+// Failures the account route shows to the user, including the projects
+// module's (for example while a publication is in progress).
+export { AccountDeletionError };
 
 // Persisted rate limit so incorrect password attempts cannot be spread across instances.
 export async function limitDeletionAttempts(userId: string) {
@@ -65,13 +58,11 @@ export async function deleteOwnAccount(userId: string) {
         .for("update");
       if (!user) throw new AccountDeletionError("Account not found.", 404);
       // FK checks block new project/content registrations while these rows are locked.
-      const owned = await tx
-        .select()
-        .from(projects)
-        .where(eq(projects.userId, userId))
-        .orderBy(projects.id)
-        .for("update");
-      await deleteProjectData(tx, owned, configuredLocation, "account");
+      await projectsSystemService.deleteAllOwned(
+        tx,
+        userId,
+        configuredLocation,
+      );
       // Verification records are not FK-bound, including OAuth codes and sealed connector handshakes.
       const records = await tx.select().from(verifications);
       const verificationIds = records
@@ -103,73 +94,4 @@ export async function deleteOwnAccount(userId: string) {
     });
     logger.info("account.deleted", { userId });
   });
-}
-
-/** Shares the existing recovery cron/worker; requires no additional provider. */
-export async function recoverAccountMediaCleanup(limit = 10) {
-  const due = await getDb()
-    .select({ id: accountMediaCleanup.id })
-    .from(accountMediaCleanup)
-    .where(lte(accountMediaCleanup.nextAttemptAt, new Date()))
-    .limit(limit);
-  let completed = 0;
-  for (const { id } of due) {
-    try {
-      await getDb().transaction(async (tx) => {
-        const [target] = await tx
-          .select()
-          .from(accountMediaCleanup)
-          .where(
-            and(
-              eq(accountMediaCleanup.id, id),
-              lte(accountMediaCleanup.nextAttemptAt, new Date()),
-            ),
-          )
-          .for("update", { skipLocked: true });
-        if (!target) return;
-        const empty = await purgeProjectMedia(target);
-        if (empty && new Date() >= target.finalSweepAfter) {
-          await tx
-            .delete(accountMediaCleanup)
-            .where(eq(accountMediaCleanup.id, id));
-          completed++;
-        } else {
-          await tx
-            .update(accountMediaCleanup)
-            .set({
-              objectKeys: [],
-              attempts: target.attempts + 1,
-              nextAttemptAt: empty
-                ? target.finalSweepAfter
-                : new Date(Date.now() + 60000),
-            })
-            .where(eq(accountMediaCleanup.id, id));
-        }
-      });
-    } catch (error) {
-      logger.error("account.media_cleanup.failed", { cleanupId: id, error });
-      await getDb()
-        .update(accountMediaCleanup)
-        .set({ nextAttemptAt: new Date(Date.now() + 5 * 60000) })
-        .where(eq(accountMediaCleanup.id, id));
-    }
-  }
-  return completed;
-}
-
-// Runs media cleanup recovery after the response is sent; outside a request
-// (scripts, tests) there is no after(), so it runs inline instead.
-export async function scheduleMediaCleanupRecovery(failureEvent: string) {
-  const cleanup = async () => {
-    try {
-      await recoverAccountMediaCleanup();
-    } catch (error) {
-      logger.error(failureEvent, { error });
-    }
-  };
-  try {
-    after(cleanup);
-  } catch {
-    await cleanup();
-  }
 }

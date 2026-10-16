@@ -34,7 +34,7 @@ import {
   pendingConnectionBelongsTo,
 } from "../src/lib/connector-connect";
 import { processPublishingJob } from "../src/lib/publish-jobs";
-import { DELETE } from "../src/app/api/projects/[id]/route";
+import { client, rejectsWith } from "./helpers/orpc";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -113,28 +113,16 @@ test(
         .project;
       projectIds.push(keep.id);
       const token = await rotateAccountToken(a.id);
-      const endpoint = `/api/projects/${a.project.id}`,
-        ctx = { params: Promise.resolve({ id: a.project.id }) };
-      const body = { confirmation: a.project.name };
-      const remove = (
-        input: unknown = body,
-        cookies = a.cookie,
-        origin = appOrigin(),
-      ) => DELETE(req(endpoint, input, cookies, "DELETE", origin), ctx);
+      // Cross-site requests are refused by the proxy for every API route
+      // (tests/public-pages.test.ts).
+      const remove = (confirmation = a.project.name, cookies = a.cookie) =>
+        client(cookies).projects.delete({ id: a.project.id, confirmation });
       await t.test(
-        "requires session, exact confirmation and ownership; rejects cross-site requests",
+        "requires session, exact confirmation and ownership",
         async () => {
-          assert.equal((await remove(body, "")).status, 401);
-          assert.equal((await remove(body, b.cookie)).status, 404);
-          assert.equal(
-            (await remove(body, a.cookie, "https://evil.example")).status,
-            403,
-          );
-          assert.equal(
-            (await remove({ confirmation: "wrong project" })).status,
-            400,
-          );
-          assert.equal((await remove({ ...body, userId: b.id })).status, 400);
+          await rejectsWith(remove(a.project.name, ""), "UNAUTHORIZED");
+          await rejectsWith(remove(a.project.name, b.cookie), "NOT_FOUND");
+          await rejectsWith(remove("wrong project"), "BAD_REQUEST");
           assert.equal(
             (
               await db
@@ -245,7 +233,7 @@ test(
       await t.test(
         "active publishing and uncertain submissions block deletion atomically",
         async () => {
-          assert.equal((await remove()).status, 409);
+          await rejectsWith(remove(), "CONFLICT");
           await db
             .update(publishJobs)
             .set({
@@ -254,7 +242,7 @@ test(
               leaseExpiresAt: null,
             })
             .where(eq(publishJobs.id, job.id));
-          assert.equal((await remove()).status, 409);
+          await rejectsWith(remove(), "CONFLICT");
           assert.equal(
             (
               await db
@@ -273,9 +261,7 @@ test(
       await t.test(
         "removes the selected project, pending connections and jobs; keeps other projects and account access",
         async () => {
-          const response = await remove();
-          assert.equal(response.status, 200);
-          assert.equal((await response.json()).deleted, true);
+          await remove();
           assert.equal(
             (
               await db
@@ -370,16 +356,10 @@ test(
       await t.test(
         "deleting the final project leaves the user account available to create a new one",
         async () => {
-          const response = await DELETE(
-            req(
-              `/api/projects/${keep.id}`,
-              { confirmation: keep.name },
-              a.cookie,
-              "DELETE",
-            ),
-            { params: Promise.resolve({ id: keep.id }) },
-          );
-          assert.equal(response.status, 200);
+          await client(a.cookie).projects.delete({
+            id: keep.id,
+            confirmation: keep.name,
+          });
           assert.equal(
             (await db.select().from(projects).where(eq(projects.userId, a.id)))
               .length,

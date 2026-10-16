@@ -7,7 +7,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { newStorageLocation, storageProvider } from "./storage/index";
-import { and, eq, gt, lte, sql, count } from "drizzle-orm";
+import { and, eq, gt, inArray, lte, sql, count } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import { directUploads, imageUploads } from "../db/schema";
@@ -19,6 +19,30 @@ import {
   MAX_VIDEO_BYTES,
 } from "./storage";
 import { appOrigin, removeExpiredUploads } from "./uploads";
+
+type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+// Deletes the projects' unclaimed and in-progress uploads in the caller's
+// transaction, and returns their stored media for cleanup.
+export async function deleteProjectUploads(tx: Tx, projectIds: string[]) {
+  const unclaimed = await tx
+    .select()
+    .from(imageUploads)
+    .where(inArray(imageUploads.projectId, projectIds))
+    .for("update");
+  const pending = await tx
+    .select()
+    .from(directUploads)
+    .where(inArray(directUploads.projectId, projectIds))
+    .for("update");
+  await tx
+    .delete(directUploads)
+    .where(inArray(directUploads.projectId, projectIds));
+  await tx
+    .delete(imageUploads)
+    .where(inArray(imageUploads.projectId, projectIds));
+  return [...unclaimed, ...pending];
+}
 const hash = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 export const directUploadSchema = z

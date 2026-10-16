@@ -237,6 +237,30 @@ function manageForProject(
   );
 }
 
+// Deletes the projects' jobs in the caller's transaction (project and
+// account deletion). Refuses while a network may be receiving a post:
+// deleting then could lose track of a publication. Published copies cascade
+// with their posts.
+async function deleteJobsInProjects(
+  tx: Tx,
+  projectIds: string[],
+  deleting: "this project" | "your account",
+) {
+  const jobs = await repository.lockJobsInProjects(tx, projectIds);
+  if (
+    jobs.some(
+      (job) =>
+        job.status === "submitting" ||
+        (job.leaseExpiresAt && job.leaseExpiresAt > new Date()),
+    )
+  )
+    throw new UserFacingError(
+      `A publication is currently being processed. Wait for it to finish before deleting ${deleting}. If it remains stuck, contact support.`,
+      409,
+    );
+  await repository.deleteJobsInProjects(tx, projectIds);
+}
+
 // For routers, pages and MCP tools acting for a signed-in user.
 export const publishingService = {
   publish,
@@ -260,5 +284,6 @@ export const publishingSystemService = {
   retryFailed: retryFailedForProject,
   listForProject,
   manageForProject,
+  deleteJobsInProjects,
   toPublicationDto,
 };

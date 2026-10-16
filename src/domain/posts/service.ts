@@ -3,7 +3,9 @@ import { getDb } from "@/db";
 import { logger, loggedOperation } from "@/lib/logger";
 import {
   downloadAsset,
+  getAssetUrl,
   MediaInputError,
+  readImage,
   removeImage,
   storeAsset,
 } from "@/lib/storage";
@@ -14,6 +16,7 @@ import type {
   CreatePostInput,
   DraftFields,
   ListPostsInput,
+  PostAssetRef,
   PostDto,
   PostRef,
   UpdatePostInput,
@@ -328,6 +331,45 @@ async function remove(actor: Actor, { projectId, id }: PostRef): Promise<void> {
   );
 }
 
+// Media is private: these serve it to the project's owner only.
+
+const mediaNotFound = () => new UserFacingError("Media not found", 404);
+async function ownedRecord(actor: Actor, { projectId, id }: PostRef) {
+  await assertOwned(actor, projectId);
+  const row = await repository.findInProject(projectId, id);
+  if (!row) throw mediaNotFound();
+  return (await repository.hydrate([row]))[0];
+}
+const unavailable = (error: unknown) => {
+  logger.warn("storage.media.unavailable", { error });
+  return new UserFacingError("Media unavailable", 502);
+};
+
+// A short-lived URL for one of the post's stored files.
+async function mediaUrl(actor: Actor, ref: PostAssetRef): Promise<string> {
+  const post = await ownedRecord(actor, ref);
+  const asset = post.assets.find((asset) => asset.id === ref.assetId);
+  if (!asset) throw mediaNotFound();
+  return getAssetUrl(asset, 300).catch((error) => {
+    throw unavailable(error);
+  });
+}
+
+// The post's preview image (its first image), as JPEG bytes.
+async function previewImage(actor: Actor, ref: PostRef) {
+  const post = await ownedRecord(actor, ref);
+  if (!post.imageKey || !post.imageBucket || !post.storageProvider)
+    throw mediaNotFound();
+  const bytes = await readImage({
+    imageKey: post.imageKey,
+    imageBucket: post.imageBucket,
+    storageProvider: post.storageProvider,
+  }).catch((error) => {
+    throw unavailable(error);
+  });
+  return Buffer.from(bytes);
+}
+
 // System operations, for a project the caller already authorized
 // (publishing jobs, MCP tools and legacy routes until they migrate).
 
@@ -367,12 +409,22 @@ async function findRecord(projectId: string, id: string) {
   return row ? (await repository.hydrate([row]))[0] : undefined;
 }
 
+// Deletes the projects' posts in the caller's transaction (project
+// deletion) and returns their stored media for cleanup.
+async function deleteInProjects(tx: Tx, projectIds: string[]) {
+  const media = await repository.lockMediaInProjects(tx, projectIds);
+  await repository.removeInProjects(tx, projectIds);
+  return media;
+}
+
 // For routers, pages and MCP tools acting for a signed-in user.
 export const postsService = {
   list,
   create,
   update,
   delete: remove,
+  mediaUrl,
+  previewImage,
 };
 
 // For workers and other domain modules only: these skip user
@@ -383,6 +435,7 @@ export const postsSystemService = {
   editForProject,
   deleteForProject,
   findRecord,
+  deleteInProjects,
   hydrate: repository.hydrate,
   toPostDto,
   validateAssetKinds,

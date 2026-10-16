@@ -6,9 +6,7 @@ import { publishingSystemService as publishing } from "@/domain/publishing";
 // Remove each export when its last caller has migrated. Functions stay
 // async so validation failures reject, as the old ones did.
 
-export const publishingQueue = publishing.queue;
 export const processPublishingJob = publishing.processJob;
-export const dispatchPublishingJob = publishing.dispatchJob;
 export const recoverPublishingJobs = publishing.recoverJobs;
 
 export async function enqueuePublication(

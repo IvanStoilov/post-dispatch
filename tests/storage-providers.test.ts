@@ -35,8 +35,8 @@ import {
   completeDirectUpload,
 } from "../src/lib/direct-uploads";
 import { createPost, deletePost } from "../src/lib/store";
-import { deleteOwnProject } from "../src/lib/project-deletion";
-import { recoverAccountMediaCleanup } from "../src/lib/account-deletion";
+import { projectsService } from "../src/domain/projects";
+import { recoverMediaCleanup } from "../src/lib/media-cleanup";
 import { PUT as uploadLocal } from "../src/app/api/mcp/uploads/local/route";
 import {
   GET as readLocal,
@@ -374,7 +374,10 @@ test(
       await deletePost(project.id, post.id);
       assert.equal((await readLocal(new Request(url))).status, 404);
       process.env.STORAGE_PROVIDER = "local";
-      await deleteOwnProject(userId, project.id, project.name);
+      await projectsService.delete(
+        { userId },
+        { id: project.id, confirmation: project.name },
+      );
       const targets = await getDb()
         .select()
         .from(accountMediaCleanup)
@@ -385,7 +388,7 @@ test(
         .update(accountMediaCleanup)
         .set({ nextAttemptAt: new Date(0), finalSweepAfter: new Date(0) })
         .where(eq(accountMediaCleanup.prefix, `${project.id}/`));
-      await recoverAccountMediaCleanup();
+      await recoverMediaCleanup();
       assert.equal(
         (
           await getDb()

@@ -7,8 +7,8 @@ import {
   AccountDeletionError,
   deleteOwnAccount,
   limitDeletionAttempts,
-  scheduleMediaCleanupRecovery,
 } from "@/lib/account-deletion";
+import { scheduleMediaCleanupRecovery } from "@/lib/media-cleanup";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export async function DELETE(request: Request) {

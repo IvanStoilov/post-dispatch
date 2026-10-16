@@ -90,8 +90,8 @@ const validId = (id: string) => z.uuid().parse(id);
 export function storedAssets(row: { assets: StoredAsset[] }): StoredAsset[] {
   return row.assets;
 }
-export const hydrate = postsSystem.hydrate;
-export const toPost = postsSystem.toPostDto;
+const hydrate = postsSystem.hydrate;
+const toPost = postsSystem.toPostDto;
 
 export function listPosts(projectId: string): Promise<Post[]> {
   return postsSystem.listForProject(validId(projectId));

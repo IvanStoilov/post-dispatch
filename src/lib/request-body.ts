@@ -1,10 +1,4 @@
 import { loggedOperation } from "./logger";
-export async function imageDraftBody(req: Request) {
-  return loggedOperation("lib.request-body.imageDraftBody", {}, async () => {
-    const body = await readBody(req, 12 * 1024 * 1024, "Draft request");
-    return JSON.parse(body.toString("utf8"));
-  });
-}
 export async function readBody(req: Request, limit: number, label: string) {
   return loggedOperation("lib.request-body.readBody", {}, async () => {
     if (Number(req.headers.get("content-length") || 0) > limit)

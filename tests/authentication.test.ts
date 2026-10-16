@@ -11,26 +11,13 @@ import { eq, inArray } from "drizzle-orm";
 import { getDb, closeDb } from "../src/db";
 import { users, accounts, posts, projects, sessions } from "../src/db/schema";
 import { getAuth } from "../src/lib/auth";
-import {
-  GET as listProjects,
-  POST as createProject,
-} from "../src/app/api/projects/route";
-import { PATCH as updateProject } from "../src/app/api/projects/[id]/route";
 import { POST as rotateToken } from "../src/app/api/mcp-settings/token/route";
-import {
-  GET as listPosts,
-  POST as createPost,
-} from "../src/app/api/posts/route";
-import {
-  PATCH as editPost,
-  DELETE as deletePost,
-} from "../src/app/api/posts/[id]/route";
-import { POST as publishPost } from "../src/app/api/posts/[id]/publish/route";
 import { GET as connections } from "../src/app/api/connections/route";
 import { rotateAccountToken } from "../src/lib/mcp-account";
 import { handleAccountMcp } from "../src/lib/mcp";
 import { serveRemoteFiles } from "./helpers/remote-files";
 import { storageRequest } from "./helpers/storage";
+import { client, rejectsWith } from "./helpers/orpc";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -104,26 +91,11 @@ test(
             .where(eq(accounts.userId, a.id));
           assert.equal(account.providerId, "credential");
           assert.ok(account.password && account.password !== password);
-          assert.equal(
-            (await listProjects(request("/api/projects", "GET", a.cookie)))
-              .status,
-            200,
-          );
-          assert.equal(
-            (await listProjects(request("/api/projects"))).status,
-            401,
-          );
-          assert.equal(
-            (
-              await listProjects(
-                request(
-                  "/api/projects",
-                  "GET",
-                  "better-auth.session_token=forged",
-                ),
-              )
-            ).status,
-            401,
+          await client(a.cookie).projects.list();
+          await rejectsWith(client().projects.list(), "UNAUTHORIZED");
+          await rejectsWith(
+            client("better-auth.session_token=forged").projects.list(),
+            "UNAUTHORIZED",
           );
         },
       );
@@ -133,57 +105,29 @@ test(
           { userId: a.id, name: "Auth A" },
           { userId: b.id, name: "Auth B" },
         ]);
-      const aProjects = await (
-        await listProjects(request("/api/projects", "GET", a.cookie))
-      ).json();
-      const bProjects = await (
-        await listProjects(request("/api/projects", "GET", b.cookie))
-      ).json();
+      const aProjects = await client(a.cookie).projects.list();
+      const bProjects = await client(b.cookie).projects.list();
       const aId = aProjects[0].id;
       const bId = bProjects[0].id;
       assert.notEqual(aId, bId);
-      const newProjectResponse = await createProject(
-        request("/api/projects", "POST", a.cookie, {
-          name: "Extra project",
-          userId: b.id,
-        }),
-      );
-      assert.equal(newProjectResponse.status, 201);
-      const extra = await newProjectResponse.json();
+      // Ownership comes from the session, never from the request body.
+      const extra = await client(a.cookie).projects.create({
+        name: "Extra project",
+        userId: b.id,
+      } as { name: string });
       await t.test(
         "users can own multiple projects and cannot see other users",
         async () => {
-          assert.equal(
-            (
-              await (
-                await listProjects(request("/api/projects", "GET", a.cookie))
-              ).json()
-            ).length,
-            2,
-          );
-          assert.equal(
-            (
-              await (
-                await listProjects(request("/api/projects", "GET", b.cookie))
-              ).json()
-            ).length,
-            1,
-          );
+          assert.equal((await client(a.cookie).projects.list()).length, 2);
+          assert.equal((await client(b.cookie).projects.list()).length, 1);
           const [row] = await getDb()
             .select()
             .from(projects)
-            .where(eq(projects.id, extra.project.id));
+            .where(eq(projects.id, extra.id));
           assert.equal(row.userId, a.id);
-          assert.equal(
-            (
-              await updateProject(
-                request(`/api/projects/${aId}`, "PATCH", b.cookie, {
-                  name: "Intrusion",
-                }),
-                { params: Promise.resolve({ id: aId }) },
-              )
-            ).status,
-            404,
+          await rejectsWith(
+            client(b.cookie).projects.update({ id: aId, name: "Intrusion" }),
+            "NOT_FOUND",
           );
           assert.equal(
             (await rotateToken(request("/api/mcp-settings/token", "POST", "")))
@@ -200,83 +144,36 @@ test(
           );
         },
       );
-      const draftResponse = await createPost(
-        request(`/api/posts?projectId=${aId}`, "POST", a.cookie, {
-          title: "Private test",
-          caption: "Private test content",
-          platforms: ["facebook"],
-        }),
-      );
-      assert.equal(draftResponse.status, 201);
-      const draft = await draftResponse.json();
+      const draft = await client(a.cookie).posts.create({
+        projectId: aId,
+        title: "Private test",
+        caption: "Private test content",
+        platforms: ["facebook"],
+      });
       await t.test(
         "all post operations require project ownership",
         async () => {
-          assert.equal(
-            (
-              await listPosts(
-                request(`/api/posts?projectId=${aId}`, "GET", b.cookie),
-              )
-            ).status,
-            404,
+          const intruder = client(b.cookie);
+          const fields = {
+            title: "Intrusion",
+            caption: "test",
+            platforms: ["facebook" as const],
+          };
+          const ref = { projectId: aId, id: draft.id };
+          await rejectsWith(
+            intruder.posts.list({ projectId: aId }),
+            "NOT_FOUND",
           );
-          assert.equal(
-            (
-              await createPost(
-                request(`/api/posts?projectId=${aId}`, "POST", b.cookie, {
-                  title: "Intrusion",
-                  caption: "test",
-                  platforms: ["facebook"],
-                }),
-              )
-            ).status,
-            404,
+          await rejectsWith(
+            intruder.posts.create({ projectId: aId, ...fields }),
+            "NOT_FOUND",
           );
-          const ctx = { params: Promise.resolve({ id: draft.id }) };
-          assert.equal(
-            (
-              await editPost(
-                request(
-                  `/api/posts/${draft.id}?projectId=${aId}`,
-                  "PATCH",
-                  b.cookie,
-                  {
-                    title: "Intrusion",
-                    caption: "test",
-                    platforms: ["facebook"],
-                  },
-                ),
-                ctx,
-              )
-            ).status,
-            404,
+          await rejectsWith(
+            intruder.posts.update({ ...ref, ...fields }),
+            "NOT_FOUND",
           );
-          assert.equal(
-            (
-              await deletePost(
-                request(
-                  `/api/posts/${draft.id}?projectId=${aId}`,
-                  "DELETE",
-                  b.cookie,
-                ),
-                ctx,
-              )
-            ).status,
-            404,
-          );
-          assert.equal(
-            (
-              await publishPost(
-                request(
-                  `/api/posts/${draft.id}/publish?projectId=${aId}`,
-                  "POST",
-                  b.cookie,
-                ),
-                ctx,
-              )
-            ).status,
-            404,
-          );
+          await rejectsWith(intruder.posts.delete(ref), "NOT_FOUND");
+          await rejectsWith(intruder.publishing.publish(ref), "NOT_FOUND");
         },
       );
       const bearer = await rotateAccountToken(a.id);
@@ -296,17 +193,14 @@ test(
               method: "tools/call",
               params: {
                 name: "get_project",
-                arguments: { projectId: extra.project.id },
+                arguments: { projectId: extra.id },
               },
             }),
           });
           const response = await handleAccountMcp(req);
           assert.equal(response.status, 200);
           const data = await response.json();
-          assert.equal(
-            JSON.parse(data.result.content[0].text).id,
-            extra.project.id,
-          );
+          assert.equal(JSON.parse(data.result.content[0].text).id, extra.id);
         },
       );
       await t.test(
@@ -338,7 +232,7 @@ test(
                   params: {
                     name: "create_draft",
                     arguments: {
-                      projectId: extra.project.id,
+                      projectId: extra.id,
                       title: "Image test",
                       caption: "Image test",
                       platforms: ["instagram"],
@@ -454,7 +348,7 @@ test(
             ).status,
             404,
           );
-          const row = await getPostImage(extra.project.id, post.id);
+          const row = await getPostImage(extra.id, post.id);
           assert.ok(row.imageKey && row.imageBucket);
           const signed = await getAssetUrl({
             storageProvider: row.storageProvider!,
@@ -484,7 +378,7 @@ test(
             assets: [{ type: "EXTERNAL_URL", url: external }],
           });
           assert.notEqual(
-            (await getPostImage(extra.project.id, imported.id)).imageKey,
+            (await getPostImage(extra.id, imported.id)).imageKey,
             row.imageKey,
           );
           assert.equal(
@@ -523,7 +417,7 @@ test(
                 params: {
                   name: "create_draft_from_files",
                   arguments: {
-                    projectId: extra.project.id,
+                    projectId: extra.id,
                     title: "ChatGPT file",
                     caption: "ChatGPT file",
                     platforms: ["instagram"],
@@ -551,38 +445,22 @@ test(
             ).status,
             200,
           );
-          const kept = await editPost(
-            request(
-              `/api/posts/${post.id}?projectId=${extra.project.id}`,
-              "PATCH",
-              a.cookie,
-              {
-                title: "Edited",
-                caption: "Edited",
-                platforms: ["instagram"],
-                keepImage: true,
-              },
-            ),
-            ctx,
-          );
-          assert.equal(kept.status, 200);
+          // Omitting assets keeps the post's media.
+          await client(a.cookie).posts.update({
+            projectId: extra.id,
+            id: post.id,
+            title: "Edited",
+            caption: "Edited",
+            platforms: ["instagram"],
+          });
           assert.equal(
-            (await getPostImage(extra.project.id, post.id)).imageKey,
+            (await getPostImage(extra.id, post.id)).imageKey,
             row.imageKey,
           );
-          assert.equal(
-            (
-              await deletePost(
-                request(
-                  `/api/posts/${post.id}?projectId=${extra.project.id}`,
-                  "DELETE",
-                  a.cookie,
-                ),
-                ctx,
-              )
-            ).status,
-            200,
-          );
+          await client(a.cookie).posts.delete({
+            projectId: extra.id,
+            id: post.id,
+          });
           assert.equal((await storageRequest(signed)).status, 404);
         },
       );
@@ -613,10 +491,9 @@ test(
             .update(sessions)
             .set({ expiresAt: new Date(Date.now() - 60000) })
             .where(eq(sessions.token, signedIn.token));
-          assert.equal(
-            (await listProjects(request("/api/projects", "GET", expiredCookie)))
-              .status,
-            401,
+          await rejectsWith(
+            client(expiredCookie).projects.list(),
+            "UNAUTHORIZED",
           );
           response = await getAuth().handler(
             request("/api/auth/sign-in/email", "POST", "", {
@@ -626,20 +503,12 @@ test(
           );
           assert.equal(response.status, 200);
           const cookie = cookies(response);
-          assert.equal(
-            (await listProjects(request("/api/projects", "GET", cookie)))
-              .status,
-            200,
-          );
+          await client(cookie).projects.list();
           response = await getAuth().handler(
             request("/api/auth/sign-out", "POST", cookie, {}),
           );
           assert.equal(response.status, 200);
-          assert.equal(
-            (await listProjects(request("/api/projects", "GET", cookie)))
-              .status,
-            401,
-          );
+          await rejectsWith(client(cookie).projects.list(), "UNAUTHORIZED");
         },
       );
     } finally {

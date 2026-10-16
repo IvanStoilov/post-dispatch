@@ -31,8 +31,7 @@ import {
   linkedinPublications,
 } from "../src/lib/connectors/publication-adapters";
 import { publishMeta } from "../src/lib/connectors/meta";
-import { GET as listRoute } from "../src/app/api/publications/route";
-import { DELETE as deleteRoute } from "../src/app/api/publications/[id]/route";
+import { client, rejectsWith } from "./helpers/orpc";
 loadEnvConfig(process.cwd());
 if (process.env.TEST_DATABASE_URL)
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -233,26 +232,13 @@ test(
         managePublication(projectId, legacyCopies[0].id, "delete"),
         /not supported/,
       );
-      const origin = process.env.APP_URL!;
-      assert.equal(
-        (
-          await listRoute(
-            new Request(`${origin}/api/publications?projectId=${projectId}`),
-          )
-        ).status,
-        401,
+      await rejectsWith(
+        client().publications.list({ projectId }),
+        "UNAUTHORIZED",
       );
-      assert.equal(
-        (
-          await deleteRoute(
-            new Request(
-              `${origin}/api/publications/${publication.id}?projectId=${projectId}`,
-              { method: "DELETE" },
-            ),
-            { params: Promise.resolve({ id: publication.id }) },
-          )
-        ).status,
-        401,
+      await rejectsWith(
+        client().publications.delete({ projectId, id: publication.id }),
+        "UNAUTHORIZED",
       );
     } finally {
       Object.assign(connectors.facebook, fb);

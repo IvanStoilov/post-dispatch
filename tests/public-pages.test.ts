@@ -118,8 +118,8 @@ test("public-domain app routes and app-domain public routes redirect correctly",
 
 test("APIs remain unprefixed and domain routing preserves host/origin checks", () => {
   for (const path of [
-    "/api/projects",
-    "/api/posts",
+    "/api/v1/projects",
+    "/api/posts/post/image",
     "/api/auth/sign-in/email",
     "/api/mcp",
     "/api/queues/publishing",
@@ -128,8 +128,8 @@ test("APIs remain unprefixed and domain routing preserves host/origin checks", (
     assert.equal(proxy(request(path, publicHost)).status, 404, path);
   for (const host of [appHost, config.APP_URL]) {
     for (const path of [
-      "/api/projects",
-      "/api/posts",
+      "/api/v1/projects",
+      "/api/posts/post/image",
       "/api/connections",
       "/api/assets/uploads",
     ])
@@ -147,7 +147,7 @@ test("APIs remain unprefixed and domain routing preserves host/origin checks", (
     assert.equal(
       proxy(
         request(
-          "/api/posts",
+          "/api/v1/projects",
           host,
           { origin: "https://attacker.example" },
           "POST",
@@ -162,7 +162,7 @@ test("APIs remain unprefixed and domain routing preserves host/origin checks", (
     403,
   );
   assert.equal(
-    proxy(request("/api/posts", appHost, { origin: publicHost }, "POST"))
+    proxy(request("/api/v1/projects", appHost, { origin: publicHost }, "POST"))
       .status,
     403,
   );

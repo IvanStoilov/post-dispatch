@@ -43,6 +43,9 @@ export type UpdatePostInput = z.output<typeof updatePostInput>;
 export const postRef = z.object({ projectId, id: postId });
 export type PostRef = z.output<typeof postRef>;
 
+export const postAssetRef = postRef.extend({ assetId: z.uuid() });
+export type PostAssetRef = z.output<typeof postAssetRef>;
+
 export const postAssetDto = z.object({
   id: z.uuid(),
   kind: z.enum(assetKinds),

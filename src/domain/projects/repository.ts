@@ -1,9 +1,10 @@
 import "server-only";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   projectConnectors,
   projects,
+  users,
   type ConnectorRow,
   type ProjectRow,
 } from "@/db/schema";
@@ -86,6 +87,31 @@ export async function lockOwned(tx: Tx, userId: string, id: string) {
     .where(and(eq(projects.id, id), eq(projects.userId, userId)))
     .for("update");
   return project as ProjectRow | undefined;
+}
+
+// Every user's projects, locked. Deletion locks the user row first, then
+// projects in ID order, so project and account deletion can't deadlock.
+export async function lockAllOwned(tx: Tx, userId: string) {
+  return tx
+    .select()
+    .from(projects)
+    .where(eq(projects.userId, userId))
+    .orderBy(asc(projects.id))
+    .for("update");
+}
+
+export async function lockUser(tx: Tx, userId: string) {
+  const [user] = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .for("update");
+  return !!user;
+}
+
+// Connections cascade; posts, jobs and uploads must be deleted first.
+export async function removeMany(tx: Tx, ids: string[]) {
+  await tx.delete(projects).where(inArray(projects.id, ids));
 }
 
 export async function insert(tx: Tx, values: { userId: string; name: string }) {

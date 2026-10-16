@@ -4,10 +4,6 @@ import { publishingSystemService as publishing } from "@/domain/publishing";
 // Deprecated adapter: keeps the old signatures for code not yet migrated to
 // src/domain/publishing. New code imports the domain module directly.
 
-// Old routes check `instanceof PublicationError` for user-facing failures.
-export { UserFacingError as PublicationError } from "@/domain/shared/errors";
-export const toPublication = publishing.toPublicationDto;
-
 export async function listPublications(projectId: string, postId?: string) {
   z.uuid().parse(projectId);
   if (postId) z.uuid().parse(postId);

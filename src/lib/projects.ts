@@ -12,7 +12,6 @@ import type { Platform } from "./types";
 // src/domain/projects. New code imports the domain module directly. Remove
 // each function when its last caller has migrated.
 
-export const projectSchema = projectFields;
 export type { ProjectRecord as ConnectedProject } from "@/domain/projects";
 export const isConnected = system.isConnected;
 

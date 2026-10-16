@@ -426,10 +426,12 @@ Provider confirmations are required before recording an edit or deletion; failed
 or uncertain requests leave the reference intact. No network mutations are retried
 automatically.
 
-Authenticated endpoints: `GET /api/publications?projectId=...` (optional `postId`),
-`POST /api/publications/:id?projectId=...` to refresh,
-`PATCH` with `{ "caption": "..." }` to update only that copy, and `DELETE` to remove
-only that copy from the network. Provider adapters implement optional publication
+Authenticated endpoints (see `src/contract/publishing.ts`):
+`GET /api/v1/projects/:projectId/publications` (optional `postId`),
+`POST /api/v1/projects/:projectId/publications/:id/refresh` to refresh,
+`PATCH /api/v1/projects/:projectId/publications/:id` with `{ "caption": "..." }`
+to update only that copy, and `DELETE` on the same path to remove only that copy
+from the network. Provider adapters implement optional publication
 operations so unsupported networks fail before making API calls.
 
 ### Project routes and workspace layout
@@ -465,7 +467,7 @@ Apply migration `0015_account_media_cleanup` before deploying this feature (`pnp
 
 ### Project deletion
 
-The **Connections → Delete project** action requires typing the exact current project name. The authenticated `DELETE /api/projects/:id` endpoint checks origin and ownership and rechecks the confirmation while locking the project. It shares account deletion's transactional data removal and durable media-cleanup manifest; no additional migration is required beyond `0015_account_media_cleanup`. Active publishing leases/submissions block deletion; queued jobs, uploads, connections, local publication references, and pending connector handshakes for the project are removed. The user account, account-level MCP authorisations, and all other projects remain available. Previously published social posts remain on their networks. The app clears the deleted project's preference and returns to another project or the new-project flow if none remain.
+The **Connections → Delete project** action requires typing the exact current project name. The authenticated `DELETE /api/v1/projects/:id` endpoint (origin checked by the proxy) rechecks ownership and the confirmation while locking the project. It shares account deletion's transactional data removal and durable media-cleanup manifest; no additional migration is required beyond `0015_account_media_cleanup`. Active publishing leases/submissions block deletion; queued jobs, uploads, connections, local publication references, and pending connector handshakes for the project are removed. The user account, account-level MCP authorisations, and all other projects remain available. Previously published social posts remain on their networks. The app clears the deleted project's preference and returns to another project or the new-project flow if none remain.
 
 ## Terms acceptance and publication authority
 

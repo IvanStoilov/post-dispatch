@@ -23,10 +23,8 @@ import {
 import { getAuth } from "../src/lib/auth";
 import { appOrigin } from "../src/lib/origins";
 import { createPost } from "../src/lib/store";
-import {
-  recoverAccountMediaCleanup,
-  limitDeletionAttempts,
-} from "../src/lib/account-deletion";
+import { limitDeletionAttempts } from "../src/lib/account-deletion";
+import { recoverMediaCleanup } from "../src/lib/media-cleanup";
 import { breakStorage, isStored, storeFile } from "./helpers/storage";
 import { DELETE } from "../src/app/api/account/route";
 loadEnvConfig(process.cwd());
@@ -349,7 +347,7 @@ test(
             .set({ nextAttemptAt: new Date(0), finalSweepAfter: new Date(0) })
             .where(eq(accountMediaCleanup.prefix, `${a.projectId}/`));
           const restoreStorage = breakStorage();
-          await recoverAccountMediaCleanup();
+          await recoverMediaCleanup();
           assert.equal(
             (
               await db
@@ -364,7 +362,7 @@ test(
             .update(accountMediaCleanup)
             .set({ nextAttemptAt: new Date(0) })
             .where(eq(accountMediaCleanup.prefix, `${a.projectId}/`));
-          await recoverAccountMediaCleanup();
+          await recoverMediaCleanup();
           assert.equal(
             (
               await db

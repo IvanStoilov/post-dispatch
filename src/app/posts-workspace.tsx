@@ -128,14 +128,11 @@ export default function PostsWorkspace({
     };
   }, [refresh]);
   async function request(url: string, method: string, body?: unknown) {
-    const response = await fetch(
-      url.startsWith("/api/posts") ? `${url}?projectId=${projectId}` : url,
-      {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
-      },
-    );
+    const response = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Request failed");
     return result;

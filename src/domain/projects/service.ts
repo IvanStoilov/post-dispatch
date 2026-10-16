@@ -1,13 +1,24 @@
 import "server-only";
 import { getDb } from "@/db";
-import { loggedOperation } from "@/lib/logger";
+import { deleteProjectUploads } from "@/lib/direct-uploads";
+import { loggedOperation, logger } from "@/lib/logger";
+import {
+  queueMediaCleanup,
+  scheduleMediaCleanupRecovery,
+} from "@/lib/media-cleanup";
+import { deletePendingConnections } from "@/lib/pending-connections";
+import { newStorageLocation } from "@/lib/storage/index";
+import type { StorageLocation } from "@/lib/storage/types";
 import type {
   CreateProjectInput,
+  DeleteProjectInput,
   DisconnectChannelInput,
   ProjectDto,
   ProjectFields,
   UpdateProjectInput,
 } from "@/shared/schemas/project";
+import { postsSystemService } from "../posts";
+import { publishingSystemService } from "../publishing";
 import type { Actor } from "../shared/actor";
 import type { Tx } from "../shared/db";
 import { UserFacingError } from "../shared/errors";
@@ -58,6 +69,25 @@ async function applyChanges(tx: Tx, projectId: string, changes: ProjectFields) {
       await repository.deleteConnector(tx, projectId, provider);
     else await repository.upsertConnector(tx, projectId, next);
   }
+}
+
+// Deletes the locked projects and everything in them, and queues their
+// stored media for removal. The caller locks the user row, then the
+// projects, in that order.
+async function deleteLocked(
+  tx: Tx,
+  ids: string[],
+  location: Omit<StorageLocation, "imageKey">,
+  deleting: "this project" | "your account",
+) {
+  if (!ids.length) return;
+  await publishingSystemService.deleteJobsInProjects(tx, ids, deleting);
+  const media = [
+    ...(await postsSystemService.deleteInProjects(tx, ids)),
+    ...(await deleteProjectUploads(tx, ids)),
+  ];
+  await queueMediaCleanup(tx, ids, media, location);
+  await repository.removeMany(tx, ids);
 }
 
 // User use cases.
@@ -117,6 +147,40 @@ async function disconnectChannel(
   );
 }
 
+// Deletes the project with its posts, jobs, uploads and connections. Media
+// already published to networks stays there. Stored media is removed after
+// the response.
+async function remove(
+  actor: Actor,
+  { id, confirmation }: DeleteProjectInput,
+): Promise<void> {
+  return loggedOperation(
+    "domain.projects.delete",
+    { ...actor, projectId: id },
+    async () => {
+      // Include the configured bucket to catch objects whose DB insert failed.
+      const location = await newStorageLocation();
+      await getDb().transaction(async (tx) => {
+        if (!(await repository.lockUser(tx, actor.userId)))
+          throw new UserFacingError("Sign in to continue.", 401);
+        const project = await repository.lockOwned(tx, actor.userId, id);
+        if (!project) throw notFound();
+        if (confirmation !== project.name)
+          throw new UserFacingError(
+            "Enter the current project name exactly to confirm deletion.",
+            400,
+          );
+        await deleteLocked(tx, [id], location, "this project");
+        await deletePendingConnections(tx, actor.userId, id);
+      });
+      logger.info("project.deleted", { ...actor, projectId: id });
+      await scheduleMediaCleanupRecovery(
+        "project.media_cleanup.recovery.failed",
+      );
+    },
+  );
+}
+
 // System operations: records include access tokens.
 
 // Stores the connection a connect flow obtained for the user's project.
@@ -143,12 +207,29 @@ async function saveConnector(
   );
 }
 
+// Account deletion: deletes all the user's projects in the caller's
+// transaction, which has already locked the user row.
+async function deleteAllOwned(
+  tx: Tx,
+  userId: string,
+  location: Omit<StorageLocation, "imageKey">,
+) {
+  const owned = await repository.lockAllOwned(tx, userId);
+  await deleteLocked(
+    tx,
+    owned.map((project) => project.id),
+    location,
+    "your account",
+  );
+}
+
 // For routers, pages and MCP tools acting for a signed-in user.
 export const projectsService = {
   list,
   create,
   update,
   disconnectChannel,
+  delete: remove,
 };
 
 // For workers and other domain modules only: these skip user
@@ -165,4 +246,5 @@ export const projectsSystemService = {
     repository.lockOwned(tx, userId, projectId),
   saveConnector,
   isConnected,
+  deleteAllOwned,
 };

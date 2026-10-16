@@ -1,39 +1,38 @@
+import { postsService } from "@/domain/posts";
+import { UserFacingError } from "@/domain/shared/errors";
+import { authenticated } from "@/lib/api-auth";
 import { loggedRequest } from "@/lib/logger";
-import { authenticated, ownedProject } from "@/lib/api-auth";
-import { getPostImage } from "@/lib/store";
-import { readImage } from "@/lib/storage";
+import { postRef } from "@/shared/schemas/post";
 export const runtime = "nodejs";
+
+// The post's preview image for its owner, linked from PostDto.imageUrl.
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  return loggedRequest(req, "/api/posts/[id]/image", async () => {
-    return authenticated(req, async (userId) => {
-      const projectId = await ownedProject(req, userId);
-      let post;
+  return loggedRequest(req, "/api/posts/[id]/image", () =>
+    authenticated(req, async (userId) => {
+      const ref = postRef.safeParse({
+        ...(await ctx.params),
+        projectId: new URL(req.url).searchParams.get("projectId"),
+      });
+      if (!ref.success) return new Response(null, { status: 404 });
       try {
-        post = await getPostImage(projectId, (await ctx.params).id);
-      } catch {
-        return new Response(null, { status: 404 });
-      }
-      if (!post.imageKey || !post.imageBucket || !post.storageProvider)
-        return new Response(null, { status: 404 });
-      try {
-        const bytes = await readImage({
-          imageKey: post.imageKey,
-          imageBucket: post.imageBucket,
-          storageProvider: post.storageProvider,
-        });
-        return new Response(Buffer.from(bytes), {
+        const bytes = await postsService.previewImage({ userId }, ref.data);
+        return new Response(bytes, {
           headers: {
             "Content-Type": "image/jpeg",
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",
           },
         });
-      } catch {
-        return Response.json({ error: "Image unavailable" }, { status: 502 });
+      } catch (error) {
+        if (!(error instanceof UserFacingError)) throw error;
+        return Response.json(
+          { error: error.message },
+          { status: error.status },
+        );
       }
-    });
-  });
+    }),
+  );
 }

@@ -182,6 +182,32 @@ export async function remove(tx: Tx, id: string) {
   await tx.delete(posts).where(eq(posts.id, id));
 }
 
+// Locks the projects' posts and returns their stored media.
+export async function lockMediaInProjects(tx: Tx, projectIds: string[]) {
+  const rows = await tx
+    .select({ id: posts.id })
+    .from(posts)
+    .where(inArray(posts.projectId, projectIds))
+    .orderBy(posts.id)
+    .for("update");
+  if (!rows.length) return [];
+  return tx
+    .select({
+      projectId: posts.projectId,
+      imageBucket: postAssets.imageBucket,
+      imageKey: postAssets.imageKey,
+      storageProvider: postAssets.storageProvider,
+    })
+    .from(postAssets)
+    .innerJoin(posts, eq(posts.id, postAssets.postId))
+    .where(inArray(posts.projectId, projectIds));
+}
+
+// Media and published copies cascade.
+export async function removeInProjects(tx: Tx, projectIds: string[]) {
+  await tx.delete(posts).where(inArray(posts.projectId, projectIds));
+}
+
 // Makes the post's media exactly `assets`, in order: drops others, keeps
 // `existing` ones in place (repositioned) and inserts new ones.
 export async function writeAssets(

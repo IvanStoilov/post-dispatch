@@ -1,5 +1,4 @@
 import { projectsService } from "@/domain/projects";
-import { deleteProject } from "@/lib/delete-project";
 import { authed } from "../orpc";
 
 // Routes, input and output come from src/contract/projects.ts; access is
@@ -14,9 +13,8 @@ export const projectsRouter = {
   update: authed.projects.update.handler(({ context, input }) =>
     projectsService.update(context.actor, input),
   ),
-  // Moves to the domain with the accounts module (deletion is shared there).
   delete: authed.projects.delete.handler(({ context, input }) =>
-    deleteProject(context.actor.userId, input.id, input.confirmation),
+    projectsService.delete(context.actor, input),
   ),
   disconnectChannel: authed.projects.disconnectChannel.handler(
     ({ context, input }) =>

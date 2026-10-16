@@ -35,6 +35,21 @@ export async function jobsForPost(tx: Tx, postId: string) {
   return tx.select().from(publishJobs).where(eq(publishJobs.postId, postId));
 }
 
+export async function lockJobsInProjects(tx: Tx, projectIds: string[]) {
+  return tx
+    .select()
+    .from(publishJobs)
+    .where(inArray(publishJobs.projectId, projectIds))
+    .orderBy(publishJobs.id)
+    .for("update");
+}
+
+export async function deleteJobsInProjects(tx: Tx, projectIds: string[]) {
+  await tx
+    .delete(publishJobs)
+    .where(inArray(publishJobs.projectId, projectIds));
+}
+
 export async function insertJobs(
   tx: Tx,
   values: (typeof publishJobs.$inferInsert)[],
