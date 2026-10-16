@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/sonner";
+import { api, userMessage } from "@/lib/api-client";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Accordion,
@@ -111,21 +112,12 @@ export default function ProjectSettings({
       setBusy(false);
     }
   }
-  async function call(url: string, body: unknown) {
-    const response = await fetch(url, {
-      method: url.endsWith("/projects") ? "POST" : "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Could not save project");
-    return result;
-  }
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      await call(`/api/projects/${project.id}`, {
+      await api.projects.update({
+        id: project.id,
         name,
         facebookPageId,
         instagramAccountId,
@@ -138,7 +130,7 @@ export default function ProjectSettings({
       toast.success("Project configuration saved.");
       await onSaved();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Save failed");
+      toast.error(userMessage(e, "Could not save project"));
     } finally {
       setBusy(false);
     }
@@ -146,12 +138,10 @@ export default function ProjectSettings({
   async function disconnect(platform: Platform) {
     setBusy(true);
     try {
-      const response = await fetch(
-        `/api/projects/${project.id}/connectors/${platform}`,
-        { method: "DELETE" },
-      );
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Disconnect failed");
+      await api.projects.disconnectChannel({
+        id: project.id,
+        provider: platform,
+      });
       if (platform === "facebook") {
         setFacebookPageId("");
         setFacebookPageToken("");
@@ -164,7 +154,7 @@ export default function ProjectSettings({
       await onSaved();
       setDisconnecting(null);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Disconnect failed");
+      toast.error(userMessage(e, "Could not disconnect channel"));
     } finally {
       setBusy(false);
     }

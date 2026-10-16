@@ -15,14 +15,12 @@ import { newStorageLocation } from "./storage/index";
 import type { StorageLocation } from "./storage/types";
 import { pendingConnectionBelongsTo } from "./connector-connect";
 import { loggedOperation, logger } from "./logger";
+import { UserFacingError, type UserFacingStatus } from "./errors";
 
 type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
-export class DataDeletionError extends Error {
-  constructor(
-    message: string,
-    readonly status = 409,
-  ) {
-    super(message);
+export class DataDeletionError extends UserFacingError {
+  constructor(message: string, status: UserFacingStatus = 409) {
+    super(message, status);
   }
 }
 

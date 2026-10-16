@@ -8,7 +8,7 @@ import {
   AccountDeletionError,
   deleteOwnAccount,
   limitDeletionAttempts,
-  recoverAccountMediaCleanup,
+  scheduleMediaCleanupRecovery,
 } from "@/lib/account-deletion";
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -84,18 +84,7 @@ export async function DELETE(request: Request) {
     } catch (error) {
       logger.warn("account.deletion.cookie_cleanup.failed", { error });
     }
-    const cleanup = async () => {
-      try {
-        await recoverAccountMediaCleanup();
-      } catch (error) {
-        logger.error("account.media_cleanup.recovery.failed", { error });
-      }
-    };
-    try {
-      after(cleanup);
-    } catch {
-      await cleanup();
-    }
+    await scheduleMediaCleanupRecovery("account.media_cleanup.recovery.failed");
     return response;
   });
 }

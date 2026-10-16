@@ -1,12 +1,11 @@
 import { loggedRequest } from "@/lib/logger";
 import { updateProject } from "@/lib/projects";
 import { authenticated, ownedProject } from "@/lib/api-auth";
-import { after } from "next/server";
 import { z } from "zod";
 import { appOrigin } from "@/lib/origins";
 import { readBody } from "@/lib/request-body";
-import { DataDeletionError, deleteOwnProject } from "@/lib/project-deletion";
-import { recoverAccountMediaCleanup } from "@/lib/account-deletion";
+import { DataDeletionError } from "@/lib/project-deletion";
+import { deleteProject } from "@/lib/delete-project";
 import { logger } from "@/lib/logger";
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -56,7 +55,7 @@ export async function DELETE(
         );
       }
       try {
-        await deleteOwnProject(userId, id, confirmation);
+        await deleteProject(userId, id, confirmation);
       } catch (error) {
         logger.warn("project.deletion.rejected", {
           userId,
@@ -72,18 +71,6 @@ export async function DELETE(
           },
           { status: error instanceof DataDeletionError ? error.status : 503 },
         );
-      }
-      const cleanup = async () => {
-        try {
-          await recoverAccountMediaCleanup();
-        } catch (error) {
-          logger.error("project.media_cleanup.recovery.failed", { error });
-        }
-      };
-      try {
-        after(cleanup);
-      } catch {
-        await cleanup();
       }
       return Response.json({ deleted: true });
     });

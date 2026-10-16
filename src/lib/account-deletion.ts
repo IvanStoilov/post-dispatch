@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, lte } from "drizzle-orm";
 import { getDb } from "../db";
@@ -154,4 +155,21 @@ export async function recoverAccountMediaCleanup(limit = 10) {
     }
   }
   return completed;
+}
+
+// Runs media cleanup recovery after the response is sent; outside a request
+// (scripts, tests) there is no after(), so it runs inline instead.
+export async function scheduleMediaCleanupRecovery(failureEvent: string) {
+  const cleanup = async () => {
+    try {
+      await recoverAccountMediaCleanup();
+    } catch (error) {
+      logger.error(failureEvent, { error });
+    }
+  };
+  try {
+    after(cleanup);
+  } catch {
+    await cleanup();
+  }
 }

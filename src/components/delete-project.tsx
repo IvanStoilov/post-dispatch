@@ -25,6 +25,7 @@ import {
   AlertDialogCancel,
 } from "./ui/alert-dialog";
 import { toast } from "./ui/sonner";
+import { api, userMessage } from "@/lib/api-client";
 
 export function DeleteProject({
   project,
@@ -95,14 +96,7 @@ export function DeleteProject({
               setBusy(true);
               setError("");
               try {
-                const response = await fetch(`/api/projects/${project.id}`, {
-                  method: "DELETE",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ confirmation }),
-                });
-                const data = await response.json();
-                if (!response.ok)
-                  throw new Error(data.error || "Could not delete project.");
+                await api.projects.delete({ id: project.id, confirmation });
                 localStorage.removeItem("ramblo-project");
                 document.cookie = "ramblo-project=; Path=/; Max-Age=0";
                 setOpen(false);
@@ -112,10 +106,7 @@ export function DeleteProject({
                 router.replace(appPath());
                 router.refresh();
               } catch (error) {
-                const message =
-                  error instanceof Error
-                    ? error.message
-                    : "Could not delete project.";
+                const message = userMessage(error, "Could not delete project.");
                 setError(message);
                 toast.error(message);
               } finally {

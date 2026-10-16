@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { api, userMessage } from "@/lib/api-client";
 import { useAppPath } from "./app-navigation";
 import { projectPath } from "@/lib/route-paths";
 import { toast } from "./ui/sonner";
@@ -51,24 +52,13 @@ export function CreateProjectDialog({
             setBusy(true);
             setError("");
             try {
-              const response = await fetch("/api/projects", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: name.trim() }),
-              });
-              const data = await response.json();
-              if (!response.ok)
-                throw new Error(data.error || "Could not create project");
+              const project = await api.projects.create({ name: name.trim() });
               toast.success("Project created.");
               onOpenChange(false);
-              router.push(appPath(projectPath(data.project.id, "assistant")));
+              router.push(appPath(projectPath(project.id, "assistant")));
               router.refresh();
             } catch (error) {
-              setError(
-                error instanceof Error
-                  ? error.message
-                  : "Could not create project",
-              );
+              setError(userMessage(error, "Could not create project"));
             } finally {
               setBusy(false);
             }

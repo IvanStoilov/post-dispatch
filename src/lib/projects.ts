@@ -10,6 +10,9 @@ import {
   type ConnectorRow,
 } from "../db/schema";
 import type { Project, Platform } from "./types";
+import { UserFacingError } from "./errors";
+import { projectSchema } from "./schemas/project";
+export { projectSchema };
 export type ConnectedProject = ProjectRow & {
   connections: ConnectorRow[];
   facebookPageId: string;
@@ -46,16 +49,6 @@ async function hydrateProject(p: ProjectRow) {
       .where(eq(projectConnectors.projectId, p.id)),
   );
 }
-const projectSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  facebookPageId: z.string().trim().max(100).optional(),
-  facebookPageToken: z.string().trim().max(4096).optional(),
-  instagramAccountId: z.string().trim().max(100).optional(),
-  instagramAccessToken: z.string().trim().max(4096).optional(),
-  instagramApiHost: z
-    .enum(["graph.facebook.com", "graph.instagram.com"])
-    .optional(),
-});
 export function publicProject(p: ConnectedProject): Project {
   return {
     id: p.id,
@@ -86,7 +79,7 @@ export async function getProject(id: string) {
       .select()
       .from(projects)
       .where(eq(projects.id, id));
-    if (!p) throw new Error("Project not found");
+    if (!p) throw new UserFacingError("Project not found", 404);
     return hydrateProject(p);
   });
 }
@@ -139,7 +132,7 @@ export async function updateProject(
         .set({ name: values.name, updatedAt: sql`now()` })
         .where(and(eq(projects.id, id), eq(projects.userId, userId)))
         .returning();
-      if (!p) throw new Error("Project not found");
+      if (!p) throw new UserFacingError("Project not found", 404);
       for (const provider of ["facebook", "instagram"] as const) {
         const accountId =
           provider === "facebook"
@@ -218,7 +211,7 @@ export async function saveConnector(
           .from(projects)
           .where(and(eq(projects.id, projectId), eq(projects.userId, userId)))
           .for("update");
-        if (!p) throw new Error("Project not found");
+        if (!p) throw new UserFacingError("Project not found", 404);
         await tx
           .insert(projectConnectors)
           .values({ ...values, projectId })
@@ -269,7 +262,9 @@ export async function getOwnedProject(userId: string, id: string) {
         .select()
         .from(projects)
         .where(and(eq(projects.id, id), eq(projects.userId, userId)));
-      if (!p) throw new Error("Project not found");
+      if (!p) {
+        throw new UserFacingError("Project not found", 404);
+      }
       return hydrateProject(p);
     },
   );
