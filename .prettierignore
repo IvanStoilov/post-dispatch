@@ -1,0 +1,29 @@
+# Dependencies and build output
+node_modules/
+.next/
+.vercel/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local media, credentials and generated assets
+data/
+.env*
+public/
+
+# Generated database history and package-manager files
+drizzle/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Exact legal text participates in the terms acceptance hash.
+src/content/legal/terms.md
+
+# Installed agent skills and generated design references
+.agents/
+.claude/
+.codex/
+design/

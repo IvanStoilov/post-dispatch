@@ -10,7 +10,7 @@
     "email:dev": "email dev --dir src/emails --port 8300",
     "lint": "eslint",
     "env:check": "tsx --import ./scripts/server-only-hook.mjs scripts/check-config.ts",
-    "format": "prettier --write src README.md",
+    "format": "prettier --write .",
     "test": "tsx --import ./scripts/server-only-hook.mjs --import ./tests/setup.mjs --test tests/*.test.ts",
     "publications:backfill": "tsx --import ./scripts/server-only-hook.mjs scripts/backfill-publications.ts",
     "jobs:work": "tsx --import ./scripts/server-only-hook.mjs scripts/publishing-worker.ts",
@@ -19,7 +19,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "images:migrate": "tsx --import ./scripts/server-only-hook.mjs scripts/migrate-images.ts",
-    "storage:cors": "tsx --import ./scripts/server-only-hook.mjs scripts/configure-storage-cors.ts"
+    "storage:cors": "tsx --import ./scripts/server-only-hook.mjs scripts/configure-storage-cors.ts",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",
@@ -62,6 +63,7 @@
     "@fontsource/figtree": "^5.3.0",
     "@fontsource/fredoka": "^5.3.0",
     "@react-email/ui": "^6.11.1",
+    "@stylistic/eslint-plugin": "^5.10.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
@@ -71,6 +73,8 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.8",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.7",
     "prettier": "^3.9.9",
     "shadcn": "^4.21.2",
     "tailwindcss": "^4",

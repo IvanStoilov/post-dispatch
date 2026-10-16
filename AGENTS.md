@@ -30,6 +30,7 @@ Each module (reference: `src/domain/projects`) has:
   A use case authorized by a capability instead of a session (an upload token, a completion token, an unguessable ID in a URL) takes it in its input instead of an `Actor`, verifies it itself, and belongs to `<module>Service` (see `src/domain/uploads/service.ts`). Transports read request bodies; pass a `read` callback when the domain must authorize before the body is read.
 
   Don't add system operations that duplicate a user use case without its authorization: tests and tools act as the owner through `<module>Service` (see `tests/helpers/fixtures.ts`). When a user use case and a system operation genuinely need the same write, implement it once as a private function that takes an `authorize(tx)` step, run first inside the transaction. Throw `UserFacingError` (`src/domain/shared/errors.ts`) for failures users should see. Large modules may keep private helpers in other files (`publishing/jobs.ts`), exposed only through the two objects.
+
 - `index.ts`: re-exports the two objects and any types other modules need. Nothing else.
 - `repository.ts`: every Drizzle query, as plain functions named after what they do (`findOwned`, `lockOwned`, `upsertConnector`). Accept an optional `tx`/`Executor` so services control transactions. No generic CRUD layers.
 - `mappers.ts`: internal record → DTO.

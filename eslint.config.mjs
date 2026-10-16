@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import prettierRecommended from "eslint-plugin-prettier/recommended";
 
 // Domain modules are imported only through their index.ts (shared helpers
 // in src/domain/shared are the exception).
@@ -23,6 +24,7 @@ const systemServiceImport = {
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  prettierRecommended,
   {
     files: ["src/**", "scripts/**", "tests/**"],
     ignores: ["src/domain/**"],

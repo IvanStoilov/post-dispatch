@@ -6,6 +6,16 @@ Turn ideas from ChatGPT and Claude into social posts. Review every draft, then p
 
 A Next.js local MVP for a personal publishing desk: persistent draft inbox, ordered image galleries or single-video posts, editing, channel filters, search, human approval, Meta publishing, and an authenticated Streamable HTTP MCP endpoint.
 
+## Formatting
+
+Prettier uses the shared `.prettierrc.json` configuration for source code, tests, scripts and documentation.
+
+- `pnpm format` formats the project.
+- `pnpm format:check` checks formatting without changing files (suitable for CI).
+- VS Code recommends the Prettier extension and enables format on save using the project's installed version.
+
+Generated files, local media and credentials are excluded in `.prettierignore`. The exact terms document is also excluded because formatting changes would alter its acceptance hash. ESLint remains responsible for code quality and architecture rules.
+
 ## Frontend design
 
 The frontend uses shadcn/ui (Radix Nova) and Tailwind CSS 4. Shared colors, radii, and typography live in the CSS-first `@theme inline` configuration in `src/app/globals.css`. They implement the Ramblo design system (`docs/brand-identity.md`). Use semantic utilities such as `bg-primary`, `text-muted-foreground`, `bg-sunken`, `font-display`, `display-m` and `text-body-s` when extending the UI. Fredoka, Figtree and DM Mono are self-hosted through Fontsource; dark mode follows the system setting.
