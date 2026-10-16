@@ -14,12 +14,14 @@ import type { ConnectorValues, ProjectRecord } from "./types";
 // Every query on projects and their connectors. Rows never leave the
 // domain: services map them to DTOs.
 
-function toRecord(project: ProjectRow, rows: ConnectorRow[]): ProjectRecord {
-  const facebook = rows.find((c) => c.provider === "facebook");
-  const instagram = rows.find((c) => c.provider === "instagram");
+function toRecord(
+  project: ProjectRow & { connectors: ConnectorRow[] },
+): ProjectRecord {
+  const facebook = project.connectors.find((c) => c.provider === "facebook");
+  const instagram = project.connectors.find((c) => c.provider === "instagram");
   return {
     ...project,
-    connections: rows,
+    connections: project.connectors,
     facebookPageId: facebook?.accountId || "",
     facebookPageToken: facebook?.accessToken || "",
     instagramAccountId: instagram?.accountId || "",
@@ -27,38 +29,26 @@ function toRecord(project: ProjectRow, rows: ConnectorRow[]): ProjectRecord {
     instagramApiHost: instagram?.metadata.apiHost || "graph.facebook.com",
   };
 }
-async function withConnections(project: ProjectRow, db: Executor) {
-  const rows = await db
-    .select()
-    .from(projectConnectors)
-    .where(eq(projectConnectors.projectId, project.id));
-  return toRecord(project, rows);
-}
 
 export async function listOwned(userId: string, db: Executor = getDb()) {
-  const rows = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.userId, userId))
-    .orderBy(desc(projects.createdAt));
-  const connections = await db
-    .select({ connector: projectConnectors })
-    .from(projectConnectors)
-    .innerJoin(projects, eq(projects.id, projectConnectors.projectId))
-    .where(eq(projects.userId, userId));
-  return rows.map((project) =>
-    toRecord(
-      project,
-      connections
-        .map((c) => c.connector)
-        .filter((c) => c.projectId === project.id),
-    ),
-  );
+  const rows = await db.query.projects.findMany({
+    with: {
+      connectors: true,
+    },
+    where: eq(projects.userId, userId),
+    orderBy: desc(projects.createdAt),
+  });
+  return rows.map((project) => toRecord(project));
 }
 
 export async function findById(id: string, db: Executor = getDb()) {
-  const [project] = await db.select().from(projects).where(eq(projects.id, id));
-  return project ? withConnections(project, db) : undefined;
+  const project = await db.query.projects.findFirst({
+    with: {
+      connectors: true,
+    },
+    where: eq(projects.id, id),
+  });
+  return project ? toRecord(project) : undefined;
 }
 
 export async function findOwned(
@@ -66,11 +56,13 @@ export async function findOwned(
   id: string,
   db: Executor = getDb(),
 ) {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.userId, userId)));
-  return project ? withConnections(project, db) : undefined;
+  const [project] = await db.query.projects.findMany({
+    with: {
+      connectors: true,
+    },
+    where: and(eq(projects.id, id), eq(projects.userId, userId)),
+  });
+  return project ? toRecord(project) : undefined;
 }
 
 export async function isOwned(

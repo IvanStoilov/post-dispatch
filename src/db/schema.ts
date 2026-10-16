@@ -1,5 +1,5 @@
 import { encryptedToken } from "./encrypted-token";
-import { sql } from "drizzle-orm";
+import { sql, relations } from "drizzle-orm";
 import {
   pgTable,
   integer,
@@ -172,6 +172,7 @@ export const projects = pgTable(
   ],
 );
 export type ProjectRow = typeof projects.$inferSelect;
+
 export const projectConnectors = pgTable(
   "project_connectors",
   {
@@ -756,3 +757,195 @@ export const accountMediaCleanup = pgTable(
   },
   (table) => [index("account_media_cleanup_due_idx").on(table.nextAttemptAt)],
 );
+
+// Relations for Drizzle's relational queries (`db.query.<table>` with
+// `with: {...}`). They mirror the foreign keys above and don't change the
+// database; every `one` side names the column that references its parent.
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+  sessions: many(sessions),
+  accounts: many(accounts),
+  projects: many(projects),
+  mcpToken: one(accountMcpTokens),
+  // terms_acceptances.user_id has no foreign key: acceptance records are
+  // kept as evidence even after the account is deleted.
+  termsAcceptances: many(termsAcceptances),
+  oauthClients: many(oauthClients),
+  oauthRefreshTokens: many(oauthRefreshTokens),
+  oauthAccessTokens: many(oauthAccessTokens),
+  oauthConsents: many(oauthConsents),
+}));
+export const termsAcceptancesRelations = relations(
+  termsAcceptances,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [termsAcceptances.userId],
+      references: [users.id],
+    }),
+  }),
+);
+export const accountMcpTokensRelations = relations(
+  accountMcpTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [accountMcpTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
+export const sessionsRelations = relations(sessions, ({ one, many }) => ({
+  user: one(users, { fields: [sessions.userId], references: [users.id] }),
+  oauthRefreshTokens: many(oauthRefreshTokens),
+  oauthAccessTokens: many(oauthAccessTokens),
+}));
+export const accountsRelations = relations(accounts, ({ one }) => ({
+  user: one(users, { fields: [accounts.userId], references: [users.id] }),
+}));
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  user: one(users, { fields: [projects.userId], references: [users.id] }),
+  connectors: many(projectConnectors),
+  posts: many(posts),
+  uploadTokens: many(uploadTokens),
+  imageUploads: many(imageUploads),
+  directUploads: many(directUploads),
+  publishJobs: many(publishJobs),
+  publications: many(postPublications),
+}));
+export const projectConnectorsRelations = relations(
+  projectConnectors,
+  ({ one }) => ({
+    project: one(projects, {
+      fields: [projectConnectors.projectId],
+      references: [projects.id],
+    }),
+  }),
+);
+export const uploadTokensRelations = relations(uploadTokens, ({ one }) => ({
+  project: one(projects, {
+    fields: [uploadTokens.projectId],
+    references: [projects.id],
+  }),
+}));
+export const imageUploadsRelations = relations(imageUploads, ({ one }) => ({
+  project: one(projects, {
+    fields: [imageUploads.projectId],
+    references: [projects.id],
+  }),
+}));
+export const directUploadsRelations = relations(directUploads, ({ one }) => ({
+  project: one(projects, {
+    fields: [directUploads.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const postsRelations = relations(posts, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [posts.projectId],
+    references: [projects.id],
+  }),
+  assets: many(postAssets),
+  publishJobs: many(publishJobs),
+  publications: many(postPublications),
+}));
+export const postAssetsRelations = relations(postAssets, ({ one }) => ({
+  post: one(posts, { fields: [postAssets.postId], references: [posts.id] }),
+}));
+export const publishJobsRelations = relations(publishJobs, ({ one }) => ({
+  post: one(posts, { fields: [publishJobs.postId], references: [posts.id] }),
+  project: one(projects, {
+    fields: [publishJobs.projectId],
+    references: [projects.id],
+  }),
+}));
+// post_id is set to null when the local draft is deleted; the copy remains.
+export const postPublicationsRelations = relations(
+  postPublications,
+  ({ one }) => ({
+    post: one(posts, {
+      fields: [postPublications.postId],
+      references: [posts.id],
+    }),
+    project: one(projects, {
+      fields: [postPublications.projectId],
+      references: [projects.id],
+    }),
+  }),
+);
+
+export const oauthClientsRelations = relations(
+  oauthClients,
+  ({ one, many }) => ({
+    user: one(users, { fields: [oauthClients.userId], references: [users.id] }),
+    resources: many(oauthClientResources),
+    refreshTokens: many(oauthRefreshTokens),
+    accessTokens: many(oauthAccessTokens),
+    consents: many(oauthConsents),
+  }),
+);
+export const oauthResourcesRelations = relations(
+  oauthResources,
+  ({ many }) => ({
+    clients: many(oauthClientResources),
+  }),
+);
+export const oauthClientResourcesRelations = relations(
+  oauthClientResources,
+  ({ one }) => ({
+    client: one(oauthClients, {
+      fields: [oauthClientResources.clientId],
+      references: [oauthClients.clientId],
+    }),
+    resource: one(oauthResources, {
+      fields: [oauthClientResources.resourceId],
+      references: [oauthResources.identifier],
+    }),
+  }),
+);
+export const oauthRefreshTokensRelations = relations(
+  oauthRefreshTokens,
+  ({ one, many }) => ({
+    client: one(oauthClients, {
+      fields: [oauthRefreshTokens.clientId],
+      references: [oauthClients.clientId],
+    }),
+    session: one(sessions, {
+      fields: [oauthRefreshTokens.sessionId],
+      references: [sessions.id],
+    }),
+    user: one(users, {
+      fields: [oauthRefreshTokens.userId],
+      references: [users.id],
+    }),
+    accessTokens: many(oauthAccessTokens),
+  }),
+);
+export const oauthAccessTokensRelations = relations(
+  oauthAccessTokens,
+  ({ one }) => ({
+    client: one(oauthClients, {
+      fields: [oauthAccessTokens.clientId],
+      references: [oauthClients.clientId],
+    }),
+    session: one(sessions, {
+      fields: [oauthAccessTokens.sessionId],
+      references: [sessions.id],
+    }),
+    user: one(users, {
+      fields: [oauthAccessTokens.userId],
+      references: [users.id],
+    }),
+    refreshToken: one(oauthRefreshTokens, {
+      fields: [oauthAccessTokens.refreshId],
+      references: [oauthRefreshTokens.id],
+    }),
+  }),
+);
+export const oauthConsentsRelations = relations(oauthConsents, ({ one }) => ({
+  client: one(oauthClients, {
+    fields: [oauthConsents.clientId],
+    references: [oauthClients.clientId],
+  }),
+  user: one(users, { fields: [oauthConsents.userId], references: [users.id] }),
+}));
